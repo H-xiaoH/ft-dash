@@ -1228,6 +1228,14 @@ table.table td {
   vertical-align: middle;
 }
 
+/* Trade values (prices, amounts, timestamps, durations) are single units that
+   must not break mid-value - the date used to split into "2026-" / "09-11" /
+   "21:27". Scoped to this table on purpose: the config table wraps long values
+   with `word-break: break-all`, and the wrapper scrolls sideways instead. */
+table.table--trades td {
+  white-space: nowrap;
+}
+
 table.table tbody tr {
   transition: background var(--dur) var(--ease);
 }
