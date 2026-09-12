@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useElementSize } from '@/composables/useElementSize'
+import { useChartPointer } from '@/composables/useChartPointer'
 import { fmtDate, fmtNumber } from '@/utils/format'
 import EmptyState from '../EmptyState.vue'
 
@@ -13,7 +14,6 @@ const props = defineProps({
 
 const wrap = ref(null)
 const width = useElementSize(wrap)
-const hoverIndex = ref(-1)
 
 const PAD = { top: 12, right: 62, bottom: 22, left: 6 }
 const VOLUME_RATIO = 0.22
@@ -88,13 +88,14 @@ const priceTicks = computed(() => {
   }))
 })
 
-function onMove(event) {
+// Mouse hover and touch scrubbing share this (see useChartPointer).
+const { hoverIndex, handlers } = useChartPointer((event) => {
   const geo = geometry.value
-  if (!geo) return
+  if (!geo) return null
   const rect = event.currentTarget.getBoundingClientRect()
   const index = Math.floor((event.clientX - rect.left - PAD.left) / geo.slot)
-  hoverIndex.value = index >= 0 && index < geo.bars.length ? index : -1
-}
+  return index >= 0 && index < geo.bars.length ? index : null
+})
 
 function candleTitle(bar) {
   return fmtDate(bar.candle.date)
@@ -203,8 +204,8 @@ function candleTitle(bar) {
           :width="width || 720"
           :height="height"
           fill="transparent"
-          @pointermove="onMove"
-          @pointerleave="hoverIndex = -1"
+          class="chart-hit"
+          v-on="handlers"
         />
       </svg>
 
