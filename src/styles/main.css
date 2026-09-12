@@ -613,6 +613,11 @@ svg {
 
 .stat {
   position: relative;
+  /* Without this the glow, being a positioned child, paints ON TOP of the
+     static label/value/foot text and washes the glyphs out. `isolate` makes
+     .stat a stacking context so a negative z-index child lands behind the
+     content but still above the card background. */
+  isolation: isolate;
   overflow: hidden;
   padding: 16px 17px;
   border-radius: var(--radius-lg);
@@ -628,15 +633,20 @@ svg {
      pixels keep the same amount of light at every breakpoint.
 
      A radial gradient replaces `filter: blur()` because a blurred child inside
-     an `overflow: hidden`, rounded parent is dropped by some mobile compositors. */
+     an `overflow: hidden`, rounded parent is dropped by some mobile compositors.
+
+     Kept small and pushed into the corner: parked on the value text it lifted the
+     background behind the glyphs to a ~2.5:1 contrast ratio. Here it stays above
+     4:1 while the corner still reads as a coloured wash. */
   --glow: var(--accent);
   position: absolute;
-  right: -70px;
-  bottom: -92px;
-  width: 240px;
-  height: 240px;
+  z-index: -1;
+  right: -58px;
+  bottom: -110px;
+  width: 200px;
+  height: 200px;
   pointer-events: none;
-  opacity: 0.5;
+  opacity: 0.42;
   background: radial-gradient(
     circle closest-side,
     var(--glow) 0%,
