@@ -13,7 +13,6 @@ const LEVELS = ['ALL', 'INFO', 'WARNING', 'ERROR', 'DEBUG', 'CRITICAL']
 const level = ref('ALL')
 const search = ref('')
 const limit = ref(bot.logLimit)
-const wrapToBottom = ref(true)
 const viewport = ref(null)
 
 /**
@@ -68,7 +67,6 @@ async function reload() {
 // Logs are part of the shell's polling set while this route is open, so the
 // toggle in the toolbar is the same global auto-refresh switch as the top bar.
 function scrollToBottom() {
-  if (!wrapToBottom.value) return
   requestAnimationFrame(() => {
     if (viewport.value) viewport.value.scrollTop = viewport.value.scrollHeight
   })
