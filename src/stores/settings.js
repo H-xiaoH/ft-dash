@@ -15,7 +15,6 @@ export const REFRESH_INTERVAL_MS = 1000
 
 export const useSettingsStore = defineStore('settings', () => {
   const theme = ref('dark')
-  const highlightProfitRows = ref(true)
   const tableDensity = ref('comfortable')
 
   function applyTheme(value) {
@@ -39,8 +38,6 @@ export const useSettingsStore = defineStore('settings', () => {
       saved = {}
     }
     if (saved.theme) theme.value = saved.theme
-    if (typeof saved.highlightProfitRows === 'boolean')
-      highlightProfitRows.value = saved.highlightProfitRows
     if (saved.tableDensity) tableDensity.value = saved.tableDensity
     applyTheme(theme.value)
   }
@@ -50,13 +47,12 @@ export const useSettingsStore = defineStore('settings', () => {
       KEY,
       JSON.stringify({
         theme: theme.value,
-        highlightProfitRows: highlightProfitRows.value,
         tableDensity: tableDensity.value,
       }),
     )
   }
 
-  watch([theme, highlightProfitRows, tableDensity], persist)
+  watch([theme, tableDensity], persist)
   watch(theme, applyTheme)
 
   // Follow the OS palette while in "auto" mode.
@@ -68,7 +64,6 @@ export const useSettingsStore = defineStore('settings', () => {
 
   return {
     theme,
-    highlightProfitRows,
     tableDensity,
     hydrate,
     applyTheme,
