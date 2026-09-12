@@ -748,6 +748,38 @@ check(
     Number.isFinite(lowest) && lowest - baseY < 0.01,
     `${(lowest - baseY).toFixed(3)}px below the baseline`,
   )
+
+  // Clamping the control points kept the curve in range but met every turn at a
+  // corner. Tangents limited instead of clamped are C1: the tangent arriving at a
+  // data point must equal the one leaving it.
+  const segments = [
+    ...d.matchAll(/C\s*(-?[\d.]+)\s+(-?[\d.]+),\s*(-?[\d.]+)\s+(-?[\d.]+),\s*(-?[\d.]+)\s+(-?[\d.]+)/g),
+  ].map((m) => m.slice(1, 7).map(Number))
+  check(
+    'charts: the smoothed curve emits one cubic per segment',
+    segments.length === values.length - 1,
+    `${segments.length} segments`,
+  )
+
+  let worstKink = 0
+  for (let i = 1; i < segments.length; i += 1) {
+    const [, , c2x, c2y, px, py] = segments[i - 1]
+    const [c1x, c1y] = segments[i]
+    worstKink = Math.max(worstKink, Math.abs((py - c2y) / (px - c2x) - (c1y - py) / (c1x - px)))
+  }
+  check(
+    'charts: the smoothed curve has no kinks at the data points',
+    worstKink < 1e-9,
+    `worst tangent jump ${worstKink}`,
+  )
+
+  // values = [0,0,0,0,5,0,0]: index 4 is an isolated peak, so its tangent has to
+  // be horizontal for the apex to round off instead of coming to a point.
+  check(
+    'charts: an isolated peak rounds off instead of cornering',
+    segments[3][3] === segments[3][5] && segments[4][1] === segments[3][5],
+    `into=${segments[3][3]} peak=${segments[3][5]} out=${segments[4][1]}`,
+  )
 }
 
 /* -------------------------------------------------- chart pointer / touch */
@@ -1084,12 +1116,20 @@ check(
     tradesHtml.includes('1.2345') && !tradesHtml.includes('1.234500'),
   )
 
-  // The marker is pinned to the cell edge, not inset into it.
-  const marker = css.match(/\.row-profit > td:first-child::before,[\s\S]*?\n\}/)?.[0] || ''
+  // The 用颜色标记盈亏行 setting was dropped; a leftover reference would leave a
+  // switch that does nothing, or a class nothing styles.
+  const fs = await import('node:fs')
+  const sources = [
+    'src/styles/main.css',
+    'src/components/TradesTable.vue',
+    'src/stores/settings.js',
+    'src/views/SettingsView.vue',
+  ]
+    .map((file) => fs.readFileSync(file, 'utf8'))
+    .join('\n')
   check(
-    'trades: the profit/loss marker hugs the left edge',
-    /left:\s*0\s*;/.test(marker),
-    marker.replace(/\s+/g, ' ').slice(0, 90),
+    'trades: the profit/loss row highlight is fully removed',
+    !/row-profit|row-loss|highlightProfitRows|标记盈亏行/.test(sources),
   )
 }
 
