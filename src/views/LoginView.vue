@@ -25,12 +25,26 @@ const router = useRouter()
  */
 const BUILD_BASE = import.meta.env.VITE_FT_BASE || ''
 
+/**
+ * A same-origin `/api` proxy only exists in development or behind a reverse proxy
+ * you control. On a static host (GitHub Pages, S3, ...) `/api/v1` resolves to the
+ * host itself and 404s, so offering it as the default there is actively misleading.
+ */
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '::1', '[::1]']
+const proxyPlausible = typeof location !== 'undefined' && LOCAL_HOSTS.includes(location.hostname)
+
+const DEFAULT_BASE = BUILD_BASE || (proxyPlausible ? '/api/v1' : '')
+
 const PRESETS = [
-  {
-    label: '同源代理',
-    value: '/api/v1',
-    hint: '由同源的开发服务器或反向代理转发到机器人，无需服务端 CORS 配置。',
-  },
+  ...(proxyPlausible
+    ? [
+        {
+          label: '同源代理',
+          value: '/api/v1',
+          hint: '由同源的开发服务器或反向代理转发到机器人，无需服务端 CORS 配置。',
+        },
+      ]
+    : []),
   ...(BUILD_BASE
     ? [
         {
@@ -43,7 +57,7 @@ const PRESETS = [
 ]
 
 const form = ref({
-  baseUrl: auth.baseUrl || BUILD_BASE || '/api/v1',
+  baseUrl: auth.baseUrl || DEFAULT_BASE,
   username: auth.username || '',
   password: '',
   remember: auth.remember !== false,
@@ -56,6 +70,9 @@ const activePreset = computed(() => PRESETS.find((p) => p.value === form.value.b
 const hint = computed(
   () => PRESETS.find((p) => p.value === form.value.baseUrl)?.hint || '',
 )
+
+/** Only shown when there is no usable default, i.e. a static host with no proxy. */
+const needsFullUrl = computed(() => !proxyPlausible && !BUILD_BASE)
 
 /**
  * Warn (but do not block) when credentials would cross the network in cleartext.
@@ -73,7 +90,11 @@ const insecureUrl = computed(() => {
 })
 
 const canSubmit = computed(
-  () => form.value.username.trim() && form.value.password && !auth.connecting,
+  () =>
+    Boolean(form.value.baseUrl.trim()) &&
+    Boolean(form.value.username.trim()) &&
+    Boolean(form.value.password) &&
+    !auth.connecting,
 )
 
 function usePreset(preset) {
@@ -82,6 +103,10 @@ function usePreset(preset) {
 }
 
 async function testConnection() {
+  if (!form.value.baseUrl.trim()) {
+    ping.value = { state: 'fail', message: '请先填写机器人的完整地址' }
+    return
+  }
   ping.value = { state: 'testing', message: '' }
   const url = buildUrl(normalizeBaseUrl(form.value.baseUrl), '/ping')
   try {
@@ -89,6 +114,12 @@ async function testConnection() {
     const payload = await res.json().catch(() => null)
     if (res.ok && payload?.status === 'pong') {
       ping.value = { state: 'ok', message: '连接成功，机器人在线' }
+    } else if (res.status === 404 && form.value.baseUrl.trim().startsWith('/')) {
+      // The classic static-hosting mistake: there is no /api proxy here.
+      ping.value = {
+        state: 'fail',
+        message: '本站没有 /api 代理（静态托管）。请改填机器人的完整地址，例如 https://bot.example.com/api/v1',
+      }
     } else {
       ping.value = { state: 'fail', message: `服务器返回 ${res.status}` }
     }
@@ -143,11 +174,14 @@ function toggleTheme() {
               v-model="form.baseUrl"
               class="input"
               type="text"
-              placeholder="/api/v1"
+              :placeholder="needsFullUrl ? 'https://bot.example.com/api/v1' : '/api/v1'"
               autocomplete="off"
               spellcheck="false"
             />
           </div>
+          <p v-if="needsFullUrl" class="tiny faint" style="line-height: 1.55">
+            本站是静态托管，没有 <code class="mono">/api</code> 代理，必须填机器人的完整地址。
+          </p>
           <div class="row wrap" style="gap: 6px">
             <button
               v-for="preset in PRESETS"
