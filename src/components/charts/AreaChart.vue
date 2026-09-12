@@ -96,7 +96,8 @@ const activePoint = computed(() => {
 })
 
 // Mouse hover and touch scrubbing share this (see useChartPointer).
-const { hoverIndex, handlers } = useChartPointer((event) => {
+const { hoverIndex, onPointerDown, onPointerMove, onPointerLeave, onPointerCancel } =
+  useChartPointer((event) => {
   const geo = geometry.value
   if (!geo || series.value.length < 2) return null
   const rect = event.currentTarget.getBoundingClientRect()
@@ -214,7 +215,10 @@ const axisLabels = computed(() => {
           :height="height"
           fill="transparent"
           class="chart-hit"
-          v-on="handlers"
+          @pointerdown="onPointerDown"
+          @pointermove="onPointerMove"
+          @pointerleave="onPointerLeave"
+          @pointercancel="onPointerCancel"
         />
       </svg>
 
