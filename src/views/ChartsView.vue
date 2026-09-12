@@ -3,16 +3,15 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { api } from '@/api/endpoints'
 import { useBotStore } from '@/stores/bot'
 import { fmtNumber, fmtPercentRatio } from '@/utils/format'
+import { filterPairs } from '@/utils/pairSearch'
 import CandleChart from '@/components/charts/CandleChart.vue'
 import Icon from '@/components/Icon.vue'
 
 const bot = useBotStore()
 
-const TIMEFRAMES = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d', '1w']
 const LIMITS = [100, 200, 300, 500, 800]
 
 const pair = ref('')
-const timeframe = ref('')
 const limit = ref(300)
 const autoRefresh = ref(true)
 const candles = ref([])
@@ -25,14 +24,12 @@ const pairs = computed(() => {
   return Array.isArray(list) ? [...list].sort() : []
 })
 
-const availableTimeframes = computed(() => {
-  const configured = bot.data.config?.timeframe
-  const list = new Set(TIMEFRAMES)
-  if (configured) list.add(configured)
-  return [...list].sort(
-    (a, b) => TIMEFRAMES.indexOf(a) - TIMEFRAMES.indexOf(b),
-  )
-})
+/**
+ * freqtrade only backfills candles for the timeframe the strategy is configured
+ * with - every other timeframe answers 200 with an empty series, so a picker
+ * would offer choices that can never render. Follow the configuration instead.
+ */
+const timeframe = computed(() => bot.data.config?.timeframe || '5m')
 
 const last = computed(() => candles.value[candles.value.length - 1] || null)
 const first = computed(() => candles.value[0] || null)
@@ -43,7 +40,7 @@ const change = computed(() => {
 })
 
 async function loadCandles() {
-  if (!pair.value || !timeframe.value) return
+  if (!pair.value) return
   loading.value = true
   error.value = ''
   try {
@@ -70,31 +67,90 @@ async function loadCandles() {
   }
 }
 
-// Default to the bot's configured pair/timeframe once config and whitelist arrive.
+/* -------------------------------------------------------------- pair picker */
+
+// One search box that doubles as the dropdown - the previous pair of controls
+// (a filter box *and* a select) had no obvious way to be used.
+const pairQuery = ref('')
+const comboOpen = ref(false)
+const highlight = ref(0)
+
+const pairMatches = computed(() => filterPairs(pairs.value, pairQuery.value))
+
+watch(pairQuery, () => {
+  highlight.value = 0
+})
+
+function openCombo() {
+  comboOpen.value = true
+  highlight.value = 0
+  // Clear the committed pair so the first keystroke filters instead of appending.
+  if (pairQuery.value === pair.value) pairQuery.value = ''
+}
+
+function closeCombo() {
+  comboOpen.value = false
+  pairQuery.value = pair.value
+}
+
+// `mousedown.prevent` on an option keeps the input focused, but touch input is
+// not guaranteed to send one, so a short grace period backs it up.
+let blurTimer = null
+function onBlur() {
+  clearTimeout(blurTimer)
+  blurTimer = setTimeout(closeCombo, 140)
+}
+
+function selectPair(item) {
+  clearTimeout(blurTimer)
+  pair.value = item
+  pairQuery.value = item
+  comboOpen.value = false
+}
+
+function move(step) {
+  if (!comboOpen.value) {
+    comboOpen.value = true
+    return
+  }
+  const total = pairMatches.value.length
+  if (!total) return
+  highlight.value = (highlight.value + step + total) % total
+}
+
+function pickHighlighted() {
+  const item = pairMatches.value[highlight.value]
+  if (item) selectPair(item)
+  else closeCombo()
+}
+
+function onEscape(event) {
+  event.target?.blur()
+  closeCombo()
+}
+
+/* ------------------------------------------------------------------ loading */
+
+// Default to the bot's first whitelisted pair once the whitelist arrives.
 watch(
   pairs,
   (list) => {
-    if (!pair.value && list.length) pair.value = list[0]
-  },
-  { immediate: true },
-)
-
-watch(
-  () => bot.data.config?.timeframe,
-  (value) => {
-    if (!timeframe.value) timeframe.value = value || '5m'
+    if (!pair.value && list.length) {
+      pair.value = list[0]
+      pairQuery.value = list[0]
+    }
   },
   { immediate: true },
 )
 
 watch([pair, timeframe, limit], () => {
-  if (pair.value && timeframe.value) loadCandles()
+  if (pair.value) loadCandles()
 })
 
-// Both default-selection watchers above run immediately, so they can settle
-// before this watcher exists (for example when arriving with data already
-// loaded). Load once explicitly so the chart is never left empty.
-if (pair.value && timeframe.value) loadCandles()
+// The default-selection watcher above runs immediately, so it can settle before
+// this watcher exists (for example when arriving with data already loaded).
+// Load once explicitly so the chart is never left empty.
+if (pair.value) loadCandles()
 
 let timer = null
 function startTimer() {
@@ -106,19 +162,9 @@ function startTimer() {
 }
 
 watch(autoRefresh, startTimer, { immediate: true })
-onBeforeUnmount(() => clearInterval(timer))
-
-/** The whitelist runs to ~90 pairs, so the picker is filtered by a search box. */
-const pairSearch = ref('')
-
-const filteredPairs = computed(() => {
-  const needle = pairSearch.value.trim().toUpperCase()
-  if (!needle) return pairs.value
-  const matches = pairs.value.filter((item) => item.toUpperCase().includes(needle))
-  // Keep the current selection in the list even when the search excludes it, so the
-  // picker never goes blank while a pair is loaded.
-  if (pair.value && !matches.includes(pair.value)) return [pair.value, ...matches]
-  return matches
+onBeforeUnmount(() => {
+  clearInterval(timer)
+  clearTimeout(blurTimer)
 })
 </script>
 
@@ -126,7 +172,9 @@ const filteredPairs = computed(() => {
   <div class="page-head">
     <div>
       <h2 class="page-title">K线图</h2>
-      <p class="page-sub">实时取自运行中的机器人（pair_candles），无需额外的行情接口</p>
+      <p class="page-sub">
+        实时取自运行中的机器人（pair_candles），周期跟随策略配置的 {{ timeframe }}
+      </p>
     </div>
     <div class="row wrap" style="gap: 8px">
       <label class="checkbox">
@@ -143,24 +191,51 @@ const filteredPairs = computed(() => {
   <div class="card">
     <div class="card-head" style="flex-wrap: wrap; gap: 12px">
       <div class="row wrap" style="gap: 10px">
-        <div class="input-group" style="max-width: 170px">
+        <div class="input-group combo" style="width: 220px">
           <span class="input-icon"><Icon name="search" :size="15" /></span>
-          <input v-model="pairSearch" class="input" placeholder="搜索交易对" spellcheck="false" />
+          <input
+            v-model="pairQuery"
+            class="input"
+            type="text"
+            placeholder="搜索交易对"
+            spellcheck="false"
+            autocomplete="off"
+            role="combobox"
+            :aria-expanded="comboOpen"
+            @focus="openCombo"
+            @input="comboOpen = true"
+            @blur="onBlur"
+            @keydown.down.prevent="move(1)"
+            @keydown.up.prevent="move(-1)"
+            @keydown.enter.prevent="pickHighlighted"
+            @keydown.esc="onEscape"
+          />
+          <ul v-if="comboOpen" class="combo-list">
+            <li v-if="!pairs.length" class="combo-empty">白名单为空</li>
+            <li v-else-if="!pairMatches.length" class="combo-empty">无匹配交易对</li>
+            <template v-else>
+              <li
+                v-for="(item, index) in pairMatches"
+                :key="item"
+                class="combo-item"
+                :class="{ 'is-active': index === highlight, 'is-selected': item === pair }"
+                @mousedown.prevent="selectPair(item)"
+                @mouseenter="highlight = index"
+              >
+                <span class="mono">{{ item }}</span>
+                <Icon v-if="item === pair" name="check" :size="13" />
+              </li>
+            </template>
+          </ul>
         </div>
-
-        <select v-model="pair" class="select" style="width: auto; min-width: 160px">
-          <option v-if="!pairs.length" value="">白名单为空</option>
-          <option v-else-if="!filteredPairs.length" value="">无匹配交易对</option>
-          <option v-for="item in filteredPairs" :key="item" :value="item">{{ item }}</option>
-        </select>
-
-        <select v-model="timeframe" class="select" style="width: auto">
-          <option v-for="item in availableTimeframes" :key="item" :value="item">{{ item }}</option>
-        </select>
 
         <select v-model.number="limit" class="select" style="width: auto">
           <option v-for="item in LIMITS" :key="item" :value="item">最近 {{ item }} 根</option>
         </select>
+
+        <span class="badge" title="freqtrade 只为策略配置的周期回填历史K线">
+          周期 {{ timeframe }}
+        </span>
       </div>
 
       <div class="row wrap" style="gap: 12px">
