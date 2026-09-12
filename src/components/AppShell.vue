@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { CORE_KEYS, useBotStore } from '@/stores/bot'
+import { REFRESH_INTERVAL_MS } from '@/stores/settings'
 import { useSettingsStore } from '@/stores/settings'
 import { useUiStore } from '@/stores/ui'
 import { applyUpdate, installAvailable, promptInstall, swUpdateReady } from '@/pwa/register'
@@ -106,19 +107,14 @@ function stopPolling() {
 
 function startPolling() {
   stopPolling()
-  const interval = settings.effectiveRefreshMs
-  if (!interval || !auth.authenticated) return
+  if (!auth.authenticated) return
   timer = setInterval(() => {
     if (document.hidden) return
     refreshPolledKeys()
-  }, interval)
+  }, REFRESH_INTERVAL_MS)
 }
 
-watch(
-  () => [settings.effectiveRefreshMs, auth.authenticated],
-  () => startPolling(),
-  { immediate: true },
-)
+watch(() => auth.authenticated, () => startPolling(), { immediate: true })
 
 // Fetch what the freshly opened page needs. The first entry shows skeletons;
 // later navigations update quietly so the page does not flash.
