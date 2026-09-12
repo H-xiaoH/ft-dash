@@ -158,17 +158,6 @@ const statusIcon = {
             </button>
           </div>
         </div>
-
-        <label class="row-between">
-          <span class="small muted">用颜色标记盈亏行</span>
-          <span
-            class="switch"
-            :class="{ on: settings.highlightProfitRows }"
-            role="switch"
-            :aria-checked="settings.highlightProfitRows"
-            @click="settings.highlightProfitRows = !settings.highlightProfitRows"
-          />
-        </label>
       </div>
     </div>
   </div>
