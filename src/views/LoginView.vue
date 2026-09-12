@@ -146,10 +146,6 @@ async function submit() {
     /* the store exposes the message through auth.error */
   }
 }
-
-function toggleTheme() {
-  settings.theme = settings.theme === 'dark' ? 'light' : 'dark'
-}
 </script>
 
 <template>
@@ -157,7 +153,7 @@ function toggleTheme() {
     <div class="login-card">
       <div class="row-between" style="align-items: flex-start">
         <div class="login-logo"><Icon name="candles" :size="26" /></div>
-        <button class="icon-btn" :title="settings.theme === 'dark' ? '浅色' : '深色'" @click="toggleTheme">
+        <button class="icon-btn" :title="settings.theme === 'dark' ? '浅色' : '深色'" @click="settings.toggleTheme()">
           <Icon :name="settings.theme === 'dark' ? 'sun' : 'moon'" :size="17" />
         </button>
       </div>
