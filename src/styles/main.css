@@ -1271,30 +1271,6 @@ table.table--compact th {
  * <tr>, because Safari does not render box-shadow on table rows (the marker showed
  * up in Chrome on Android but not on desktop).
  */
-.row-profit > td:first-child,
-.row-loss > td:first-child {
-  position: relative;
-}
-
-.row-profit > td:first-child::before,
-.row-loss > td:first-child::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 6px;
-  bottom: 6px;
-  width: 3px;
-  border-radius: var(--radius-full);
-}
-
-.row-profit > td:first-child::before {
-  background: var(--profit);
-}
-
-.row-loss > td:first-child::before {
-  background: var(--loss);
-}
-
 /* =========================================================================
    Progress / meters
    ========================================================================= */
