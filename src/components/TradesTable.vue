@@ -1,7 +1,6 @@
 <script setup>
 import { computed } from 'vue'
 import { useBotActions } from '@/composables/useBotActions'
-import { useSettingsStore } from '@/stores/settings'
 import {
   fmtDuration,
   fmtNumber,
@@ -23,7 +22,6 @@ import PairPill from './PairPill.vue'
 const props = defineProps({
   trades: { type: Array, default: () => [] },
   mode: { type: String, default: 'open' }, // open | closed
-  compact: { type: Boolean, default: false },
   actions: { type: Boolean, default: true },
   emptyTitle: { type: String, default: '暂无交易' },
   emptyMessage: { type: String, default: '' },
@@ -32,10 +30,8 @@ const props = defineProps({
 const emit = defineEmits(['select'])
 
 const actionsApi = useBotActions()
-const settings = useSettingsStore()
 
 const isOpen = computed(() => props.mode === 'open')
-const isCompact = computed(() => props.compact || settings.tableDensity === 'compact')
 
 function ratioOf(trade) {
   return tradeProfitRatio(trade)
@@ -59,7 +55,7 @@ function durationOf(trade) {
     />
 
     <div v-else class="table-wrap">
-      <table class="table table--trades" :class="isCompact ? 'table--compact' : ''">
+      <table class="table table--trades table--compact">
         <thead>
           <tr>
             <th>交易对</th>
