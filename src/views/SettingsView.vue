@@ -7,9 +7,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
 import { useUiStore } from '@/stores/ui'
-import { fmtTime } from '@/utils/format'
 import Icon from '@/components/Icon.vue'
-import EmptyState from '@/components/EmptyState.vue'
 
 const auth = useAuthStore()
 const bot = useBotStore()
@@ -47,12 +45,6 @@ async function clearLocalData() {
   bot.reset()
   localStorage.clear()
   location.reload()
-}
-
-const statusIcon = {
-  pending: 'clock',
-  ok: 'check',
-  fail: 'alert',
 }
 </script>
 
@@ -168,38 +160,6 @@ const statusIcon = {
         <p class="tiny faint">
           iOS Safari：点击分享按钮 → 「添加到主屏幕」。Android Chrome：菜单 → 「安装应用」。
         </p>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title"><Icon name="clock" :size="16" /> 命令记录</div>
-        <button class="btn btn--xs btn--ghost" @click="ui.clearLog()">清空</button>
-      </div>
-      <div class="card-body card-body--flush">
-        <EmptyState v-if="!ui.commands.length" icon="clock" title="还没有发送过命令" />
-        <div v-else class="table-wrap" style="max-height: 300px; overflow-y: auto">
-          <table class="table table--compact">
-            <tbody>
-              <tr v-for="item in ui.commands" :key="item.id">
-                <td style="width: 24px">
-                  <Icon
-                    :name="statusIcon[item.status]"
-                    :size="14"
-                    :class="
-                      item.status === 'ok' ? 'profit' : item.status === 'fail' ? 'loss' : 'faint'
-                    "
-                  />
-                </td>
-                <td class="small">{{ item.action }}</td>
-                <td class="tiny faint truncate" style="max-width: 160px">
-                  {{ item.detail || '' }}
-                </td>
-                <td class="tiny faint right nowrap">{{ fmtTime(item.at) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   </div>
