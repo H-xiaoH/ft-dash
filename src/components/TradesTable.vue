@@ -76,7 +76,6 @@ function rowClass(trade) {
             <th class="num">盈亏</th>
             <th class="num">{{ isOpen ? '浮动' : '盈亏额' }}</th>
             <th class="hide-xs">{{ isOpen ? '持仓时长' : '平仓时间' }}</th>
-            <th class="hide-xs">标签</th>
             <th v-if="actions" class="right">操作</th>
           </tr>
         </thead>
@@ -124,28 +123,6 @@ function rowClass(trade) {
                 <div class="small">{{ trade.close_date?.slice(0, 16).replace('T', ' ') || '—' }}</div>
                 <div class="tiny faint">{{ fmtDuration(durationOf(trade)) }}</div>
               </template>
-            </td>
-
-            <td class="hide-xs">
-              <div class="col" style="gap: 3px; align-items: flex-start">
-                <span v-if="trade.enter_tag" class="badge tiny truncate" style="max-width: 120px">
-                  {{ trade.enter_tag }}
-                </span>
-                <span
-                  v-if="!isOpen && trade.exit_reason"
-                  class="badge tiny truncate"
-                  :class="
-                    String(trade.exit_reason).toLowerCase().includes('roi')
-                      ? 'badge--profit'
-                      : String(trade.exit_reason).toLowerCase().includes('stop')
-                        ? 'badge--loss'
-                        : ''
-                  "
-                  style="max-width: 120px"
-                >
-                  {{ trade.exit_reason }}
-                </span>
-              </div>
             </td>
 
             <td v-if="actions" class="right" @click.stop>
