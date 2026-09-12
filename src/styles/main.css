@@ -559,8 +559,15 @@ svg {
   padding: 18px;
 }
 
+/*
+ * A flush body holds tables that run to the card edge. Carrying the card's bottom
+ * corners keeps a row's hover fill (and anything else flush) inside the rounded
+ * shape instead of painting a square corner over it.
+ */
 .card-body--flush {
   padding: 0;
+  border-radius: 0 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px);
+  overflow: hidden;
 }
 
 .card-body--tight {
@@ -1190,31 +1197,38 @@ table.table--compact th {
 }
 
 /*
- * Profit/loss marker down the left edge of a row.
+ * Profit/loss marker on the left of a row: a short straight bar.
  *
- * Painted on the row's first cell rather than on the <tr>: Safari does not render
- * box-shadow on table rows, so the marker simply did not appear on desktop while
- * working fine in Chrome on Android.
+ * It is inset from the row's edges on purpose. A bar flush against the card edge
+ * runs into the card's rounded bottom corner, where the only options are to let it
+ * overflow or to clip it into a curve - so it is kept clear of that corner instead.
+ *
+ * Painted as a pseudo-element on the first cell rather than as a box-shadow on the
+ * <tr>, because Safari does not render box-shadow on table rows (the marker showed
+ * up in Chrome on Android but not on desktop).
  */
-.row-profit > td:first-child {
-  box-shadow: inset 3px 0 0 var(--profit);
-}
-
+.row-profit > td:first-child,
 .row-loss > td:first-child {
-  box-shadow: inset 3px 0 0 var(--loss);
+  position: relative;
 }
 
-/*
- * Tables sit flush against the card edge, so the last row has to carry the card's
- * bottom corners. Without this the marker above is drawn straight through the
- * rounded corner and looks like it is overflowing the card.
- */
-table.table tbody tr:last-child > td:first-child {
-  border-bottom-left-radius: calc(var(--radius-lg) - 1px);
+.row-profit > td:first-child::before,
+.row-loss > td:first-child::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: var(--radius-full);
 }
 
-table.table tbody tr:last-child > td:last-child {
-  border-bottom-right-radius: calc(var(--radius-lg) - 1px);
+.row-profit > td:first-child::before {
+  background: var(--profit);
+}
+
+.row-loss > td:first-child::before {
+  background: var(--loss);
 }
 
 /* =========================================================================
