@@ -780,61 +780,62 @@ for (const path of ['/', '/stats']) {
 /* ------------------------------------------------- donut ring geometry */
 
 {
-  /**
-   * Slice geometry straight out of the rendered SVG. `dashoffset` is negative, so
-   * `-dashoffset` is where the slice starts, measured in arc length; the visible gap
-   * after a slice is the distance to the next slice's start minus what it draws.
-   */
-  const slicesFor = (path) => {
+  const donutSvg = (path) => {
     const html = renderedPages.get(path) || ''
-    const svg = html.match(/<svg[^>]*viewBox="0 0 100 100"[^>]*>([\s\S]*?)<\/svg>/)
-    if (!svg) return []
-    return [...svg[1].matchAll(/<circle\b[^>]*stroke-dasharray="([\d.]+) ([\d.]+)"[^>]*stroke-dashoffset="(-?[\d.]+)"[^>]*>/g)]
-      .map((m) => ({ drawn: Number(m[1]), circumference: Number(m[2]), start: -Number(m[3]) }))
+    const m = html.match(/<svg[^>]*viewBox="0 0 100 100"[^>]*>([\s\S]*?)<\/svg>/)
+    return m ? m[1] : ''
   }
 
-  /** Visible gap after each slice, wrapping past the seam back to the first. */
-  const gapsFor = (slices) => {
-    const c = slices[0]?.circumference ?? 0
-    return slices.map((slice, i) => {
-      const next = i + 1 < slices.length ? slices[i + 1].start : c + slices[0].start
-      return next - slice.start - slice.drawn
+  /**
+   * Slices are arcs, so the gap between two of them is a real geometric distance.
+   * Convert each endpoint back to an angle (clockwise from 12 o'clock) and measure
+   * the gap either side of every boundary - including the 12 o'clock seam, which is
+   * where the old dashed-circle version rendered visibly narrower than the rest.
+   */
+  const slicesOf = (path) =>
+    [...donutSvg(path).matchAll(/<path[^>]*d="M ([\d.eE+-]+) ([\d.eE+-]+) A ([\d.]+) [\d.]+ 0 [01] 1 ([\d.eE+-]+) ([\d.eE+-]+)"/g)]
+      .map((m) => ({
+        radius: Number(m[3]),
+        from: Math.atan2(Number(m[1]) - 50, 50 - Number(m[2])),
+        to: Math.atan2(Number(m[4]) - 50, 50 - Number(m[5])),
+      }))
+      .map((a) => ({ radius: a.radius, from: ((a.from % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI), to: ((a.to % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) }))
+
+  /** Visible gap in viewBox units, after each slice, wrapping past the seam. */
+  const gapsOf = (slices) =>
+    slices.map((slice, i) => {
+      const next = i + 1 < slices.length ? slices[i + 1].from : slices[0].from + 2 * Math.PI
+      return (next - slice.to) * slice.radius
     })
-  }
 
-  // The dashboard fixtures hold a single win/loss slice - the case that showed a
-  // seam, because the inter-slice gap was subtracted with nothing to separate.
-  const single = slicesFor('/')
-  check('donut: a single slice renders', single.length === 1, `${single.length} slices`)
+  // The dashboard holds a single win/loss slice - the case that used to show a seam.
+  const single = donutSvg('/')
   check(
-    'donut: a single slice draws a closed ring (no seam)',
-    single.length === 1 && Math.abs(single[0].drawn - single[0].circumference) < 0.01,
-    single.length ? `drawn=${single[0].drawn} circumference=${single[0].circumference}` : '',
+    'donut: a single slice is drawn as a plain closed ring (no dash pattern)',
+    !/stroke-dasharray/.test(single) && /<circle[^>]*r="38"[^>]*stroke="var\(--profit\)"/.test(single),
+    'expected one continuous circle with no dasharray',
   )
-  check(
-    'donut: a single slice has no gap at all',
-    single.length === 1 && gapsFor(single).every((g) => Math.abs(g) < 0.01),
-    single.length ? gapsFor(single).map((g) => g.toFixed(3)).join(', ') : '',
-  )
+  check('donut: a single slice renders no arcs', slicesOf('/').length === 0, `${slicesOf('/').length} paths`)
 
-  // Several slices must still be separated, evenly, and never overlap.
-  const many = slicesFor('/stats')
-  const manyGaps = gapsFor(many)
-  check('donut: multiple slices render', many.length > 1, `${many.length} slices`)
+  // Multiple slices: every gap must be identical, seam included.
+  const many = slicesOf('/stats')
+  const gaps = gapsOf(many)
+  check('donut: multiple slices render as arcs', many.length > 1, `${many.length} arcs`)
+  check('donut: slices do not use a dash pattern', !/stroke-dasharray/.test(donutSvg('/stats')))
   check(
-    'donut: multi-slice arcs never exceed the circumference',
-    many.every((a) => a.drawn > 0 && a.drawn < a.circumference),
-    many.map((a) => a.drawn.toFixed(1)).join(', '),
+    'donut: every gap is uniform, including the 12 o\'clock seam',
+    gaps.length > 1 && gaps.every((g) => Math.abs(g - 2) < 0.02),
+    gaps.map((g) => g.toFixed(4)).join(', '),
   )
   check(
-    'donut: multi-slice gaps are uniform and equal the design gap',
-    manyGaps.every((g) => Math.abs(g - 2) < 0.02),
-    manyGaps.map((g) => g.toFixed(3)).join(', '),
+    'donut: the seam gap is not narrower than the internal ones',
+    gaps.length > 1 && Math.abs(gaps[gaps.length - 1] - gaps[0]) < 0.02,
+    `seam=${gaps[gaps.length - 1]?.toFixed(4)} first=${gaps[0]?.toFixed(4)}`,
   )
   check(
-    'donut: multi-slice total equals circumference',
-    Math.abs(many.reduce((sum, a) => sum + a.drawn, 0) + manyGaps.reduce((a, b) => a + b, 0) - many[0].circumference) < 0.02,
-    'drawn + gaps should be a full circle',
+    'donut: arcs plus gaps add up to a full circle',
+    Math.abs(many.reduce((sum, s) => sum + (((s.to - s.from) + 2 * Math.PI) % (2 * Math.PI)) * s.radius, 0) + gaps.reduce((a, b) => a + b, 0) - 2 * Math.PI * (many[0]?.radius ?? 0)) < 0.05,
+    'sweep + gaps should equal the circumference',
   )
 }
 
