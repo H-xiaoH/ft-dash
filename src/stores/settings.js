@@ -16,6 +16,10 @@ export const REFRESH_INTERVAL_MS = 1000
 export const useSettingsStore = defineStore('settings', () => {
   const theme = ref('dark')
 
+  function toggleTheme() {
+    theme.value = theme.value === 'dark' ? 'light' : 'dark'
+  }
+
   function applyTheme(value) {
     const resolved =
       value === 'auto'
@@ -61,6 +65,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   return {
     theme,
+    toggleTheme,
     hydrate,
     applyTheme,
   }
