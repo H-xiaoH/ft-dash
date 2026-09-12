@@ -8,7 +8,6 @@ import { computed } from 'vue'
 const props = defineProps({
   name: { type: String, required: true },
   size: { type: [Number, String], default: 20 },
-  stroke: { type: [Number, String], default: 1.8 },
 })
 
 const ICONS = {
@@ -70,7 +69,6 @@ const ICONS = {
   list: '<path d="M8 6.5h12M8 12h12M8 17.5h12"/><circle cx="4" cy="6.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="4" cy="17.5" r="1.2" fill="currentColor" stroke="none"/>',
   eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>',
   activity: '<path d="M3 12h4l2.5-7 4.5 14 2.5-7h4.5"/>',
-  pie: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5V12l6.2 5.8"/>',
   shield: '<path d="M12 3 20 6v5.5c0 4.6-3.2 8.3-8 9.5-4.8-1.2-8-4.9-8-9.5V6Z"/>',
   layers: '<path d="M12 3 3 8l9 5 9-5Z"/><path d="M3 13l9 5 9-5"/>',
   database:
@@ -93,7 +91,7 @@ const markup = computed(() => ICONS[props.name] || ICONS.dot)
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    :stroke-width="stroke"
+    :stroke-width="1.8"
     stroke-linecap="round"
     stroke-linejoin="round"
     aria-hidden="true"
