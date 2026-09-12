@@ -1,0 +1,67 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Required by actions/deploy-pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; queue the newest and cancel the stale one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The suite stubs fetch, so it needs no credentials and no network.
+      # A red test blocks the deploy.
+      - name: Test
+        run: npm run smoke
+
+      - name: Build
+        # Pages serves from /<repo>/, so the base path cannot be "/".
+        # VITE_FT_BASE is optional: when the `FT_BASE` repository variable is set,
+        # the login page pre-fills it. Unset keeps the hostname out of the bundle.
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/
+          VITE_FT_BASE: ${{ vars.FT_BASE }}
+        run: npm run build
+
+      - name: Add SPA fallback
+        # Pages has no rewrite rules; deep links like /trades would 404 without this.
+        run: cp dist/index.html dist/404.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
