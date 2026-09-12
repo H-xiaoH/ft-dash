@@ -124,11 +124,10 @@ export const useAuthStore = defineStore('auth', () => {
   /** Changing the host invalidates the stored credentials. */
   function setBaseUrl(value) {
     const next = normalizeBaseUrl(value)
-    if (next === baseUrl.value) return false
+    if (next === baseUrl.value) return
     baseUrl.value = next
     session.baseUrl = next
     logout()
-    return true
   }
 
   function forgetEverything() {
