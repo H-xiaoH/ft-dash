@@ -53,7 +53,8 @@ const geometry = computed(() => {
 })
 
 // A tap on empty space should dismiss, so return the index only when it hits a bar.
-const { hoverIndex, handlers } = useChartPointer((event) => {
+const { hoverIndex, onPointerDown, onPointerMove, onPointerLeave, onPointerCancel } =
+  useChartPointer((event) => {
   const geo = geometry.value
   if (!geo) return null
   const rect = event.currentTarget.getBoundingClientRect()
@@ -117,7 +118,10 @@ const tickLabels = computed(() => {
           :height="height"
           fill="transparent"
           class="chart-hit"
-          v-on="handlers"
+          @pointerdown="onPointerDown"
+          @pointermove="onPointerMove"
+          @pointerleave="onPointerLeave"
+          @pointercancel="onPointerCancel"
         />
       </svg>
 
