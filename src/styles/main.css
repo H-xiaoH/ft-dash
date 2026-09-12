@@ -1280,7 +1280,7 @@ table.table--compact th {
 .row-loss > td:first-child::before {
   content: '';
   position: absolute;
-  left: 6px;
+  left: 0;
   top: 6px;
   bottom: 6px;
   width: 3px;
