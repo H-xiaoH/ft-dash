@@ -198,19 +198,6 @@ async function openStrategy(name) {
           <span class="small muted">{{ item.label }}</span>
           <span class="small mono">{{ item.value }}</span>
         </div>
-
-        <pre
-          class="mono tiny"
-          style="
-            margin-top: 12px;
-            padding: 12px;
-            background: var(--surface-2);
-            border-radius: 10px;
-            overflow: auto;
-            max-height: 160px;
-            color: var(--text-dim);
-          "
-        >{{ JSON.stringify({ health, sysinfo }, null, 2) }}</pre>
       </div>
     </div>
   </div>
@@ -304,13 +291,3 @@ async function openStrategy(name) {
   </Teleport>
 </template>
 
-<style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 180ms var(--ease);
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-</style>
