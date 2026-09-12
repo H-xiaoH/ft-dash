@@ -5,7 +5,7 @@ import { ref } from 'vue'
  * pointerleave as the finger lifts. Anything that only listens for
  * enter/leave therefore flickers and is unusable on a phone.
  */
-export function isMousePointer(event) {
+function isMousePointer(event) {
   return event.pointerType === 'mouse'
 }
 
@@ -63,39 +63,5 @@ export function useChartPointer(resolveIndex) {
     hoverIndex.value = -1
   }
 
-  function clear() {
-    hoverIndex.value = -1
-  }
-
-  return { hoverIndex, clear, onPointerDown, onPointerMove, onPointerLeave, onPointerCancel }
-}
-
-/**
- * Selection for discrete targets (donut slices and their legend rows).
- *
- * Mouse keeps the old behaviour: preview on hover, clear on leave. Touch has no
- * hover, so selection is toggled by `click` - which the browser only fires for a
- * real tap, never for a scroll - and it stays put until tapped again. That is why
- * the toggle is a separate entry point from `preview`.
- */
-export function useSliceSelection() {
-  const activeIndex = ref(-1)
-
-  function toggle(index) {
-    activeIndex.value = activeIndex.value === index ? -1 : index
-  }
-
-  function preview(index, event) {
-    if (isMousePointer(event)) activeIndex.value = index
-  }
-
-  function clearOnLeave(event) {
-    if (isMousePointer(event)) activeIndex.value = -1
-  }
-
-  function clear() {
-    activeIndex.value = -1
-  }
-
-  return { activeIndex, toggle, preview, clearOnLeave, clear }
+  return { hoverIndex, onPointerDown, onPointerMove, onPointerLeave, onPointerCancel }
 }
