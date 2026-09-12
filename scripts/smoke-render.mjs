@@ -415,15 +415,23 @@ const server = await createServer({
   logLevel: 'warn',
 })
 
-const [{ default: App }, routerModule, botModule, { useAuthStore }, clientModule, redirectModule] =
-  await Promise.all([
-    server.ssrLoadModule('/src/App.vue'),
-    server.ssrLoadModule('/src/router/index.js'),
-    server.ssrLoadModule('/src/stores/bot.js'),
-    server.ssrLoadModule('/src/stores/auth.js'),
-    server.ssrLoadModule('/src/api/client.js'),
-    server.ssrLoadModule('/src/utils/safeRedirect.js'),
-  ])
+const [
+  { default: App },
+  routerModule,
+  botModule,
+  { useAuthStore },
+  clientModule,
+  redirectModule,
+  pointerModule,
+] = await Promise.all([
+  server.ssrLoadModule('/src/App.vue'),
+  server.ssrLoadModule('/src/router/index.js'),
+  server.ssrLoadModule('/src/stores/bot.js'),
+  server.ssrLoadModule('/src/stores/auth.js'),
+  server.ssrLoadModule('/src/api/client.js'),
+  server.ssrLoadModule('/src/utils/safeRedirect.js'),
+  server.ssrLoadModule('/src/composables/useChartPointer.js'),
+])
 
 const { routes, ROUTER_BASE } = routerModule
 const { CORE_KEYS, useBotStore } = botModule
@@ -691,6 +699,82 @@ for (const path of ['/', '/stats']) {
 
   const persisted = JSON.parse(localStorage.getItem('ft.auth') || '{}')
   check('remember=false: base url still persisted', persisted.baseUrl === 'https://bot.example.com/api/v1')
+}
+
+/* -------------------------------------------------- chart pointer / touch */
+
+{
+  const { useChartPointer } = pointerModule
+  const event = (over = {}) => ({
+    pointerType: 'mouse',
+    buttons: 0,
+    pointerId: 1,
+    clientX: 10,
+    currentTarget: { setPointerCapture() {} },
+    ...over,
+  })
+
+  // Touch pointers never hover: a tap fires no pointermove, and lifting the finger
+  // destroys the pointer, which fires pointerleave. Those are the broken cases.
+  const touch = useChartPointer((e) => e.clientX)
+
+  touch.handlers.onPointerDown(event({ pointerType: 'touch', clientX: 7 }))
+  check('touch: a tap shows the value', touch.hoverIndex.value === 7, String(touch.hoverIndex.value))
+
+  touch.handlers.onPointerMove(event({ pointerType: 'touch', buttons: 0, clientX: 99 }))
+  check('touch: a lifted finger does not scrub', touch.hoverIndex.value === 7, String(touch.hoverIndex.value))
+
+  touch.handlers.onPointerMove(event({ pointerType: 'touch', buttons: 1, clientX: 42 }))
+  check('touch: dragging scrubs', touch.hoverIndex.value === 42, String(touch.hoverIndex.value))
+
+  touch.handlers.onPointerLeave(event({ pointerType: 'touch' }))
+  check('touch: lifting keeps the value readable', touch.hoverIndex.value === 42, String(touch.hoverIndex.value))
+
+  touch.handlers.onPointerCancel(event({ pointerType: 'touch' }))
+  check('touch: a scroll taking over clears it', touch.hoverIndex.value === -1, String(touch.hoverIndex.value))
+
+  const mouse = useChartPointer((e) => e.clientX)
+  mouse.handlers.onPointerMove(event({ clientX: 5 }))
+  check('mouse: hovering tracks without pressing', mouse.hoverIndex.value === 5)
+  mouse.handlers.onPointerLeave(event({}))
+  check('mouse: leaving clears', mouse.hoverIndex.value === -1)
+
+  let captured = false
+  const capturing = useChartPointer((e) => e.clientX)
+  capturing.handlers.onPointerDown(
+    event({
+      pointerType: 'touch',
+      clientX: 3,
+      currentTarget: {
+        setPointerCapture: () => {
+          captured = true
+        },
+      },
+    }),
+  )
+  check('touch: pointer capture is requested so drags survive leaving the plot', captured)
+
+  const throwing = useChartPointer((e) => e.clientX)
+  throwing.handlers.onPointerDown(
+    event({
+      pointerType: 'touch',
+      clientX: 9,
+      currentTarget: {
+        setPointerCapture() {
+          throw new Error('nope')
+        },
+      },
+    }),
+  )
+  check(
+    'touch: a capture failure still shows the value',
+    throwing.hoverIndex.value === 9,
+    String(throwing.hoverIndex.value),
+  )
+
+  const outOfRange = useChartPointer(() => null)
+  outOfRange.handlers.onPointerDown(event({ clientX: 1 }))
+  check('a resolver returning null leaves the value untouched', outOfRange.hoverIndex.value === -1)
 }
 
 /* ------------------------------------------------- routing / subpath deploy */
