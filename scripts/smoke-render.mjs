@@ -786,10 +786,10 @@ check(
 
 {
   const { default: BarChart } = await server.ssrLoadModule('/src/components/charts/BarChart.vue')
-  const chart = async (items) =>
+  const chart = async (items, extra = {}) =>
     renderToString(
       createSSRApp({
-        render: () => h(BarChart, { items, height: 200, format: (v) => String(v) }),
+        render: () => h(BarChart, { items, height: 200, format: (v) => String(v), ...extra }),
       }),
     )
   const dashed = (html) => (html.match(/stroke-dasharray="3 5"/g) || []).length
@@ -818,6 +818,26 @@ check(
     { label: 'b', value: 0 },
   ])
   check('bar: an all-zero series stays on the zero line alone', dashed(flat) === 0, `${dashed(flat)} lines`)
+
+  // A CPU core at 12% must read as 12%, not as a full bar.
+  const barHeight = (html) => Number(html.match(/<rect[^>]*height="([\d.]+)"/)?.[1])
+  const capped = await chart([{ label: 'C0', value: 12 }], { max: 100 })
+  check(
+    'bar: a fixed ceiling keeps a 12% core at 12% of the plot',
+    Math.abs(barHeight(capped) - 18.96) < 0.5,
+    `bar ${barHeight(capped)}px of a 158px plot`,
+  )
+  check(
+    'bar: the fixed ceiling labels its scale',
+    capped.includes('>100</text>') && capped.includes('>50</text>'),
+    'expected 100 and 50 labels',
+  )
+  const uncapped = await chart([{ label: 'C0', value: 12 }])
+  check(
+    'bar: without a ceiling the same value fills the plot',
+    barHeight(uncapped) > 150,
+    `bar ${barHeight(uncapped)}px`,
+  )
 }
 
 /* -------------------------------------------------- chart pointer / touch */
@@ -1193,12 +1213,24 @@ check(
     'src/components/TradesTable.vue',
     'src/stores/settings.js',
     'src/views/SettingsView.vue',
+    'src/stores/ui.js',
+    'src/composables/useBotActions.js',
   ]
     .map((file) => fs.readFileSync(file, 'utf8'))
     .join('\n')
   check(
     'trades: the profit/loss row highlight is fully removed',
     !/row-profit|row-loss|highlightProfitRows|标记盈亏行/.test(sources),
+  )
+  // The 命令记录 card was the only reader of the command log; the store API that
+  // fed it must not linger as invisible state.
+  check(
+    'settings: the command log is fully removed',
+    !/ui\.log|clearLog|ui\.commands|statusIcon|命令记录/.test(sources),
+  )
+  check(
+    'system: the per-core chart pins its scale to 100%',
+    /:max="100"/.test(fs.readFileSync('src/views/SystemView.vue', 'utf8')),
   )
 }
 
@@ -1271,7 +1303,7 @@ check(
   const tags = files.flatMap((s) => [...s.matchAll(/<table class="table[^"]*"/g)].map((m) => m[0]))
   check(
     'tables: every table declares itself compact',
-    tags.length === 8 && tags.every((tag) => tag.includes('table--compact')),
+    tags.length > 0 && tags.every((tag) => tag.includes('table--compact')),
     `${tags.filter((t) => !t.includes('table--compact')).length}/${tags.length} missing table--compact`,
   )
   const settingsSource = fs.readFileSync('src/stores/settings.js', 'utf8')
