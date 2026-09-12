@@ -79,7 +79,16 @@ function durationOf(trade) {
             <td>
               <div class="row" style="gap: 7px">
                 <PairPill :pair="trade.pair" />
-                <span v-if="trade.is_short" class="badge badge--loss tiny">空</span>
+                <!-- A closed trade has no live leverage to report, so show the
+                     direction there instead of the multiplier. -->
+                <span
+                  v-if="!isOpen"
+                  class="badge tiny"
+                  :class="trade.is_short ? 'badge--loss' : 'badge--profit'"
+                >
+                  {{ trade.is_short ? '空' : '多' }}
+                </span>
+                <span v-else-if="trade.is_short" class="badge badge--loss tiny">空</span>
                 <span
                   v-else-if="Number(trade.leverage) > 1"
                   class="badge badge--accent tiny"
