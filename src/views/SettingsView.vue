@@ -7,7 +7,6 @@ import { useAuthStore } from '@/stores/auth'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
 import { useUiStore } from '@/stores/ui'
-import { REFRESH_OPTIONS } from '@/stores/settings'
 import { fmtTime } from '@/utils/format'
 import Icon from '@/components/Icon.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -19,10 +18,6 @@ const ui = useUiStore()
 const router = useRouter()
 
 const serverDraft = ref(auth.baseUrl)
-
-const refreshLabel = computed(
-  () => REFRESH_OPTIONS.find((option) => option.value === settings.refreshInterval)?.label || '自定义',
-)
 
 async function changeServer() {
   if (normalizeBaseUrl(serverDraft.value) === auth.baseUrl) {
@@ -179,44 +174,6 @@ const statusIcon = {
   </div>
 
   <div class="grid">
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title"><Icon name="refresh" :size="16" /> 数据刷新</div>
-      </div>
-      <div class="card-body col" style="gap: 16px">
-        <label class="row-between">
-          <span>
-            <span class="small strong">自动刷新</span>
-            <span class="tiny faint" style="display: block">仅在页面可见时轮询</span>
-          </span>
-          <span
-            class="switch"
-            :class="{ on: settings.autoRefresh }"
-            role="switch"
-            :aria-checked="settings.autoRefresh"
-            @click="settings.autoRefresh = !settings.autoRefresh"
-          />
-        </label>
-
-        <div class="field">
-          <label class="field-label">刷新间隔（当前：{{ refreshLabel }}）</label>
-          <div class="segmented wrap" style="flex-wrap: wrap">
-            <button
-              v-for="option in REFRESH_OPTIONS"
-              :key="option.value"
-              :class="{ active: settings.refreshInterval === option.value }"
-              @click="settings.refreshInterval = option.value"
-            >
-              {{ option.label }}
-            </button>
-          </div>
-          <p class="tiny faint">
-            刷新会同时请求核心接口；统计与图表数据在打开对应页面时刷新。
-          </p>
-        </div>
-      </div>
-    </div>
-
     <div class="card">
       <div class="card-head">
         <div class="card-title"><Icon name="install" :size="16" /> 应用安装</div>
