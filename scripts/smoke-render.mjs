@@ -1232,6 +1232,16 @@ check(
     rules.includes('radial-gradient') && !rules.includes('blur('),
     rules.replace(/\s+/g, ' ').slice(0, 100),
   )
+
+  // Being a positioned child, the glow otherwise paints ON TOP of the static
+  // text and washes the glyphs out. It needs a negative z-index, and the card
+  // needs its own stacking context for that to stay inside the card.
+  const statRule = css.match(/\n\.stat \{[\s\S]*?\n\}/)?.[0] || ''
+  check(
+    'stats: .stat-glow is painted behind the card text',
+    /z-index:\s*-1/.test(rules) && /isolation:\s*isolate/.test(statRule),
+    `z-index=${/z-index:\s*-1/.test(rules)} isolation=${/isolation:\s*isolate/.test(statRule)}`,
+  )
 }
 
 /* ------------------------------------------------------------- table density */
