@@ -415,7 +415,7 @@ const server = await createServer({
   logLevel: 'warn',
 })
 
-const [{ default: App }, { routes }, botModule, { useAuthStore }, clientModule, redirectModule] =
+const [{ default: App }, routerModule, botModule, { useAuthStore }, clientModule, redirectModule] =
   await Promise.all([
     server.ssrLoadModule('/src/App.vue'),
     server.ssrLoadModule('/src/router/index.js'),
@@ -425,6 +425,7 @@ const [{ default: App }, { routes }, botModule, { useAuthStore }, clientModule, 
     server.ssrLoadModule('/src/utils/safeRedirect.js'),
   ])
 
+const { routes, ROUTER_BASE } = routerModule
 const { CORE_KEYS, useBotStore } = botModule
 const { session } = clientModule
 const { safeRedirectPath } = redirectModule
@@ -690,6 +691,45 @@ for (const path of ['/', '/stats']) {
 
   const persisted = JSON.parse(localStorage.getItem('ft.auth') || '{}')
   check('remember=false: base url still persisted', persisted.baseUrl === 'https://bot.example.com/api/v1')
+}
+
+/* ------------------------------------------------- routing / subpath deploy */
+
+{
+  const expectedBase = process.env.VITE_BASE || '/'
+  check(
+    'router: history base equals the vite base',
+    ROUTER_BASE === expectedBase,
+    `ROUTER_BASE=${JSON.stringify(ROUTER_BASE)} expected=${JSON.stringify(expectedBase)}`,
+  )
+
+  // The bug this guards: `createWebHistory()` with no argument silently defaults to
+  // "/", so a subpath deploy matches nothing and the catch-all rewrites the URL to
+  // the site root. Asserting the export alone would not catch that, so also pin the
+  // call site.
+  const routerSource = (await import('node:fs')).readFileSync('src/router/index.js', 'utf8')
+  check(
+    'router: createWebHistory is constructed with the base',
+    /createWebHistory\(\s*ROUTER_BASE\s*\)/.test(routerSource),
+    'router/index.js must pass ROUTER_BASE to createWebHistory',
+  )
+
+  // App-relative navigation must keep working whatever the base is.
+  const r = createRouter({ history: createMemoryHistory(ROUTER_BASE), routes })
+  check(
+    'router: app-relative deep links resolve',
+    r.resolve('/trades').name === 'trades' && r.resolve('/').name === 'dashboard',
+    `trades=${String(r.resolve('/trades').name)} root=${String(r.resolve('/').name)}`,
+  )
+
+  // resolve() does not follow redirects, so exercise the catch-all by navigating.
+  await r.push('/definitely-not-a-route')
+  await r.isReady()
+  check(
+    'router: unknown paths redirect to the dashboard',
+    r.currentRoute.value.name === 'dashboard',
+    `landed on ${String(r.currentRoute.value.name)}`,
+  )
 }
 
 /* ------------------------------------------------------ security invariants */
