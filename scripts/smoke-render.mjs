@@ -777,6 +777,67 @@ for (const path of ['/', '/stats']) {
   check('a resolver returning null leaves the value untouched', outOfRange.hoverIndex.value === -1)
 }
 
+/* ------------------------------------------------- donut ring geometry */
+
+{
+  /**
+   * Slice geometry straight out of the rendered SVG. `dashoffset` is negative, so
+   * `-dashoffset` is where the slice starts, measured in arc length; the visible gap
+   * after a slice is the distance to the next slice's start minus what it draws.
+   */
+  const slicesFor = (path) => {
+    const html = renderedPages.get(path) || ''
+    const svg = html.match(/<svg[^>]*viewBox="0 0 100 100"[^>]*>([\s\S]*?)<\/svg>/)
+    if (!svg) return []
+    return [...svg[1].matchAll(/<circle\b[^>]*stroke-dasharray="([\d.]+) ([\d.]+)"[^>]*stroke-dashoffset="(-?[\d.]+)"[^>]*>/g)]
+      .map((m) => ({ drawn: Number(m[1]), circumference: Number(m[2]), start: -Number(m[3]) }))
+  }
+
+  /** Visible gap after each slice, wrapping past the seam back to the first. */
+  const gapsFor = (slices) => {
+    const c = slices[0]?.circumference ?? 0
+    return slices.map((slice, i) => {
+      const next = i + 1 < slices.length ? slices[i + 1].start : c + slices[0].start
+      return next - slice.start - slice.drawn
+    })
+  }
+
+  // The dashboard fixtures hold a single win/loss slice - the case that showed a
+  // seam, because the inter-slice gap was subtracted with nothing to separate.
+  const single = slicesFor('/')
+  check('donut: a single slice renders', single.length === 1, `${single.length} slices`)
+  check(
+    'donut: a single slice draws a closed ring (no seam)',
+    single.length === 1 && Math.abs(single[0].drawn - single[0].circumference) < 0.01,
+    single.length ? `drawn=${single[0].drawn} circumference=${single[0].circumference}` : '',
+  )
+  check(
+    'donut: a single slice has no gap at all',
+    single.length === 1 && gapsFor(single).every((g) => Math.abs(g) < 0.01),
+    single.length ? gapsFor(single).map((g) => g.toFixed(3)).join(', ') : '',
+  )
+
+  // Several slices must still be separated, evenly, and never overlap.
+  const many = slicesFor('/stats')
+  const manyGaps = gapsFor(many)
+  check('donut: multiple slices render', many.length > 1, `${many.length} slices`)
+  check(
+    'donut: multi-slice arcs never exceed the circumference',
+    many.every((a) => a.drawn > 0 && a.drawn < a.circumference),
+    many.map((a) => a.drawn.toFixed(1)).join(', '),
+  )
+  check(
+    'donut: multi-slice gaps are uniform and equal the design gap',
+    manyGaps.every((g) => Math.abs(g - 2) < 0.02),
+    manyGaps.map((g) => g.toFixed(3)).join(', '),
+  )
+  check(
+    'donut: multi-slice total equals circumference',
+    Math.abs(many.reduce((sum, a) => sum + a.drawn, 0) + manyGaps.reduce((a, b) => a + b, 0) - many[0].circumference) < 0.02,
+    'drawn + gaps should be a full circle',
+  )
+}
+
 /* ---------------------------------------------- donut slice selection */
 
 {
