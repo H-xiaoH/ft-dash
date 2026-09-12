@@ -57,27 +57,47 @@ const geometry = computed(() => {
 
   let line = `M ${points[0][0]} ${points[0][1]}`
   if (props.smooth) {
-    for (let i = 0; i < points.length - 1; i += 1) {
-      const p0 = points[i - 1] || points[i]
+    /*
+     * Monotone cubic interpolation (Fritsch-Carlson).
+     *
+     * Plain Catmull-Rom tangents overshoot where the slope changes sharply: on a
+     * step-shaped series (flat, then a jump) they drew a dip below a value the
+     * data never had. Clamping the control points into the segment's y-range
+     * removed that dip but flattened every turn into a corner, which read as a
+     * broken line. Limiting the *tangents* instead keeps the curve inside each
+     * segment - a monotone cubic cannot leave the range of the two points it
+     * spans - while leaving the turns genuinely curved: at an isolated peak or
+     * trough the tangent becomes exactly horizontal, so the apex rounds off.
+     */
+    const count = points.length
+    const secants = []
+    for (let i = 0; i < count - 1; i += 1) {
+      secants.push((points[i + 1][1] - points[i][1]) / (points[i + 1][0] - points[i][0]))
+    }
+    const tangents = points.map((_, i) => {
+      const prev = secants[i - 1]
+      const next = secants[i]
+      if (prev === undefined) return next ?? 0
+      if (next === undefined) return prev
+      // A sign change means a local extremum: hold a horizontal tangent there.
+      if (prev * next <= 0) return 0
+      const slope = (prev + next) / 2
+      const alpha = slope / prev
+      const beta = slope / next
+      if (alpha * alpha + beta * beta > 9) {
+        // Fritsch-Carlson limiter: keeps the cubic monotone, hence overshoot-free.
+        return (3 / Math.sqrt(alpha * alpha + beta * beta)) * alpha * prev
+      }
+      return slope
+    })
+
+    for (let i = 0; i < count - 1; i += 1) {
       const p1 = points[i]
       const p2 = points[i + 1]
-      const p3 = points[i + 2] || p2
-      const c1x = p1[0] + (p2[0] - p0[0]) / 6
-      const c2x = p2[0] - (p3[0] - p1[0]) / 6
-
-      /*
-       * Catmull-Rom tangents overshoot where the slope changes sharply. On a
-       * step-shaped series (flat, then a jump) that draws a dip below a value the
-       * data never had - a cumulative profit curve appeared to lose money before it
-       * made any. Clamping each control point to the y-range of its own segment
-       * removes it: a cubic Bezier never leaves the convex hull of its control
-       * points, so the curve cannot leave that range either.
-       */
-      const low = Math.min(p1[1], p2[1])
-      const high = Math.max(p1[1], p2[1])
-      const c1y = Math.min(high, Math.max(low, p1[1] + (p2[1] - p0[1]) / 6))
-      const c2y = Math.min(high, Math.max(low, p2[1] - (p3[1] - p1[1]) / 6))
-      line += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2[0]} ${p2[1]}`
+      const h = (p2[0] - p1[0]) / 3
+      line +=
+        ` C ${p1[0] + h} ${p1[1] + tangents[i] * h}, ` +
+        `${p2[0] - h} ${p2[1] - tangents[i + 1] * h}, ${p2[0]} ${p2[1]}`
     }
   } else {
     for (let i = 1; i < points.length; i += 1) line += ` L ${points[i][0]} ${points[i][1]}`
