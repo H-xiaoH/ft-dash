@@ -80,8 +80,15 @@ const routes = [
 // non-browser environments (SSR, smoke tests, prerendering).
 const canUseWebHistory = typeof window !== 'undefined' && typeof window.history !== 'undefined'
 
+/**
+ * Must match Vite's `base`. A subpath deploy (GitHub Pages serves at /<repo>/)
+ * otherwise makes the router see "/ft-dash/", fail to match any route, and hit
+ * the catch-all redirect - rewriting the URL to the site root.
+ */
+export const ROUTER_BASE = import.meta.env.BASE_URL || '/'
+
 const router = createRouter({
-  history: canUseWebHistory ? createWebHistory() : createMemoryHistory(),
+  history: canUseWebHistory ? createWebHistory(ROUTER_BASE) : createMemoryHistory(ROUTER_BASE),
   routes,
   scrollBehavior(to, from, saved) {
     return saved || { top: 0 }
