@@ -4,13 +4,10 @@ import { ref } from 'vue'
 let seq = 0
 
 /**
- * Toasts, a promise-based confirm dialog and a command log.
- * Every mutating freqtrade call goes through `log()` so the user can see what
- * was sent to the bot and when.
+ * Toasts and a promise-based confirm dialog.
  */
 export const useUiStore = defineStore('ui', () => {
   const toasts = ref([])
-  const commands = ref([])
 
   const confirmState = ref({
     open: false,
@@ -49,33 +46,8 @@ export const useUiStore = defineStore('ui', () => {
     confirmState.value = { ...confirmState.value, open: false, resolve: null }
   }
 
-  function log(entry) {
-    commands.value.unshift({
-      id: ++seq,
-      at: Date.now(),
-      status: 'pending',
-      ...entry,
-    })
-    const item = commands.value[0]
-    return {
-      ok(detail) {
-        item.status = 'ok'
-        item.detail = detail || ''
-      },
-      fail(detail) {
-        item.status = 'fail'
-        item.detail = detail || ''
-      },
-    }
-  }
-
-  function clearLog() {
-    commands.value = []
-  }
-
   return {
     toasts,
-    commands,
     confirmState,
     toast,
     dismiss,
@@ -85,7 +57,5 @@ export const useUiStore = defineStore('ui', () => {
     warn,
     confirm,
     resolveConfirm,
-    log,
-    clearLog,
   }
 })
