@@ -718,30 +718,30 @@ for (const path of ['/', '/stats']) {
   // destroys the pointer, which fires pointerleave. Those are the broken cases.
   const touch = useChartPointer((e) => e.clientX)
 
-  touch.handlers.onPointerDown(event({ pointerType: 'touch', clientX: 7 }))
+  touch.onPointerDown(event({ pointerType: 'touch', clientX: 7 }))
   check('touch: a tap shows the value', touch.hoverIndex.value === 7, String(touch.hoverIndex.value))
 
-  touch.handlers.onPointerMove(event({ pointerType: 'touch', buttons: 0, clientX: 99 }))
+  touch.onPointerMove(event({ pointerType: 'touch', buttons: 0, clientX: 99 }))
   check('touch: a lifted finger does not scrub', touch.hoverIndex.value === 7, String(touch.hoverIndex.value))
 
-  touch.handlers.onPointerMove(event({ pointerType: 'touch', buttons: 1, clientX: 42 }))
+  touch.onPointerMove(event({ pointerType: 'touch', buttons: 1, clientX: 42 }))
   check('touch: dragging scrubs', touch.hoverIndex.value === 42, String(touch.hoverIndex.value))
 
-  touch.handlers.onPointerLeave(event({ pointerType: 'touch' }))
+  touch.onPointerLeave(event({ pointerType: 'touch' }))
   check('touch: lifting keeps the value readable', touch.hoverIndex.value === 42, String(touch.hoverIndex.value))
 
-  touch.handlers.onPointerCancel(event({ pointerType: 'touch' }))
+  touch.onPointerCancel(event({ pointerType: 'touch' }))
   check('touch: a scroll taking over clears it', touch.hoverIndex.value === -1, String(touch.hoverIndex.value))
 
   const mouse = useChartPointer((e) => e.clientX)
-  mouse.handlers.onPointerMove(event({ clientX: 5 }))
+  mouse.onPointerMove(event({ clientX: 5 }))
   check('mouse: hovering tracks without pressing', mouse.hoverIndex.value === 5)
-  mouse.handlers.onPointerLeave(event({}))
+  mouse.onPointerLeave(event({}))
   check('mouse: leaving clears', mouse.hoverIndex.value === -1)
 
   let captured = false
   const capturing = useChartPointer((e) => e.clientX)
-  capturing.handlers.onPointerDown(
+  capturing.onPointerDown(
     event({
       pointerType: 'touch',
       clientX: 3,
@@ -755,7 +755,7 @@ for (const path of ['/', '/stats']) {
   check('touch: pointer capture is requested so drags survive leaving the plot', captured)
 
   const throwing = useChartPointer((e) => e.clientX)
-  throwing.handlers.onPointerDown(
+  throwing.onPointerDown(
     event({
       pointerType: 'touch',
       clientX: 9,
@@ -773,8 +773,35 @@ for (const path of ['/', '/stats']) {
   )
 
   const outOfRange = useChartPointer(() => null)
-  outOfRange.handlers.onPointerDown(event({ clientX: 1 }))
+  outOfRange.onPointerDown(event({ clientX: 1 }))
   check('a resolver returning null leaves the value untouched', outOfRange.hoverIndex.value === -1)
+}
+
+/* ------------------------------------------- chart event wiring (compiled) */
+
+{
+  // Listener props are invisible in the source and in SSR output, so compile the
+  // components for the client and assert the bindings are actually there. This is
+  // the check that catches `v-on="handlers"` emitting `on:onPointerDown` - a custom
+  // event name that never fires, which silently killed mouse hover AND touch.
+  const EVENTS = ['onPointerdown', 'onPointermove', 'onPointerleave', 'onPointercancel']
+  for (const name of ['AreaChart', 'BarChart', 'CandleChart']) {
+    const { code } = await server.transformRequest(
+      `/src/components/charts/${name}.vue`,
+      { ssr: false },
+    )
+    const missing = EVENTS.filter((event) => !new RegExp(`\\b${event}\\b`).test(code))
+    check(
+      `charts: ${name} binds all four pointer events`,
+      missing.length === 0,
+      missing.length ? `missing ${missing.join(', ')}` : '',
+    )
+    check(
+      `charts: ${name} avoids the v-on object form`,
+      !/toHandlers\(/.test(code),
+      'v-on="obj" needs bare lowercase keys - use explicit @pointerdown bindings',
+    )
+  }
 }
 
 /* ------------------------------------------------- routing / subpath deploy */
