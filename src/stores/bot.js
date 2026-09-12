@@ -54,7 +54,6 @@ export const useBotStore = defineStore('bot', () => {
   /** Total rows reported by the server, or null when it did not say. */
   const tradesTotal = ref(null)
   const logLimit = ref(200)
-  const logCount = ref(0)
 
   /* --------------------------------------------------------------- loaders */
 
@@ -100,11 +99,8 @@ export const useBotStore = defineStore('bot', () => {
         return Array.isArray(result) ? result : result?.data || []
       case 'locks':
         return Array.isArray(result) ? result : result?.locks || []
-      case 'logs': {
-        const list = Array.isArray(result) ? result : result?.logs || []
-        logCount.value = firstNumber(result?.log_count, list.length) ?? list.length
-        return list
-      }
+      case 'logs':
+        return Array.isArray(result) ? result : result?.logs || []
       default:
         return result
     }
@@ -182,7 +178,6 @@ export const useBotStore = defineStore('bot', () => {
     data.trades = []
     data.logs = []
     tradesTotal.value = null
-    logCount.value = 0
     for (const key of Object.keys(errors)) errors[key] = ''
     online.value = false
     lastUpdated.value = 0
@@ -208,11 +203,6 @@ export const useBotStore = defineStore('bot', () => {
       p.profit_all_ratio_mean,
       toNumber(p.profit_all_percent_mean) !== null ? p.profit_all_percent_mean / 100 : null,
       p.profit_all_percent !== undefined ? p.profit_all_percent / 100 : null,
-    )
-    const closedRatio = firstNumber(
-      p.profit_closed_ratio_mean,
-      toNumber(p.profit_closed_percent_mean) !== null ? p.profit_closed_percent_mean / 100 : null,
-      p.profit_closed_percent !== undefined ? p.profit_closed_percent / 100 : null,
     )
     const winning = firstNumber(p.winning_trades, 0)
     const losing = firstNumber(p.losing_trades, 0)
@@ -252,14 +242,8 @@ export const useBotStore = defineStore('bot', () => {
       ratioAll: ratioMean,
       pctAll: ratioMean === null ? null : ratioMean * 100,
       absClosed: firstNumber(p.profit_closed_coin, 0),
-      pctClosed: closedRatio === null ? null : closedRatio * 100,
-      fiatAll: firstNumber(p.profit_all_fiat, null),
       tradeCount: firstNumber(p.trade_count, 0),
       closedTradeCount: firstNumber(p.closed_trade_count, 0),
-      openTradeCount: Math.max(
-        0,
-        (firstNumber(p.trade_count, 0) ?? 0) - (firstNumber(p.closed_trade_count, 0) ?? 0),
-      ),
       winning,
       losing,
       winRate:
@@ -268,12 +252,8 @@ export const useBotStore = defineStore('bot', () => {
           : toNumber(p.winrate) !== null
             ? p.winrate * 100
             : null,
-      bestPair: p.best_pair || null,
-      bestRate: firstNumber(p.best_rate, null),
-      avgDuration: p.avg_duration || null,
       profitFactor,
       expectancy: firstNumber(p.expectancy, null),
-      expectancyRatio: firstNumber(p.expectancy_ratio, null),
       sharpe: firstNumber(p.sharpe, null),
       sortino: metricOrNull(p.sortino),
       calmar: metricOrNull(p.calmar),
@@ -281,13 +261,9 @@ export const useBotStore = defineStore('bot', () => {
       cagr: firstNumber(p.cagr, null),
       maxDrawdown: firstNumber(p.max_drawdown, null),
       maxDrawdownAbs: firstNumber(p.max_drawdown_abs, null),
-      currentDrawdown: firstNumber(p.current_drawdown, null),
       tradingVolume: firstNumber(p.trading_volume, null),
       stakeCurrency: p.stake_currency || data.config?.stake_currency || '',
       startingCapital: firstNumber(p.starting_capital, data.config?.available_capital, null),
-      firstTradeDate: p.first_trade_date || null,
-      latestTradeDate: p.latest_trade_date || null,
-      botStartDate: p.bot_start_date || null,
     }
   })
 
@@ -442,7 +418,6 @@ export const useBotStore = defineStore('bot', () => {
     tradesHasMore,
     tradesTotal,
     logLimit,
-    logCount,
     summary,
     balanceTotal,
     balanceCurrencies,
