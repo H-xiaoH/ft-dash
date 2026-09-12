@@ -47,13 +47,6 @@ function durationOf(trade) {
   if (!open || !end) return null
   return Math.max(0, end - open)
 }
-
-function rowClass(trade) {
-  if (!settings.highlightProfitRows) return ''
-  const ratio = ratioOf(trade)
-  if (ratio === null || ratio === 0) return ''
-  return ratio > 0 ? 'row-profit' : 'row-loss'
-}
 </script>
 
 <template>
@@ -85,7 +78,6 @@ function rowClass(trade) {
             v-for="trade in trades"
             :key="trade.trade_id"
             class="clickable"
-            :class="rowClass(trade)"
             @click="emit('select', trade)"
           >
             <td>
