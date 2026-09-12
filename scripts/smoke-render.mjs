@@ -782,6 +782,44 @@ check(
   )
 }
 
+/* ------------------------------------------------------ bar chart scale */
+
+{
+  const { default: BarChart } = await server.ssrLoadModule('/src/components/charts/BarChart.vue')
+  const chart = async (items) =>
+    renderToString(
+      createSSRApp({
+        render: () => h(BarChart, { items, height: 200, format: (v) => String(v) }),
+      }),
+    )
+  const dashed = (html) => (html.match(/stroke-dasharray="3 5"/g) || []).length
+
+  const mixed = await chart([
+    { label: 'a', value: 5 },
+    { label: 'b', value: -3 },
+  ])
+  check('bar: a mixed series gets three scale lines', dashed(mixed) === 3, `${dashed(mixed)} lines`)
+  check(
+    'bar: the scale lines carry their values',
+    mixed.includes('>5</text>') && mixed.includes('>1</text>') && mixed.includes('>-3</text>'),
+    'expected labels 5 / 1 / -3',
+  )
+
+  // All-positive data puts a scale line exactly on the solid zero line, which is
+  // dropped rather than drawn twice.
+  const positive = await chart([
+    { label: 'a', value: 4 },
+    { label: 'b', value: 0 },
+  ])
+  check('bar: no dashed line doubles the zero line', dashed(positive) === 2, `${dashed(positive)} lines`)
+
+  const flat = await chart([
+    { label: 'a', value: 0 },
+    { label: 'b', value: 0 },
+  ])
+  check('bar: an all-zero series stays on the zero line alone', dashed(flat) === 0, `${dashed(flat)} lines`)
+}
+
 /* -------------------------------------------------- chart pointer / touch */
 
 {
@@ -1107,6 +1145,28 @@ check(
     !/white-space/.test(genericTd),
     genericTd.replace(/\s+/g, ' ').slice(0, 80),
   )
+  // A closed row has no live leverage to report, so it badges the direction.
+  // The fixture has two closed longs, one closed short and one open short.
+  check(
+    'trades: closed rows badge the direction instead of the leverage',
+    (rootHtml.match(/>多\s*<\/span>/g) || []).length === 2 &&
+      (rootHtml.match(/>空\s*<\/span>/g) || []).length === 2,
+    `多=${(rootHtml.match(/>多\s*<\/span>/g) || []).length} 空=${(rootHtml.match(/>空\s*<\/span>/g) || []).length}`,
+  )
+  // Only the live ETH position is leveraged, so a single multiplier may remain.
+  check(
+    'trades: a closed row never shows a leverage multiplier',
+    (rootHtml.match(/>\d+x\s*<\/span>/g) || []).length === 1,
+    `${(rootHtml.match(/>\d+x\s*<\/span>/g) || []).length} multipliers on the dashboard`,
+  )
+  // The /trades page opens on the live tab, which keeps the multiplier.
+  check(
+    'trades: open rows still badge the leverage',
+    (tradesHtml.match(/>3x\s*<\/span>/g) || []).length === 1 &&
+      !/>多\s*<\/span>/.test(tradesHtml),
+    'expected 3x on the open table and no direction badge',
+  )
+
   check('trades: the trade table carries the marker class', tradesHtml.includes('table--trades'))
 
   // Quantities arrive padded to the exchange precision; 8 used to print as
