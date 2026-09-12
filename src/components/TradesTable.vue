@@ -33,10 +33,6 @@ const actionsApi = useBotActions()
 
 const isOpen = computed(() => props.mode === 'open')
 
-function ratioOf(trade) {
-  return tradeProfitRatio(trade)
-}
-
 function durationOf(trade) {
   const open = toEpochSeconds(trade.open_timestamp)
   const end = isOpenTrade(trade) ? nowSeconds() : toEpochSeconds(trade.close_timestamp)
@@ -106,10 +102,10 @@ function durationOf(trade) {
             <td class="num hide-xs">{{ fmtQuantity(trade.amount) }}</td>
             <td class="num hide-xs">{{ fmtNumber(trade.stake_amount, 2) }}</td>
 
-            <td class="num" :class="profitClass(ratioOf(trade))">
-              <span class="strong">{{ fmtPercentRatio(ratioOf(trade)) }}</span>
+            <td class="num" :class="profitClass(tradeProfitRatio(trade))">
+              <span class="strong">{{ fmtPercentRatio(tradeProfitRatio(trade)) }}</span>
             </td>
-            <td class="num" :class="profitClass(tradeProfitAbs(trade) ?? ratioOf(trade))">
+            <td class="num" :class="profitClass(tradeProfitAbs(trade) ?? tradeProfitRatio(trade))">
               {{ fmtSigned(tradeProfitAbs(trade), 4) }}
             </td>
 
