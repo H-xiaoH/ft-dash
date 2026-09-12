@@ -10,7 +10,7 @@
  *   node scripts/smoke-render.mjs [--dump <dir>]
  */
 import { createServer } from 'vite'
-import { createSSRApp } from 'vue'
+import { createSSRApp, h } from 'vue'
 import { renderToString } from '@vue/server-renderer'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
@@ -699,6 +699,46 @@ for (const path of ['/', '/stats']) {
 
   const persisted = JSON.parse(localStorage.getItem('ft.auth') || '{}')
   check('remember=false: base url still persisted', persisted.baseUrl === 'https://bot.example.com/api/v1')
+}
+
+/* -------------------------------------------------- chart curve fidelity */
+
+{
+  const { default: AreaChart } = await server.ssrLoadModule('/src/components/charts/AreaChart.vue')
+
+  // A step-shaped series (flat, then a jump) is where Catmull-Rom tangents overshoot:
+  // the cumulative-profit curve drew a dip below a value the data never had.
+  const values = [0, 0, 0, 0, 5, 0, 0]
+  const app = createSSRApp({
+    render: () =>
+      h(AreaChart, { values, labels: values.map((_, i) => `d${i}`), height: 200, format: String }),
+  })
+  const html = await renderToString(app)
+  const linePath = [...html.matchAll(/<path\b[^>]*>/g)]
+    .map((m) => m[0])
+    .find((tag) => tag.includes('fill="none"'))
+  const d = linePath?.match(/d="([^"]+)"/)?.[1] || ''
+
+  check('charts: the area chart renders a line path', d.length > 0)
+
+  // Sample every cubic segment and measure how far below the flat run it reaches.
+  const baseY = Number(d.match(/^M\s+(-?[\d.]+)\s+(-?[\d.]+)/)?.[2])
+  let cy = baseY
+  let lowest = baseY
+  for (const m of d.matchAll(/([MLC])([^MLC]*)/g)) {
+    const n = (m[2].match(/-?\d+(?:\.\d+)?/g) || []).map(Number)
+    if (m[1] !== 'C') continue
+    for (let t = 0; t <= 1; t += 0.01) {
+      const u = 1 - t
+      lowest = Math.max(lowest, u * u * u * cy + 3 * u * u * t * n[1] + 3 * u * t * t * n[3] + t * t * t * n[5])
+    }
+    cy = n[5]
+  }
+  check(
+    'charts: the smoothed curve never dips below the data minimum',
+    Number.isFinite(lowest) && lowest - baseY < 0.01,
+    `${(lowest - baseY).toFixed(3)}px below the baseline`,
+  )
 }
 
 /* -------------------------------------------------- chart pointer / touch */
