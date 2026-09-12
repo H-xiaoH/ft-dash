@@ -66,10 +66,6 @@ const updatedLabel = computed(() =>
   lastUpdated.value ? fmtTime(lastUpdated.value) : '—',
 )
 
-function toggleTheme() {
-  theme.value = theme.value === 'dark' ? 'light' : 'dark'
-}
-
 function go(name) {
   showMore.value = false
   router.push({ name })
@@ -215,7 +211,7 @@ onBeforeUnmount(() => {
             <Icon name="refresh" :size="17" :class="refreshing ? 'spin' : ''" />
           </button>
 
-          <button class="icon-btn" :title="theme === 'dark' ? '切换浅色' : '切换深色'" @click="toggleTheme">
+          <button class="icon-btn" :title="theme === 'dark' ? '切换浅色' : '切换深色'" @click="settings.toggleTheme()">
             <Icon :name="theme === 'dark' ? 'sun' : 'moon'" :size="17" />
           </button>
 
@@ -311,13 +307,3 @@ onBeforeUnmount(() => {
   </div>
 </template>
 
-<style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 160ms var(--ease);
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-</style>
