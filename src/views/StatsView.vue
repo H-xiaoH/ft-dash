@@ -1,32 +1,23 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { api } from '@/api/endpoints'
 import { useBotStore } from '@/stores/bot'
-import { useUiStore } from '@/stores/ui'
 import {
   fmtAmount,
-  fmtDuration,
   fmtNumber,
   fmtPercentRatio,
   fmtSigned,
   profitClass,
 } from '@/utils/format'
 import AreaChart from '@/components/charts/AreaChart.vue'
-import DonutChart from '@/components/charts/DonutChart.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import Icon from '@/components/Icon.vue'
 import StatTile from '@/components/StatTile.vue'
 
 const bot = useBotStore()
-const ui = useUiStore()
 const { summary, performanceRows, stakeCurrency } = storeToRefs(bot)
 
 const timescale = ref('daily')
-const tagTab = ref('exits')
-const tagRows = ref([])
-const tagLoading = ref(false)
-const tagError = ref('')
 
 const TIMESCALES = [
   { id: 'daily', label: '每日', endpoint: () => bot.data.daily },
@@ -48,81 +39,18 @@ const periodChart = computed(() => {
     labels: source.map((row) => String(row.date || '')),
   }
 })
-
-const DURATION_LABELS = { wins: '盈利交易', losses: '亏损交易', draws: '持平', all: '全部交易' }
-
-const durationRows = computed(() =>
-  (bot.statsSummary.durations || []).map((row) => ({
-    ...row,
-    label: DURATION_LABELS[row.key] || row.key,
-  })),
-)
-
-const exitSegments = computed(() =>
-  bot.statsSummary.rows
-    .filter((row) => row.trades > 0)
-    .slice(0, 7)
-    .map((row, index) => ({
-      label: row.reason,
-      value: row.trades,
-      color: [
-        'var(--profit)',
-        'var(--loss)',
-        'var(--accent)',
-        'var(--accent-2)',
-        'var(--warn)',
-        'var(--info)',
-        'var(--text-faint)',
-      ][index % 7],
-    })),
-)
-
-async function loadTags() {
-  tagLoading.value = true
-  tagError.value = ''
-  try {
-    const fn =
-      tagTab.value === 'entries'
-        ? api.entries
-        : tagTab.value === 'mix'
-          ? api.mixTags
-          : api.exits
-    const result = await fn()
-    tagRows.value = Array.isArray(result) ? result : []
-  } catch (error) {
-    tagError.value = error?.message || '加载失败'
-    tagRows.value = []
-  } finally {
-    tagLoading.value = false
-  }
-}
-
-async function switchTag(tab) {
-  tagTab.value = tab
-  await loadTags()
-}
-
-function tagRatio(row) {
-  const direct = row.profit_ratio ?? row.profit_pct
-  if (direct === undefined || direct === null) return null
-  return row.profit_ratio !== undefined ? Number(row.profit_ratio) : Number(row.profit_pct) / 100
-}
 </script>
 
 <template>
   <div class="page-head">
     <div>
       <h2 class="page-title">统计</h2>
-      <p class="page-sub">收益质量、交易对表现与退出原因分析</p>
+      <p class="page-sub">收益质量与交易对表现</p>
     </div>
     <div class="row" style="gap: 8px">
       <button class="btn btn--sm" :disabled="bot.loading.stats" @click="bot.refreshAnalytics()">
         <Icon name="refresh" :size="14" :class="bot.loading.stats ? 'spin' : ''" />
         刷新统计
-      </button>
-      <button class="btn btn--sm" @click="switchTag(tagTab)">
-        <Icon name="list" :size="14" />
-        加载标签数据
       </button>
     </div>
   </div>
@@ -165,55 +93,6 @@ function tagRatio(row) {
       :value="`${fmtAmount(summary.tradingVolume, 0)} ${stakeCurrency}`"
       :sub="`已平仓 ${fmtNumber(summary.closedTradeCount, 0)} 笔`"
     />
-  </div>
-
-  <div class="grid grid-2">
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title"><Icon name="clock" :size="16" /> 持仓时长</div>
-      </div>
-      <div class="card-body col" style="gap: 12px">
-        <EmptyState v-if="!durationRows.length" icon="clock" title="暂无持仓时长数据" />
-        <template v-else>
-          <div
-            v-for="row in durationRows"
-            :key="row.key"
-            class="row-between"
-            style="padding-bottom: 10px; border-bottom: 1px solid var(--border)"
-          >
-            <span class="small strong">{{ row.label }}</span>
-            <div class="row small" style="gap: 14px">
-              <span class="muted">
-                平均 <span class="mono">{{ fmtDuration(row.avg) }}</span>
-              </span>
-              <span v-if="row.max" class="muted hide-xs">
-                最长 <span class="mono">{{ fmtDuration(row.max) }}</span>
-              </span>
-              <span v-if="row.min" class="muted hide-xs">
-                最短 <span class="mono">{{ fmtDuration(row.min) }}</span>
-              </span>
-            </div>
-          </div>
-        </template>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <div class="card-title"><Icon name="pie" :size="16" /> 退出原因分布</div>
-          <div class="card-sub">按交易笔数</div>
-        </div>
-      </div>
-      <div class="card-body">
-        <DonutChart
-          :segments="exitSegments"
-          :center-value="String(bot.statsSummary.totalTrades || 0)"
-          center-label="总交易"
-          :format="(v) => fmtNumber(v, 0)"
-        />
-      </div>
-    </div>
   </div>
 
   <div class="card">
@@ -273,7 +152,7 @@ function tagRatio(row) {
     </div>
   </div>
 
-  <div class="grid grid-2">
+  <div class="grid">
     <div class="card">
       <div class="card-head">
         <div class="card-title"><Icon name="market" :size="16" /> 交易对表现</div>
@@ -300,102 +179,6 @@ function tagRatio(row) {
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title"><Icon name="target" :size="16" /> 退出原因明细</div>
-      </div>
-      <div class="card-body card-body--flush">
-        <EmptyState v-if="!bot.statsSummary.rows.length" icon="target" title="暂无退出原因数据" />
-        <div v-else class="table-wrap">
-          <table class="table table--compact">
-            <thead>
-              <tr>
-                <th>原因</th>
-                <th class="num">笔数</th>
-                <th class="num">赢 / 亏</th>
-                <th class="num">胜率</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in bot.statsSummary.rows" :key="row.reason">
-                <td class="strong truncate" style="max-width: 160px">{{ row.reason }}</td>
-                <td class="num">{{ fmtNumber(row.trades, 0) }}</td>
-                <td class="num">
-                  <span class="profit">{{ row.wins }}</span>
-                  <span class="faint"> / </span>
-                  <span class="loss">{{ row.losses }}</span>
-                </td>
-                <td class="num" :class="row.winRate >= 50 ? 'profit' : 'loss'">
-                  {{ row.winRate === null ? '—' : `${row.winRate.toFixed(0)}%` }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-head" style="flex-wrap: wrap; gap: 10px">
-      <div class="segmented">
-        <button :class="{ active: tagTab === 'entries' }" @click="switchTag('entries')">入场标签</button>
-        <button :class="{ active: tagTab === 'exits' }" @click="switchTag('exits')">出场原因</button>
-        <button :class="{ active: tagTab === 'mix' }" @click="switchTag('mix')">组合表现</button>
-      </div>
-      <button class="btn btn--sm" :disabled="tagLoading" @click="loadTags">
-        <Icon name="refresh" :size="14" :class="tagLoading ? 'spin' : ''" />
-        刷新
-      </button>
-    </div>
-
-    <div class="card-body card-body--flush">
-      <div v-if="tagError" class="form-error" style="margin: 14px">
-        <Icon name="alert" :size="15" style="flex: none" />
-        <span>{{ tagError }}</span>
-      </div>
-
-      <EmptyState
-        v-else-if="!tagRows.length"
-        icon="layers"
-        title="还没有加载数据"
-        message="点击右上角「加载标签数据」或切换标签页。"
-      />
-
-      <div v-else class="table-wrap">
-        <table class="table table--compact">
-          <thead>
-            <tr>
-              <th>名称</th>
-              <th class="num">笔数</th>
-              <th class="num">平均收益</th>
-              <th class="num">总盈亏</th>
-              <th class="num hide-xs">赢 / 亏</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, index) in tagRows" :key="index">
-              <td class="strong truncate" style="max-width: 220px">
-                {{ row.pair || row.enter_tag || row.exit_reason || row.mix_tag || row.key || '—' }}
-              </td>
-              <td class="num">{{ fmtNumber(row.count ?? row.trades, 0) }}</td>
-              <td class="num" :class="profitClass(tagRatio(row))">
-                {{ fmtPercentRatio(tagRatio(row)) }}
-              </td>
-              <td class="num" :class="profitClass(row.profit_abs)">
-                {{ fmtSigned(row.profit_abs, 4) }}
-              </td>
-              <td class="num hide-xs">
-                <span class="profit">{{ fmtNumber(row.wins, 0) }}</span>
-                <span class="faint"> / </span>
-                <span class="loss">{{ fmtNumber(row.losses, 0) }}</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </div>
   </div>
