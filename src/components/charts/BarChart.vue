@@ -9,6 +9,8 @@ const props = defineProps({
   items: { type: Array, default: () => [] },
   height: { type: Number, default: 190 },
   format: { type: Function, default: (v) => String(v) },
+  /** Fixed ceiling for values with a known maximum, e.g. CPU percent. */
+  max: { type: Number, default: null },
 })
 
 const wrap = ref(null)
@@ -24,7 +26,10 @@ const geometry = computed(() => {
   if (!items.length) return null
 
   const values = items.map((item) => Number(item.value) || 0)
-  const max = Math.max(...values, 0)
+  // Scaling to the data alone makes a 12% CPU core draw a full-height bar, which
+  // reads as "pegged". A caller that knows the ceiling pins it instead; the max
+  // of the two keeps an out-of-range value inside the plot.
+  const max = props.max > 0 ? Math.max(props.max, Math.max(...values, 0)) : Math.max(...values, 0)
   const min = Math.min(...values, 0)
   const span = max - min || 1
   const zeroY = PAD.top + innerH - ((0 - min) / span) * innerH
