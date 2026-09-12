@@ -1,13 +1,13 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useBotStore } from '@/stores/bot'
-import { useSettingsStore } from '@/stores/settings'
+import { REFRESH_INTERVAL_MS } from '@/stores/settings'
 import { fmtTime } from '@/utils/format'
 import EmptyState from '@/components/EmptyState.vue'
 import Icon from '@/components/Icon.vue'
 
 const bot = useBotStore()
-const settings = useSettingsStore()
+const refreshSeconds = REFRESH_INTERVAL_MS / 1000
 
 const LEVELS = ['ALL', 'INFO', 'WARNING', 'ERROR', 'DEBUG', 'CRITICAL']
 const level = ref('ALL')
@@ -114,10 +114,10 @@ const counts = computed(() => {
       </p>
     </div>
     <div class="row wrap" style="gap: 8px">
-      <label class="checkbox" title="使用「设置 → 数据刷新」中的全局间隔">
-        <input v-model="settings.autoRefresh" type="checkbox" />
-        自动刷新
-      </label>
+      <span class="pill" title="轮询间隔固定，不再可调">
+        <span class="dot dot--pulse profit" />
+        每 {{ refreshSeconds }} 秒自动刷新
+      </span>
       <button class="btn btn--sm" @click="download">
         <Icon name="install" :size="14" />
         导出
