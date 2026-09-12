@@ -786,56 +786,69 @@ for (const path of ['/', '/stats']) {
     return m ? m[1] : ''
   }
 
+  // Angle on the ring, clockwise from 12 o'clock.
+  const angleOf = (x, y) => {
+    const a = Math.atan2(Number(x) - 50, 50 - Number(y))
+    return ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
+  }
+  const between = (from, to) => ((to - from) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI)
+
   /**
-   * Slices are arcs, so the gap between two of them is a real geometric distance.
-   * Convert each endpoint back to an angle (clockwise from 12 o'clock) and measure
-   * the gap either side of every boundary - including the 12 o'clock seam, which is
-   * where the old dashed-circle version rendered visibly narrower than the rest.
+   * Slices are filled annulus sectors:
+   *   M <outer start> A ro .. <outer end> L <inner end> A ri .. <inner start> Z
+   * so both the outer and the inner boundary of every gap can be measured directly.
    */
   const slicesOf = (path) =>
-    [...donutSvg(path).matchAll(/<path[^>]*d="M ([\d.eE+-]+) ([\d.eE+-]+) A ([\d.]+) [\d.]+ 0 [01] 1 ([\d.eE+-]+) ([\d.eE+-]+)"/g)]
+    [...donutSvg(path).matchAll(/<path[^>]*d="M ([\d.eE+-]+) ([\d.eE+-]+) A ([\d.]+) [\d.]+ 0 [01] 1 ([\d.eE+-]+) ([\d.eE+-]+) L ([\d.eE+-]+) ([\d.eE+-]+) A ([\d.]+) [\d.]+ 0 [01] 0 ([\d.eE+-]+) ([\d.eE+-]+)/g)]
       .map((m) => ({
-        radius: Number(m[3]),
-        from: Math.atan2(Number(m[1]) - 50, 50 - Number(m[2])),
-        to: Math.atan2(Number(m[4]) - 50, 50 - Number(m[5])),
+        outer: Number(m[3]),
+        inner: Number(m[8]),
+        outerFrom: angleOf(m[1], m[2]),
+        outerTo: angleOf(m[4], m[5]),
+        innerFrom: angleOf(m[9], m[10]),
+        innerTo: angleOf(m[6], m[7]),
       }))
-      .map((a) => ({ radius: a.radius, from: ((a.from % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI), to: ((a.to % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) }))
 
-  /** Visible gap in viewBox units, after each slice, wrapping past the seam. */
-  const gapsOf = (slices) =>
-    slices.map((slice, i) => {
-      const next = i + 1 < slices.length ? slices[i + 1].from : slices[0].from + 2 * Math.PI
-      return (next - slice.to) * slice.radius
-    })
-
-  // The dashboard holds a single win/loss slice - the case that used to show a seam.
   const single = donutSvg('/')
   check(
-    'donut: a single slice is drawn as a plain closed ring (no dash pattern)',
-    !/stroke-dasharray/.test(single) && /<circle[^>]*r="38"[^>]*stroke="var\(--profit\)"/.test(single),
-    'expected one continuous circle with no dasharray',
+    'donut: a single slice is a plain closed ring (no dash pattern, no seam)',
+    !/stroke-dasharray/.test(single) && /<circle[^>]*stroke="var\(--profit\)"/.test(single),
+    'expected one continuous circle',
   )
-  check('donut: a single slice renders no arcs', slicesOf('/').length === 0, `${slicesOf('/').length} paths`)
+  check('donut: a single slice renders no sectors', slicesOf('/').length === 0)
 
-  // Multiple slices: every gap must be identical, seam included.
   const many = slicesOf('/stats')
-  const gaps = gapsOf(many)
-  check('donut: multiple slices render as arcs', many.length > 1, `${many.length} arcs`)
-  check('donut: slices do not use a dash pattern', !/stroke-dasharray/.test(donutSvg('/stats')))
+  check('donut: multiple slices render as filled sectors', many.length > 1, `${many.length} sectors`)
+  check('donut: sectors do not use a dash pattern', !/stroke-dasharray/.test(donutSvg('/stats')))
   check(
-    'donut: every gap is uniform, including the 12 o\'clock seam',
-    gaps.length > 1 && gaps.every((g) => Math.abs(g - 2) < 0.02),
-    gaps.map((g) => g.toFixed(4)).join(', '),
+    'donut: sectors stay inside the viewBox',
+    many.every((s) => s.outer <= 50 && s.inner > 0 && s.inner < s.outer),
+    many.map((s) => `${s.inner}..${s.outer}`).join(', '),
+  )
+
+  // Gaps are measured along both edges because the reported bug was radial: a
+  // constant-angle gap is a wedge, wider where the ring is wider.
+  const gaps = many.map((slice, i) => {
+    const next = many[(i + 1) % many.length]
+    return {
+      outer: slice.outer * between(slice.outerTo, next.outerFrom),
+      inner: slice.inner * between(slice.innerTo, next.innerFrom),
+    }
+  })
+  check(
+    'donut: outer gap is uniform, seam included',
+    gaps.length > 1 && gaps.every((g) => Math.abs(g.outer - 2) < 0.03),
+    gaps.map((g) => g.outer.toFixed(4)).join(', '),
   )
   check(
-    'donut: the seam gap is not narrower than the internal ones',
-    gaps.length > 1 && Math.abs(gaps[gaps.length - 1] - gaps[0]) < 0.02,
-    `seam=${gaps[gaps.length - 1]?.toFixed(4)} first=${gaps[0]?.toFixed(4)}`,
+    'donut: inner gap is uniform, seam included',
+    gaps.length > 1 && gaps.every((g) => Math.abs(g.inner - 2) < 0.03),
+    gaps.map((g) => g.inner.toFixed(4)).join(', '),
   )
   check(
-    'donut: arcs plus gaps add up to a full circle',
-    Math.abs(many.reduce((sum, s) => sum + (((s.to - s.from) + 2 * Math.PI) % (2 * Math.PI)) * s.radius, 0) + gaps.reduce((a, b) => a + b, 0) - 2 * Math.PI * (many[0]?.radius ?? 0)) < 0.05,
-    'sweep + gaps should equal the circumference',
+    'donut: the gap is the same width at the inner and outer edge',
+    gaps.length > 1 && gaps.every((g) => Math.abs(g.outer - g.inner) < 0.03),
+    gaps.map((g) => `${g.inner.toFixed(3)}/${g.outer.toFixed(3)}`).join(' '),
   )
 }
 
