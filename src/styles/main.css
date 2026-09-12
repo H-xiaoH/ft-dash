@@ -622,22 +622,34 @@ svg {
 }
 
 .stat-glow {
+  /* Fixed offsets, not percentages. `right: -30%` made the visible part of the
+     circle shrink as the card grew (190px - 0.30 x width): a full-width phone
+     card kept ~60px of it and anything wider lost the glow completely. Fixed
+     pixels keep the same amount of light at every breakpoint.
+
+     A radial gradient replaces `filter: blur()` because a blurred child inside
+     an `overflow: hidden`, rounded parent is dropped by some mobile compositors. */
+  --glow: var(--accent);
   position: absolute;
-  inset: auto -30% -70% auto;
-  width: 190px;
-  height: 190px;
-  border-radius: 50%;
-  filter: blur(46px);
-  opacity: 0.5;
+  right: -70px;
+  bottom: -92px;
+  width: 240px;
+  height: 240px;
   pointer-events: none;
-  background: var(--accent);
+  opacity: 0.5;
+  background: radial-gradient(
+    circle closest-side,
+    var(--glow) 0%,
+    color-mix(in srgb, var(--glow) 72%, transparent) 46%,
+    transparent 100%
+  );
 }
 
 .stat--profit .stat-glow {
-  background: var(--profit);
+  --glow: var(--profit);
 }
 .stat--loss .stat-glow {
-  background: var(--loss);
+  --glow: var(--loss);
 }
 
 .stat-head {
@@ -1040,6 +1052,50 @@ textarea.input {
   right: 10px;
   color: var(--text-faint);
   font-size: 12px;
+}
+
+/* Searchable picker: a single box that both filters and selects. */
+.combo-list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 264px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow-lg);
+}
+
+.combo-item,
+.combo-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-xs);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.combo-empty {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.combo-item.is-active {
+  background: var(--accent-soft);
+}
+
+.combo-item.is-selected {
+  color: var(--accent);
 }
 
 .checkbox {
