@@ -40,8 +40,8 @@ const duration = computed(() => {
 
 const orders = computed(() => (Array.isArray(props.trade?.orders) ? props.trade.orders : []))
 
-function row(label, value, tone = '') {
-  return { label, value, tone }
+function row(label, value) {
+  return { label, value }
 }
 
 const fields = computed(() => {
@@ -134,7 +134,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
                   style="padding: 8px 0; border-bottom: 1px solid var(--border)"
                 >
                   <span class="small muted">{{ item.label }}</span>
-                  <span class="mono small" :class="item.tone">{{ item.value }}</span>
+                  <span class="mono small">{{ item.value }}</span>
                 </div>
               </div>
             </template>
@@ -199,13 +199,3 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   </Teleport>
 </template>
 
-<style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 200ms var(--ease);
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-</style>
