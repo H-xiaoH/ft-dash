@@ -1,5 +1,6 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
+import { useSliceSelection } from '@/composables/useChartPointer'
 import EmptyState from '../EmptyState.vue'
 
 const props = defineProps({
@@ -11,8 +12,6 @@ const props = defineProps({
   centerLabel: { type: String, default: '' },
   format: { type: Function, default: (v) => String(v) },
 })
-
-const hoverIndex = ref(-1)
 
 const total = computed(() =>
   (props.segments || []).reduce((sum, segment) => sum + (Number(segment.value) || 0), 0),
@@ -53,7 +52,15 @@ const arcs = computed(() => {
     .filter((arc) => arc.fraction > 0)
 })
 
-const active = computed(() => arcs.value.find((arc) => arc.index === hoverIndex.value) || null)
+const active = computed(
+  () => arcs.value.find((arc) => arc.index === activeIndex.value) || null,
+)
+
+/*
+ * Selection lives in a composable so the mouse-vs-touch behaviour is unit tested;
+ * getting that wrong is invisible in the source and only shows up on a real phone.
+ */
+const { activeIndex, toggle, preview, clearOnLeave, clear } = useSliceSelection()
 </script>
 
 <template>
@@ -66,8 +73,11 @@ const active = computed(() => arcs.value.find((arc) => arc.index === hoverIndex.
           viewBox="0 0 100 100"
           :width="size"
           :height="size"
+          class="donut-svg"
           style="display: block; transform: rotate(-90deg)"
         >
+          <!-- Tapping the hole or outside the ring dismisses the selection. -->
+          <circle cx="50" cy="50" r="50" fill="transparent" @click="clear()" />
           <circle
             cx="50"
             cy="50"
@@ -84,14 +94,15 @@ const active = computed(() => arcs.value.find((arc) => arc.index === hoverIndex.
             :r="radius"
             fill="none"
             :stroke="arc.color"
-            :stroke-width="hoverIndex === arc.index ? maxStroke : thickness"
+            :stroke-width="activeIndex === arc.index ? maxStroke : thickness"
             :stroke-dasharray="arc.dash"
             :stroke-dashoffset="arc.offset"
             stroke-linecap="butt"
             style="transition: stroke-width 160ms var(--ease), opacity 160ms var(--ease)"
-            :opacity="hoverIndex === -1 || hoverIndex === arc.index ? 1 : 0.42"
-            @pointerenter="hoverIndex = arc.index"
-            @pointerleave="hoverIndex = -1"
+            :opacity="activeIndex === -1 || activeIndex === arc.index ? 1 : 0.42"
+            @click="toggle(arc.index)"
+            @pointerenter="preview(arc.index, $event)"
+            @pointerleave="clearOnLeave($event)"
           />
         </svg>
 
@@ -115,13 +126,16 @@ const active = computed(() => arcs.value.find((arc) => arc.index === hoverIndex.
       </div>
 
       <div class="col grow" style="gap: 8px; min-width: 150px">
-        <div
+        <button
           v-for="arc in arcs"
           :key="arc.index"
-          class="row-between small"
-          style="cursor: default"
-          @pointerenter="hoverIndex = arc.index"
-          @pointerleave="hoverIndex = -1"
+          type="button"
+          class="row-between small legend-row"
+          :aria-pressed="activeIndex === arc.index"
+          :title="`${arc.label} · ${format(arc.value)}`"
+          @click="toggle(arc.index)"
+          @pointerenter="preview(arc.index, $event)"
+          @pointerleave="clearOnLeave($event)"
         >
           <span class="row" style="gap: 7px; min-width: 0">
             <span class="legend-swatch" :style="{ background: arc.color }" />
@@ -131,7 +145,7 @@ const active = computed(() => arcs.value.find((arc) => arc.index === hoverIndex.
             {{ format(arc.value) }}
             <span style="opacity: 0.7">· {{ (arc.fraction * 100).toFixed(1) }}%</span>
           </span>
-        </div>
+        </button>
       </div>
     </template>
   </div>
