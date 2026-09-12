@@ -1059,6 +1059,23 @@ check(
     `found ${chartSelects} selects`,
   )
   check('charts: the strategy timeframe is shown instead', chartsHtml.includes('周期 5m'))
+
+  // Trade values are single units; the date used to break into "2026-" /
+  // "09-11" / "21:27" because only th was nowrap.
+  const css = (await import('node:fs')).readFileSync('src/styles/main.css', 'utf8')
+  check(
+    'trades: the trade table marks its cells nowrap',
+    /table\.table--trades td \{[^}]*white-space:\s*nowrap/.test(css),
+    'table.table--trades td must set white-space: nowrap',
+  )
+  // Scoped on purpose: the config table wraps long values with break-all.
+  const genericTd = css.match(/\ntable\.table td \{[\s\S]*?\n\}/)?.[0] || ''
+  check(
+    'trades: nowrap is not applied to every table',
+    !/white-space/.test(genericTd),
+    genericTd.replace(/\s+/g, ' ').slice(0, 80),
+  )
+  check('trades: the trade table carries the marker class', tradesHtml.includes('table--trades'))
 }
 
 /* -------------------------------------------------------- stat tile glow */
