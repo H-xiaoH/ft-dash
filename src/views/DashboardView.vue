@@ -5,14 +5,11 @@ import { useBotStore } from '@/stores/bot'
 import { useBotActions } from '@/composables/useBotActions'
 import {
   fmtAmount,
-  fmtDate,
-  fmtDuration,
   fmtNumber,
   fmtPercentRatio,
   fmtSigned,
   profitClass,
 } from '@/utils/format'
-import AreaChart from '@/components/charts/AreaChart.vue'
 import BarChart from '@/components/charts/BarChart.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import Icon from '@/components/Icon.vue'
@@ -30,9 +27,6 @@ const openTrades = computed(() => bot.data.openTrades || [])
 const recentClosed = computed(() => (bot.data.trades || []).filter((t) => !t.is_open).slice(0, 8))
 const daily = computed(() => bot.profitTrend || [])
 
-const trendSeries = computed(() => daily.value.map((row) => row.cumulative))
-const trendLabels = computed(() => daily.value.map((row) => row.date))
-
 const recentBars = computed(() =>
   daily.value.slice(-14).map((row) => ({
     label: String(row.date || '').slice(5),
@@ -46,16 +40,7 @@ const topPairs = computed(() => {
   return rows.map((row) => ({ ...row, width: (Math.abs(row.abs) / max) * 100 }))
 })
 
-const lastDay = computed(() => daily.value[daily.value.length - 1] || null)
-
 const loadingCore = computed(() => !bot.bootstrapped && !bot.data.profit)
-
-const stateLabel = computed(
-  () =>
-    ({ running: '运行中', paused: '已暂停', stopbuy: '停止开仓', stopped: '已停止' })[
-      bot.botState
-    ] || '未知',
-)
 </script>
 
 <template>
@@ -163,77 +148,6 @@ const stateLabel = computed(
     </StatTile>
   </div>
 
-  <div class="split">
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <div class="card-title">
-            <Icon name="chartLine" :size="16" />
-            累计盈亏
-          </div>
-          <div class="card-sub">按日聚合的已实现盈亏累加（近 30 天）</div>
-        </div>
-        <div class="row" style="gap: 10px">
-          <span v-if="lastDay" class="badge" :class="lastDay.abs >= 0 ? 'badge--profit' : 'badge--loss'">
-            最近一日 {{ fmtSigned(lastDay.abs, 4) }}
-          </span>
-          <button class="icon-btn" title="刷新统计" @click="bot.refreshAnalytics()">
-            <Icon name="refresh" :size="15" :class="bot.loading.daily ? 'spin' : ''" />
-          </button>
-        </div>
-      </div>
-      <div class="card-body">
-        <AreaChart
-          :values="trendSeries"
-          :labels="trendLabels"
-          :height="240"
-          tone="auto"
-          :format="(v) => fmtSigned(v, 2)"
-          :label-format="(v) => String(v).slice(5)"
-        />
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title"><Icon name="gauge" :size="16" /> 机器人</div>
-        <span class="badge" :class="bot.botState === 'running' ? 'badge--profit' : 'badge--warn'">
-          {{ stateLabel }}
-        </span>
-      </div>
-      <div class="card-body col" style="gap: 2px">
-        <div
-          v-for="item in [
-            { label: '运行模式', value: bot.dryRun ? 'Dry-run 模拟' : '实盘 Live' },
-            { label: '策略', value: bot.data.config?.strategy || '—' },
-            { label: '时间周期', value: bot.data.config?.timeframe || '—' },
-            { label: '最大持仓', value: bot.data.config?.max_open_trades ?? '—' },
-            { label: '版本', value: bot.data.version?.version || '—' },
-            { label: '平均持仓', value: fmtDuration(summary.avgDuration) },
-            { label: '机器人启动', value: fmtDate(summary.botStartDate) },
-            { label: '最后心跳', value: fmtDate(bot.data.health?.last_process) },
-          ]"
-          :key="item.label"
-          class="row-between"
-          style="padding: 8px 0; border-bottom: 1px solid var(--border)"
-        >
-          <span class="small muted">{{ item.label }}</span>
-          <span class="small mono truncate" style="max-width: 60%">{{ item.value }}</span>
-        </div>
-
-        <button
-          class="btn btn--sm btn--block"
-          style="margin-top: 12px"
-          :disabled="!!actions.busy.value"
-          @click="actions.reloadConfig()"
-        >
-          <Icon name="refresh" :size="14" />
-          重载配置
-        </button>
-      </div>
-    </div>
-  </div>
-
   <div class="grid">
     <div class="card">
       <div class="card-head">
@@ -326,17 +240,3 @@ const stateLabel = computed(
 
   <TradeDetail :trade="selected" @close="selected = null" />
 </template>
-
-<style scoped>
-.split {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-}
-
-@media (max-width: 1100px) {
-  .split {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-</style>
