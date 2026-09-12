@@ -1189,12 +1189,32 @@ table.table--compact th {
   padding: 8px 12px;
 }
 
-.row-profit {
+/*
+ * Profit/loss marker down the left edge of a row.
+ *
+ * Painted on the row's first cell rather than on the <tr>: Safari does not render
+ * box-shadow on table rows, so the marker simply did not appear on desktop while
+ * working fine in Chrome on Android.
+ */
+.row-profit > td:first-child {
   box-shadow: inset 3px 0 0 var(--profit);
 }
 
-.row-loss {
+.row-loss > td:first-child {
   box-shadow: inset 3px 0 0 var(--loss);
+}
+
+/*
+ * Tables sit flush against the card edge, so the last row has to carry the card's
+ * bottom corners. Without this the marker above is drawn straight through the
+ * rounded corner and looks like it is overflowing the card.
+ */
+table.table tbody tr:last-child > td:first-child {
+  border-bottom-left-radius: calc(var(--radius-lg) - 1px);
+}
+
+table.table tbody tr:last-child > td:last-child {
+  border-bottom-right-radius: calc(var(--radius-lg) - 1px);
 }
 
 /* =========================================================================
