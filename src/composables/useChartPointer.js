@@ -12,6 +12,11 @@ import { ref } from 'vue'
  * on screen after it lifts (otherwise there is nothing to read). Mouse behaviour is
  * unchanged - it still follows without pressing and clears on leave.
  *
+ * Bind these explicitly (`@pointerdown="onPointerDown"`). Do NOT pass them to
+ * `v-on="handlers"`: that form expects bare lowercase event names as keys
+ * ("pointerdown"), and an `onXxx` key silently becomes a custom event that never
+ * fires.
+ *
  * The caller supplies `resolveIndex(event)`, which maps a pointer position onto a
  * data index (or null when the position is not over the plot).
  */
@@ -48,11 +53,9 @@ export function useChartPointer(resolveIndex) {
     hoverIndex.value = -1
   }
 
-  return {
-    hoverIndex,
-    clear: () => {
-      hoverIndex.value = -1
-    },
-    handlers: { onPointerDown, onPointerMove, onPointerLeave, onPointerCancel },
+  function clear() {
+    hoverIndex.value = -1
   }
+
+  return { hoverIndex, clear, onPointerDown, onPointerMove, onPointerLeave, onPointerCancel }
 }
