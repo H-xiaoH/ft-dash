@@ -3,9 +3,10 @@ import Icon from './Icon.vue'
 
 const props = defineProps({
   label: { type: String, required: true },
-  value: { type: [String, Number], default: '—' },
+  // Every caller passes these two, so they are required rather than defaulted.
+  value: { type: [String, Number], required: true },
+  icon: { type: String, required: true },
   sub: { type: String, default: '' },
-  icon: { type: String, default: 'bolt' },
   tone: { type: String, default: 'neutral' }, // neutral | profit | loss
   loading: { type: Boolean, default: false },
 })
