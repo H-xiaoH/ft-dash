@@ -109,7 +109,7 @@ function candleTitle(bar) {
       v-if="!geometry"
       icon="candles"
       title="没有K线数据"
-      message="请先选择交易对与时间周期，机器人需要处于运行状态才能返回实时数据。"
+      message="请先选择交易对，机器人需要处于运行状态才能返回实时数据。"
     />
 
     <template v-else>
