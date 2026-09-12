@@ -16,7 +16,6 @@ const timeframe = ref('')
 const limit = ref(300)
 const autoRefresh = ref(true)
 const candles = ref([])
-const columns = ref([])
 const loading = ref(false)
 const error = ref('')
 const lastLoadedAt = ref(0)
@@ -55,7 +54,6 @@ async function loadCandles() {
     })
     const cols = response?.columns || []
     const rows = response?.data || []
-    columns.value = cols
     candles.value = rows.map((row) => {
       const item = {}
       cols.forEach((name, index) => {
@@ -110,19 +108,18 @@ function startTimer() {
 watch(autoRefresh, startTimer, { immediate: true })
 onBeforeUnmount(() => clearInterval(timer))
 
-// A strategy can expose 200+ indicator columns, so the list is collapsed by default.
-const INDICATOR_PREVIEW = 10
-const showAllIndicators = ref(false)
+/** The whitelist runs to ~90 pairs, so the picker is filtered by a search box. */
+const pairSearch = ref('')
 
-const indicators = computed(() =>
-  columns.value.filter(
-    (name) => !['date', 'open', 'high', 'low', 'close', 'volume'].includes(name),
-  ),
-)
-
-const visibleIndicators = computed(() =>
-  showAllIndicators.value ? indicators.value : indicators.value.slice(0, INDICATOR_PREVIEW),
-)
+const filteredPairs = computed(() => {
+  const needle = pairSearch.value.trim().toUpperCase()
+  if (!needle) return pairs.value
+  const matches = pairs.value.filter((item) => item.toUpperCase().includes(needle))
+  // Keep the current selection in the list even when the search excludes it, so the
+  // picker never goes blank while a pair is loaded.
+  if (pair.value && !matches.includes(pair.value)) return [pair.value, ...matches]
+  return matches
+})
 </script>
 
 <template>
@@ -146,9 +143,15 @@ const visibleIndicators = computed(() =>
   <div class="card">
     <div class="card-head" style="flex-wrap: wrap; gap: 12px">
       <div class="row wrap" style="gap: 10px">
+        <div class="input-group" style="max-width: 170px">
+          <span class="input-icon"><Icon name="search" :size="15" /></span>
+          <input v-model="pairSearch" class="input" placeholder="搜索交易对" spellcheck="false" />
+        </div>
+
         <select v-model="pair" class="select" style="width: auto; min-width: 160px">
           <option v-if="!pairs.length" value="">白名单为空</option>
-          <option v-for="item in pairs" :key="item" :value="item">{{ item }}</option>
+          <option v-else-if="!filteredPairs.length" value="">无匹配交易对</option>
+          <option v-for="item in filteredPairs" :key="item" :value="item">{{ item }}</option>
         </select>
 
         <select v-model="timeframe" class="select" style="width: auto">
@@ -180,18 +183,6 @@ const visibleIndicators = computed(() =>
       </div>
 
       <CandleChart :candles="candles" :height="420" />
-
-      <div v-if="indicators.length" class="row wrap" style="gap: 6px; margin-top: 14px">
-        <span class="tiny faint">策略指标（{{ indicators.length }} 列）：</span>
-        <span v-for="name in visibleIndicators" :key="name" class="badge tiny">{{ name }}</span>
-        <button
-          v-if="indicators.length > INDICATOR_PREVIEW"
-          class="btn btn--xs btn--ghost"
-          @click="showAllIndicators = !showAllIndicators"
-        >
-          {{ showAllIndicators ? '收起' : `展开其余 ${indicators.length - INDICATOR_PREVIEW} 列` }}
-        </button>
-      </div>
     </div>
   </div>
 </template>
