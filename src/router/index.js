@@ -39,7 +39,9 @@ const routes = [
     meta: {
       title: '统计',
       icon: 'stats',
-      load: ['performance', 'stats', 'daily', 'weekly', 'monthly'],
+      // `trades` is needed for the profit-factor fallback: freqtrade sends null
+      // for that field whenever the ratio would be infinite.
+      load: ['performance', 'stats', 'daily', 'weekly', 'monthly', 'trades'],
     },
   },
   {
