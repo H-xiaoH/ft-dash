@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useElementSize, nextUid } from '@/composables/useElementSize'
+import { useChartPointer } from '@/composables/useChartPointer'
 import EmptyState from '../EmptyState.vue'
 
 const props = defineProps({
@@ -16,7 +17,6 @@ const props = defineProps({
 
 const wrap = ref(null)
 const width = useElementSize(wrap)
-const hoverIndex = ref(-1)
 const uid = nextUid('area')
 
 const PAD = { top: 16, right: 14, bottom: 24, left: 14 }
@@ -95,14 +95,15 @@ const activePoint = computed(() => {
   }
 })
 
-function onMove(event) {
+// Mouse hover and touch scrubbing share this (see useChartPointer).
+const { hoverIndex, handlers } = useChartPointer((event) => {
   const geo = geometry.value
-  if (!geo) return
+  if (!geo || series.value.length < 2) return null
   const rect = event.currentTarget.getBoundingClientRect()
   const ratio = (event.clientX - rect.left - PAD.left) / geo.innerW
   const index = Math.round(ratio * (series.value.length - 1))
-  hoverIndex.value = Math.min(series.value.length - 1, Math.max(0, index))
-}
+  return Math.min(series.value.length - 1, Math.max(0, index))
+})
 
 const axisLabels = computed(() => {
   const labels = props.labels || []
@@ -212,15 +213,18 @@ const axisLabels = computed(() => {
           :width="width || 640"
           :height="height"
           fill="transparent"
-          @pointermove="onMove"
-          @pointerleave="hoverIndex = -1"
+          class="chart-hit"
+          v-on="handlers"
         />
       </svg>
 
       <div
         v-if="activePoint"
         class="chart-tip"
-        :style="{ left: `${activePoint.x}px`, top: `${activePoint.y}px` }"
+        :style="{
+          left: `${Math.min(Math.max(activePoint.x, 72), (width || 640) - 72)}px`,
+          top: `${activePoint.y}px`,
+        }"
       >
         <div class="faint tiny">{{ activePoint.label }}</div>
         <div class="mono strong" :class="activePoint.value >= 0 ? 'profit' : 'loss'">
