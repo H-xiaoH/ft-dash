@@ -27,10 +27,31 @@ const maxStroke = computed(() => Number(props.thickness) + HOVER_GROW)
  * the viewport - derive the radius instead of hard-coding it.
  */
 const radius = computed(() => 50 - maxStroke.value / 2 - 1)
-const circumference = computed(() => 2 * Math.PI * radius.value)
 
 /** Visual separation between adjacent slices, in viewBox units. */
 const SEGMENT_GAP = 2
+
+/** Point on the ring at `angle`, measured clockwise from 12 o'clock. */
+function pointAt(angle) {
+  const a = angle - Math.PI / 2
+  return [50 + radius.value * Math.cos(a), 50 + radius.value * Math.sin(a)]
+}
+
+/**
+ * Slices are stroked as explicit arcs rather than dashed circles.
+ *
+ * A closed `<circle>` with `stroke-dasharray` renders its dash pattern relative to
+ * the path start, and the seam where the pattern wraps back to 0 degrees came out
+ * measurably narrower than every other gap (measured at ~2.0 degrees against ~2.75
+ * for the rest). An arc whose endpoints are explicit has no pattern to wrap, so all
+ * gaps are uniform by construction.
+ */
+function arcPath(from, to) {
+  const [x1, y1] = pointAt(from)
+  const [x2, y2] = pointAt(to)
+  const largeArc = to - from > Math.PI ? 1 : 0
+  return `M ${x1} ${y1} A ${radius.value} ${radius.value} 0 ${largeArc} 1 ${x2} ${y2}`
+}
 
 const arcs = computed(() => {
   if (!total.value) return []
@@ -45,23 +66,28 @@ const arcs = computed(() => {
     .filter((segment) => segment.value > 0)
   if (!visible.length) return []
 
-  const c = circumference.value
-  // The gap exists to separate slices from each other. With a single slice there is
-  // nothing to separate, and the gap just leaves the ring visibly unclosed - which
-  // is what a 100% win rate (one segment) looked like.
-  const gap = visible.length > 1 ? SEGMENT_GAP : 0
+  // The gap exists to separate slices. With a single slice there is nothing to
+  // separate, so it is drawn as a plain closed circle (see the template) - otherwise
+  // the gap just leaves the ring visibly unclosed.
+  const gapAngle = visible.length > 1 ? SEGMENT_GAP / radius.value : 0
 
-  let offset = 0
+  let angle = 0
   return visible.map((segment) => {
     const fraction = segment.value / total.value
-    const arc = {
+    const sweep = fraction * 2 * Math.PI
+    // Never let the gap eat a slice that is barely wider than the gap itself.
+    const half = Math.min(gapAngle, sweep * 0.45) / 2
+    const from = angle + half
+    const to = angle + sweep - half
+    angle += sweep
+
+    return {
       ...segment,
       fraction,
-      dash: `${Math.max(0.5, fraction * c - gap)} ${c}`,
-      offset: -offset * c,
+      // Half the gap sits at each end, so the gap either side of every boundary is
+      // the same - including across the 12 o'clock seam.
+      path: sweep >= 2 * Math.PI - 1e-9 ? null : arcPath(from, to),
     }
-    offset += fraction
-    return arc
   })
 })
 
@@ -87,7 +113,7 @@ const { activeIndex, toggle, preview, clearOnLeave, clear } = useSliceSelection(
           :width="size"
           :height="size"
           class="donut-svg"
-          style="display: block; transform: rotate(-90deg)"
+          style="display: block"
         >
           <!-- Tapping the hole or outside the ring dismisses the selection. -->
           <circle cx="50" cy="50" r="50" fill="transparent" @click="clear()" />
@@ -99,17 +125,31 @@ const { activeIndex, toggle, preview, clearOnLeave, clear } = useSliceSelection(
             stroke="var(--surface-3)"
             :stroke-width="thickness"
           />
+
+          <!-- A single slice is a full turn, which no single arc can express. -->
           <circle
-            v-for="arc in arcs"
-            :key="arc.index"
+            v-if="arcs.length === 1"
             cx="50"
             cy="50"
             :r="radius"
             fill="none"
+            :stroke="arcs[0].color"
+            :stroke-width="activeIndex === arcs[0].index ? maxStroke : thickness"
+            style="transition: stroke-width 160ms var(--ease), opacity 160ms var(--ease)"
+            :opacity="activeIndex === -1 || activeIndex === arcs[0].index ? 1 : 0.42"
+            @click="toggle(arcs[0].index)"
+            @pointerenter="preview(arcs[0].index, $event)"
+            @pointerleave="clearOnLeave($event)"
+          />
+
+          <path
+            v-for="arc in arcs"
+            v-else
+            :key="arc.index"
+            :d="arc.path"
+            fill="none"
             :stroke="arc.color"
             :stroke-width="activeIndex === arc.index ? maxStroke : thickness"
-            :stroke-dasharray="arc.dash"
-            :stroke-dashoffset="arc.offset"
             stroke-linecap="butt"
             style="transition: stroke-width 160ms var(--ease), opacity 160ms var(--ease)"
             :opacity="activeIndex === -1 || activeIndex === arc.index ? 1 : 0.42"
