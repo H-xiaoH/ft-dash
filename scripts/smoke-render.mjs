@@ -1076,6 +1076,39 @@ check(
     genericTd.replace(/\s+/g, ' ').slice(0, 80),
   )
   check('trades: the trade table carries the marker class', tradesHtml.includes('table--trades'))
+
+  // Quantities arrive padded to the exchange precision; 8 used to print as
+  // "8.000000" and the fixture's 1.2345 as "1.234500".
+  check(
+    'trades: quantities are not padded with zeros',
+    tradesHtml.includes('1.2345') && !tradesHtml.includes('1.234500'),
+  )
+
+  // The marker is pinned to the cell edge, not inset into it.
+  const marker = css.match(/\.row-profit > td:first-child::before,[\s\S]*?\n\}/)?.[0] || ''
+  check(
+    'trades: the profit/loss marker hugs the left edge',
+    /left:\s*0\s*;/.test(marker),
+    marker.replace(/\s+/g, ' ').slice(0, 90),
+  )
+}
+
+/* --------------------------------------------------------------- quantities */
+
+{
+  const { fmtQuantity } = await server.ssrLoadModule('/src/utils/format.js')
+
+  check(
+    'quantity: trailing zeros are dropped',
+    fmtQuantity(8) === '8' && fmtQuantity(1050) === '1,050' && fmtQuantity(240) === '240',
+    `${fmtQuantity(8)} / ${fmtQuantity(1050)} / ${fmtQuantity(240)}`,
+  )
+  check(
+    'quantity: real decimals survive',
+    fmtQuantity(1.2345) === '1.2345' && fmtQuantity(0.12345678) === '0.12345678',
+    `${fmtQuantity(1.2345)} / ${fmtQuantity(0.12345678)}`,
+  )
+  check('quantity: an unknown value stays a dash', fmtQuantity(null) === '—')
 }
 
 /* -------------------------------------------------------- stat tile glow */
