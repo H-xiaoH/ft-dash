@@ -1130,6 +1130,15 @@ check(
   )
   check('charts: the strategy timeframe is shown instead', chartsHtml.includes('周期 5m'))
 
+  // The level counters above the log list were decorative; the level filter in
+  // the card head is what is actually used.
+  const logsHtml = renderedPages.get('/logs') || ''
+  check(
+    'logs: the level counter tiles are gone',
+    !logsHtml.includes('stat-value') && logsHtml.includes('>WARNING<'),
+    'expected no stat tiles and a surviving level filter',
+  )
+
   // Trade values are single units; the date used to break into "2026-" /
   // "09-11" / "21:27" because only th was nowrap.
   const css = (await import('node:fs')).readFileSync('src/styles/main.css', 'utf8')
