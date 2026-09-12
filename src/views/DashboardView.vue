@@ -189,7 +189,7 @@ const loadingCore = computed(() => !bot.bootstrapped && !bot.data.profit)
           <div class="card-title"><Icon name="trades" :size="16" /> 最近平仓</div>
           <div class="card-sub">最近 {{ recentClosed.length }} 笔</div>
         </div>
-        <RouterLink class="btn btn--sm btn--ghost" :to="{ name: 'trades' }">
+        <RouterLink class="btn btn--sm" :to="{ name: 'trades' }">
           更多 <Icon name="chevronRight" :size="14" />
         </RouterLink>
       </div>
