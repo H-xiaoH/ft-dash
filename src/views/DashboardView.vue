@@ -14,7 +14,6 @@ import {
 } from '@/utils/format'
 import AreaChart from '@/components/charts/AreaChart.vue'
 import BarChart from '@/components/charts/BarChart.vue'
-import DonutChart from '@/components/charts/DonutChart.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import Icon from '@/components/Icon.vue'
 import StatTile from '@/components/StatTile.vue'
@@ -40,14 +39,6 @@ const recentBars = computed(() =>
     value: row.abs,
   })),
 )
-
-const winLoss = computed(() => {
-  const s = summary.value
-  const segments = []
-  if (s.winning) segments.push({ label: '盈利交易', value: s.winning, color: 'var(--profit)' })
-  if (s.losing) segments.push({ label: '亏损交易', value: s.losing, color: 'var(--loss)' })
-  return segments
-})
 
 const topPairs = computed(() => {
   const rows = performanceRows.value.slice(0, 6)
@@ -243,7 +234,7 @@ const stateLabel = computed(
     </div>
   </div>
 
-  <div class="grid grid-2">
+  <div class="grid">
     <div class="card">
       <div class="card-head">
         <div>
@@ -253,20 +244,6 @@ const stateLabel = computed(
       </div>
       <div class="card-body">
         <BarChart :items="recentBars" :height="200" :format="(v) => fmtSigned(v, 2)" />
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title"><Icon name="pie" :size="16" /> 盈亏分布</div>
-      </div>
-      <div class="card-body">
-        <DonutChart
-          :segments="winLoss"
-          :center-value="summary.winRate === null ? '—' : `${summary.winRate.toFixed(0)}%`"
-          center-label="胜率"
-          :format="(v) => fmtNumber(v, 0)"
-        />
       </div>
     </div>
   </div>
