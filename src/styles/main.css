@@ -1513,13 +1513,18 @@ table.table--compact th {
 
 /*
  * Invisible overlay that captures pointer input for the tooltips.
+ *
  * `touch-action: pan-y` is the part that matters on phones: a vertical drag still
  * scrolls the page, while a tap or horizontal drag reaches the chart so the value
  * can be inspected.
+ *
+ * `pointer-events: all` hit-tests the whole overlay regardless of the transparent
+ * fill, which keeps WebKit from deciding there is nothing to tap.
  */
 .chart-hit {
   touch-action: pan-y;
   cursor: crosshair;
+  pointer-events: all;
 }
 
 /* =========================================================================
