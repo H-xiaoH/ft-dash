@@ -1174,6 +1174,34 @@ check(
   )
 }
 
+/* ------------------------------------------------------------- table density */
+
+{
+  const fs = await import('node:fs')
+  const files = [
+    'src/components/TradesTable.vue',
+    'src/views/DashboardView.vue',
+    'src/views/MarketView.vue',
+    'src/views/SettingsView.vue',
+    'src/views/StatsView.vue',
+    'src/views/SystemView.vue',
+  ].map((file) => fs.readFileSync(file, 'utf8'))
+
+  // The density switch only ever reached the trade table and moved rows by 8px,
+  // so it was dropped and every table is dense now - including any added later.
+  const tags = files.flatMap((s) => [...s.matchAll(/<table class="table[^"]*"/g)].map((m) => m[0]))
+  check(
+    'tables: every table declares itself compact',
+    tags.length === 8 && tags.every((tag) => tag.includes('table--compact')),
+    `${tags.filter((t) => !t.includes('table--compact')).length}/${tags.length} missing table--compact`,
+  )
+  const settingsSource = fs.readFileSync('src/stores/settings.js', 'utf8')
+  check(
+    'tables: the density setting is gone',
+    !/tableDensity|表格密度/.test(settingsSource + files.join('\n')),
+  )
+}
+
 /* -------------------------------------------------------- pair search box */
 
 {
