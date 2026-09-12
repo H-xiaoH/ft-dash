@@ -17,40 +17,56 @@ const total = computed(() =>
   (props.segments || []).reduce((sum, segment) => sum + (Number(segment.value) || 0), 0),
 )
 
-/** Hover widens the stroke, so the radius has to reserve room for the widest state. */
-const HOVER_GROW = 4
-const maxStroke = computed(() => Number(props.thickness) + HOVER_GROW)
+/** Mid-line radius of the ring, leaving a unit of padding inside the 100x100 viewBox. */
+const radius = computed(() => 50 - Number(props.thickness) / 2 - 1)
+const ringOuter = computed(() => radius.value + Number(props.thickness) / 2)
+const ringInner = computed(() => radius.value - Number(props.thickness) / 2)
 
-/**
- * The viewBox is 100x100 and an SVG stroke straddles its path, so the ring
- * occupies `radius +/- strokeWidth / 2`. Anything above 50 gets clipped flat by
- * the viewport - derive the radius instead of hard-coding it.
- */
-const radius = computed(() => 50 - maxStroke.value / 2 - 1)
-
-/** Visual separation between adjacent slices, in viewBox units. */
+/** Width of the slot between two slices, in viewBox units (constant across the ring). */
 const SEGMENT_GAP = 2
 
-/** Point on the ring at `angle`, measured clockwise from 12 o'clock. */
-function pointAt(angle) {
-  const a = angle - Math.PI / 2
-  return [50 + radius.value * Math.cos(a), 50 + radius.value * Math.sin(a)]
+/** Point on a circle of radius `r` at `angle`, measured clockwise from 12 o'clock. */
+function at(r, angle) {
+  return [50 + r * Math.sin(angle), 50 - r * Math.cos(angle)]
 }
 
 /**
- * Slices are stroked as explicit arcs rather than dashed circles.
+ * A slice as a *filled* annulus sector, not a stroked arc.
  *
- * A closed `<circle>` with `stroke-dasharray` renders its dash pattern relative to
- * the path start, and the seam where the pattern wraps back to 0 degrees came out
- * measurably narrower than every other gap (measured at ~2.0 degrees against ~2.75
- * for the rest). An arc whose endpoints are explicit has no pattern to wrap, so all
- * gaps are uniform by construction.
+ * A stroke's ends are always radial, so a stroke-dasharray-free gap between two arcs
+ * is a wedge: with a 3.02 degree gap on a ring of 29..47 units the outer edge
+ * measured 2.47 units against 1.53 at the inner edge - a 61% difference, plainly
+ * visible as "more gap pixels outside than inside".
+ *
+ * Here each slice is inset by straight lines *parallel* to the radial direction,
+ * offset half the gap to each side. Such a line meets the two circles at different
+ * angles - asin(halfGap / r) - so the inner arc gets a wider angular gap than the
+ * outer one, which is exactly what keeps the slot a constant width.
  */
-function arcPath(from, to) {
-  const [x1, y1] = pointAt(from)
-  const [x2, y2] = pointAt(to)
-  const largeArc = to - from > Math.PI ? 1 : 0
-  return `M ${x1} ${y1} A ${radius.value} ${radius.value} 0 ${largeArc} 1 ${x2} ${y2}`
+function sectorPath(from, to) {
+  const ro = ringOuter.value
+  const ri = ringInner.value
+  const half = SEGMENT_GAP / 2
+  const sweep = to - from
+
+  // Keep the slot from swallowing a slice that is barely wider than the slot itself.
+  const limit = sweep * 0.45
+  const outerShift = Math.min(Math.asin(Math.min(1, half / ro)), limit)
+  const innerShift = Math.min(Math.asin(Math.min(1, half / ri)), limit)
+
+  const [ox1, oy1] = at(ro, from + outerShift)
+  const [ox2, oy2] = at(ro, to - outerShift)
+  const [ix2, iy2] = at(ri, to - innerShift)
+  const [ix1, iy1] = at(ri, from + innerShift)
+  const large = sweep - 2 * outerShift > Math.PI ? 1 : 0
+
+  return [
+    `M ${ox1} ${oy1}`,
+    `A ${ro} ${ro} 0 ${large} 1 ${ox2} ${oy2}`,
+    `L ${ix2} ${iy2}`,
+    `A ${ri} ${ri} 0 ${large} 0 ${ix1} ${iy1}`,
+    'Z',
+  ].join(' ')
 }
 
 const arcs = computed(() => {
@@ -66,27 +82,20 @@ const arcs = computed(() => {
     .filter((segment) => segment.value > 0)
   if (!visible.length) return []
 
-  // The gap exists to separate slices. With a single slice there is nothing to
-  // separate, so it is drawn as a plain closed circle (see the template) - otherwise
-  // the gap just leaves the ring visibly unclosed.
-  const gapAngle = visible.length > 1 ? SEGMENT_GAP / radius.value : 0
-
   let angle = 0
   return visible.map((segment) => {
     const fraction = segment.value / total.value
     const sweep = fraction * 2 * Math.PI
-    // Never let the gap eat a slice that is barely wider than the gap itself.
-    const half = Math.min(gapAngle, sweep * 0.45) / 2
-    const from = angle + half
-    const to = angle + sweep - half
-    angle += sweep
+    const from = angle
+    const to = angle + sweep
+    angle = to
 
     return {
       ...segment,
       fraction,
-      // Half the gap sits at each end, so the gap either side of every boundary is
-      // the same - including across the 12 o'clock seam.
-      path: sweep >= 2 * Math.PI - 1e-9 ? null : arcPath(from, to),
+      // A single slice is a full turn, which no arc pair can express - the template
+      // draws it as a plain closed circle instead.
+      path: visible.length === 1 ? null : sectorPath(from, to),
     }
   })
 })
@@ -126,7 +135,7 @@ const { activeIndex, toggle, preview, clearOnLeave, clear } = useSliceSelection(
             :stroke-width="thickness"
           />
 
-          <!-- A single slice is a full turn, which no single arc can express. -->
+          <!-- A single slice is a full turn, which no arc pair can express. -->
           <circle
             v-if="arcs.length === 1"
             cx="50"
@@ -134,24 +143,22 @@ const { activeIndex, toggle, preview, clearOnLeave, clear } = useSliceSelection(
             :r="radius"
             fill="none"
             :stroke="arcs[0].color"
-            :stroke-width="activeIndex === arcs[0].index ? maxStroke : thickness"
-            style="transition: stroke-width 160ms var(--ease), opacity 160ms var(--ease)"
+            :stroke-width="thickness"
+            style="transition: opacity 160ms var(--ease)"
             :opacity="activeIndex === -1 || activeIndex === arcs[0].index ? 1 : 0.42"
             @click="toggle(arcs[0].index)"
             @pointerenter="preview(arcs[0].index, $event)"
             @pointerleave="clearOnLeave($event)"
           />
 
+          <!-- Filled sectors, so the slot between them can be a constant width. -->
           <path
             v-for="arc in arcs"
             v-else
             :key="arc.index"
             :d="arc.path"
-            fill="none"
-            :stroke="arc.color"
-            :stroke-width="activeIndex === arc.index ? maxStroke : thickness"
-            stroke-linecap="butt"
-            style="transition: stroke-width 160ms var(--ease), opacity 160ms var(--ease)"
+            :fill="arc.color"
+            style="transition: opacity 160ms var(--ease)"
             :opacity="activeIndex === -1 || activeIndex === arc.index ? 1 : 0.42"
             @click="toggle(arc.index)"
             @pointerenter="preview(arc.index, $event)"
