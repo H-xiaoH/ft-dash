@@ -115,13 +115,6 @@ export function fmtTime(value) {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
-export function fromNow(value) {
-  const date = toDate(value)
-  if (!date) return '—'
-  const seconds = Math.round((Date.now() - date.getTime()) / 1000)
-  return durationFromSeconds(seconds)
-}
-
 function durationFromSeconds(totalSeconds) {
   const n = toNumber(totalSeconds)
   if (n === null) return '—'
@@ -135,24 +128,11 @@ function durationFromSeconds(totalSeconds) {
   return `${days} 天 ${hours % 24} 时`
 }
 
-/** Parses freqtrade's "1 day, 2:03:04" / "2:03:04" duration strings. */
-function durationFromString(value) {
-  if (!value || typeof value !== 'string') return null
-  let seconds = 0
-  const dayMatch = value.match(/(\d+)\s*day/)
-  if (dayMatch) seconds += Number(dayMatch[1]) * 86400
-  const timeMatch = value.match(/(\d+):(\d+):(\d+)/)
-  if (timeMatch) {
-    seconds += Number(timeMatch[1]) * 3600 + Number(timeMatch[2]) * 60 + Number(timeMatch[3])
-  }
-  return seconds || null
-}
-
+/**
+ * Every caller passes seconds computed from timestamps, so there is no need to
+ * parse freqtrade's "1 day, 2:03:04" strings here.
+ */
 export function fmtDuration(value) {
-  if (typeof value === 'string' && /[:\-]/.test(value)) {
-    const parsed = durationFromString(value)
-    return parsed === null ? value : durationFromSeconds(parsed)
-  }
   return durationFromSeconds(value)
 }
 
@@ -214,12 +194,3 @@ export function profitClass(value) {
   return n > 0 ? 'profit' : 'loss'
 }
 
-/* --------------------------------------------------------------------- misc */
-
-export function pairBase(pair) {
-  return String(pair || '').split('/')[0] || '—'
-}
-
-export function pairQuote(pair) {
-  return String(pair || '').split('/')[1]?.split(':')[0] || ''
-}
