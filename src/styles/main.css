@@ -1507,6 +1507,38 @@ table.table--compact th {
   transform: translate(-50%, -118%);
 }
 
+/*
+ * Donut slices are selected by tap/click. `manipulation` keeps a quick second tap
+ * from being treated as a double-tap zoom, and the pointer cursor signals that the
+ * ring is interactive.
+ */
+.donut-svg {
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+/*
+ * Legend rows double as the large tap target for the ring: a thin arc is a poor
+ * target on a phone. The negative margin widens the hit area without shifting the
+ * text out of alignment with the rest of the card.
+ */
+.legend-row {
+  width: 100%;
+  margin: 0 -7px;
+  padding: 6px 7px;
+  border-radius: var(--radius-xs);
+  text-align: left;
+  transition: background var(--dur) var(--ease);
+}
+
+.legend-row:hover {
+  background: var(--surface-2);
+}
+
+.legend-row[aria-pressed='true'] {
+  background: var(--accent-soft);
+}
+
 .chart-wrap {
   position: relative;
 }
