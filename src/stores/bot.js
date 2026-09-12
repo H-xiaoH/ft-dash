@@ -217,6 +217,36 @@ export const useBotStore = defineStore('bot', () => {
     const winning = firstNumber(p.winning_trades, 0)
     const losing = firstNumber(p.losing_trades, 0)
     const decided = (winning ?? 0) + (losing ?? 0)
+    // freqtrade cannot serialise a profit factor of infinity, so a bot that has
+    // never lost a trade reports null. Recover what the ratio actually is.
+    const profitFactor = (() => {
+      const raw = firstNumber(p.profit_factor, null)
+      if (raw !== null) return raw
+
+      // The aggregate counts already answer it without any trade data.
+      const losers = firstNumber(p.losing_trades, null)
+      const winners = firstNumber(p.winning_trades, 0)
+      if (losers === 0 && winners > 0) return Infinity
+
+      // Some builds omit the field entirely. Fall back to the closed trades, but
+      // only when the loaded page covers every one of them - a single page of a
+      // longer history would produce a confident wrong number.
+      const closed = (data.trades || []).filter((trade) => !trade.is_open)
+      if (!closed.length) return null
+      const expected = firstNumber(p.closed_trade_count, null)
+      if (expected !== null && closed.length < expected) return null
+
+      let gross = 0
+      let grossLoss = 0
+      for (const trade of closed) {
+        const value = toNumber(trade.profit_abs)
+        if (value === null) continue
+        if (value > 0) gross += value
+        else grossLoss += -value
+      }
+      if (grossLoss > 0) return gross / grossLoss
+      return gross > 0 ? Infinity : null
+    })()
     return {
       absAll: firstNumber(p.profit_all_coin, p.profit_closed_coin, 0),
       ratioAll: ratioMean,
@@ -241,7 +271,7 @@ export const useBotStore = defineStore('bot', () => {
       bestPair: p.best_pair || null,
       bestRate: firstNumber(p.best_rate, null),
       avgDuration: p.avg_duration || null,
-      profitFactor: firstNumber(p.profit_factor, null),
+      profitFactor,
       expectancy: firstNumber(p.expectancy, null),
       expectancyRatio: firstNumber(p.expectancy_ratio, null),
       sharpe: firstNumber(p.sharpe, null),
