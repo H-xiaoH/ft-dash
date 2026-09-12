@@ -7,6 +7,7 @@ import {
   fmtNumber,
   fmtPercentRatio,
   fmtPrice,
+  fmtQuantity,
   fmtSigned,
   isOpenTrade,
   nowSeconds,
@@ -105,7 +106,7 @@ function rowClass(trade) {
             <td class="num">
               {{ fmtPrice(isOpen ? trade.current_rate : trade.close_rate) }}
             </td>
-            <td class="num hide-xs">{{ fmtNumber(trade.amount, 6) }}</td>
+            <td class="num hide-xs">{{ fmtQuantity(trade.amount) }}</td>
             <td class="num hide-xs">{{ fmtNumber(trade.stake_amount, 2) }}</td>
 
             <td class="num" :class="profitClass(ratioOf(trade))">
