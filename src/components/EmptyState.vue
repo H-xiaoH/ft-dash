@@ -2,7 +2,8 @@
 import Icon from './Icon.vue'
 
 defineProps({
-  icon: { type: String, default: 'database' },
+  // Always passed by the 13 call sites.
+  icon: { type: String, required: true },
   title: { type: String, default: '暂无数据' },
   message: { type: String, default: '' },
 })
