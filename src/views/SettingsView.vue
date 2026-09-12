@@ -141,23 +141,6 @@ const statusIcon = {
             </button>
           </div>
         </div>
-
-        <div class="col" style="gap: 8px">
-          <span class="field-label">表格密度</span>
-          <div class="segmented">
-            <button
-              v-for="option in [
-                { id: 'comfortable', label: '宽松' },
-                { id: 'compact', label: '紧凑' },
-              ]"
-              :key="option.id"
-              :class="{ active: settings.tableDensity === option.id }"
-              @click="settings.tableDensity = option.id"
-            >
-              {{ option.label }}
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   </div>
