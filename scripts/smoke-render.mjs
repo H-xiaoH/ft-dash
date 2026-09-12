@@ -374,7 +374,6 @@ globalThis.fetch = async (input, init = {}) => {
       headers: { 'content-type': 'application/json' },
     })
 
-  if (clean === '/ping') return json({ status: 'pong' })
   if (clean === '/token/login') return json({ access_token: 'smoke-access', refresh_token: 'smoke-refresh' })
   if (clean === '/token/refresh') return json({ access_token: 'smoke-access-2', refresh_token: 'smoke-refresh' })
 
@@ -916,133 +915,6 @@ check(
   check('a resolver returning null leaves the value untouched', outOfRange.hoverIndex.value === -1)
 }
 
-/* ------------------------------------------------- donut ring geometry */
-
-{
-  const { default: DonutChart } = await server.ssrLoadModule('/src/components/charts/DonutChart.vue')
-
-  // Rendered directly rather than via a page, so the checks do not depend on which
-  // view happens to show a donut.
-  const renderDonut = async (segments) => {
-    const app = createSSRApp({ render: () => h(DonutChart, { segments, size: 168 }) })
-    const html = await renderToString(app)
-    const m = html.match(/<svg[^>]*viewBox="0 0 100 100"[^>]*>([\s\S]*?)<\/svg>/)
-    return m ? m[1] : ''
-  }
-
-  // Angle on the ring, clockwise from 12 o'clock.
-  const angleOf = (x, y) => {
-    const a = Math.atan2(Number(x) - 50, 50 - Number(y))
-    return ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
-  }
-  const between = (from, to) => (((to - from) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
-
-  /**
-   * Slices are filled annulus sectors:
-   *   M <outer start> A ro .. <outer end> L <inner end> A ri .. <inner start> Z
-   * so every gap can be measured along both its outer and its inner edge.
-   */
-  const slicesOf = (svg) =>
-    [...svg.matchAll(/<path[^>]*d="M ([\d.eE+-]+) ([\d.eE+-]+) A ([\d.]+) [\d.]+ 0 [01] 1 ([\d.eE+-]+) ([\d.eE+-]+) L ([\d.eE+-]+) ([\d.eE+-]+) A ([\d.]+) [\d.]+ 0 [01] 0 ([\d.eE+-]+) ([\d.eE+-]+)/g)]
-      .map((m) => ({
-        outer: Number(m[3]),
-        inner: Number(m[8]),
-        outerFrom: angleOf(m[1], m[2]),
-        outerTo: angleOf(m[4], m[5]),
-        innerFrom: angleOf(m[9], m[10]),
-        innerTo: angleOf(m[6], m[7]),
-      }))
-
-  // One slice is a full turn: it must be a plain closed circle, or the gap would
-  // leave the ring visibly open.
-  const single = await renderDonut([{ label: 'A', value: 4, color: '#2ee6a8' }])
-  check(
-    'donut: a single slice is a plain closed ring (no dash pattern, no seam)',
-    !/stroke-dasharray/.test(single) && /<circle[^>]*stroke="#2ee6a8"/.test(single),
-    'expected one continuous circle',
-  )
-  check('donut: a single slice renders no sectors', slicesOf(single).length === 0)
-
-  const four = await renderDonut([
-    { label: 'A', value: 1, color: '#2ee6a8' },
-    { label: 'B', value: 1, color: '#22d3ee' },
-    { label: 'C', value: 1, color: '#7c5cff' },
-    { label: 'D', value: 1, color: '#ff5c7a' },
-  ])
-  const many = slicesOf(four)
-  check('donut: multiple slices render as filled sectors', many.length === 4, `${many.length} sectors`)
-  check('donut: sectors do not use a dash pattern', !/stroke-dasharray/.test(four))
-  check(
-    'donut: sectors stay inside the viewBox',
-    many.every((slice) => slice.outer <= 50 && slice.inner > 0 && slice.inner < slice.outer),
-    many.map((slice) => `${slice.inner}..${slice.outer}`).join(', '),
-  )
-
-  // Gaps are measured along both edges because the reported bug was radial: a
-  // constant-angle gap is a wedge, wider where the ring is wider.
-  const gaps = many.map((slice, i) => {
-    const next = many[(i + 1) % many.length]
-    return {
-      outer: slice.outer * between(slice.outerTo, next.outerFrom),
-      inner: slice.inner * between(slice.innerTo, next.innerFrom),
-    }
-  })
-  check(
-    'donut: outer gap is uniform, seam included',
-    gaps.every((g) => Math.abs(g.outer - 2) < 0.03),
-    gaps.map((g) => g.outer.toFixed(4)).join(', '),
-  )
-  check(
-    'donut: inner gap is uniform, seam included',
-    gaps.every((g) => Math.abs(g.inner - 2) < 0.03),
-    gaps.map((g) => g.inner.toFixed(4)).join(', '),
-  )
-  check(
-    'donut: the gap is the same width at the inner and outer edge',
-    gaps.every((g) => Math.abs(g.outer - g.inner) < 0.03),
-    gaps.map((g) => `${g.inner.toFixed(3)}/${g.outer.toFixed(3)}`).join(' '),
-  )
-}
-
-/* ---------------------------------------------- donut slice selection */
-
-{
-  const { useSliceSelection, isMousePointer } = pointerModule
-  const mouse = { pointerType: 'mouse' }
-  const touch = { pointerType: 'touch' }
-
-  check('donut: mouse pointer detected', isMousePointer(mouse) && !isMousePointer(touch))
-
-  const m = useSliceSelection()
-  m.preview(2, mouse)
-  check('donut/mouse: hovering previews a slice', m.activeIndex.value === 2, String(m.activeIndex.value))
-  m.clearOnLeave(mouse)
-  check('donut/mouse: leaving clears', m.activeIndex.value === -1, String(m.activeIndex.value))
-
-  const t = useSliceSelection()
-  // The old bug: a tap fired pointerenter (preview) then pointerleave (clear), so the
-  // value flashed and vanished. Touch must ignore both and select on click instead.
-  t.preview(1, touch)
-  check('donut/touch: hover events are ignored', t.activeIndex.value === -1, String(t.activeIndex.value))
-  t.clearOnLeave(touch)
-  check('donut/touch: lifting a finger does not clear', t.activeIndex.value === -1, String(t.activeIndex.value))
-
-  t.toggle(1)
-  check('donut/touch: a tap selects a slice', t.activeIndex.value === 1, String(t.activeIndex.value))
-  t.clearOnLeave(touch)
-  check('donut/touch: the selection survives the finger lifting', t.activeIndex.value === 1, String(t.activeIndex.value))
-  t.preview(3, touch)
-  check('donut/touch: hovering another slice does not steal the selection', t.activeIndex.value === 1, String(t.activeIndex.value))
-
-  t.toggle(1)
-  check('donut/touch: tapping the same slice again deselects', t.activeIndex.value === -1, String(t.activeIndex.value))
-  t.toggle(2)
-  t.toggle(3)
-  check('donut/touch: tapping another slice moves the selection', t.activeIndex.value === 3, String(t.activeIndex.value))
-  t.clear()
-  check('donut/touch: the backdrop clears the selection', t.activeIndex.value === -1, String(t.activeIndex.value))
-}
-
 /* ------------------------------------------- chart event wiring (compiled) */
 
 {
@@ -1056,8 +928,6 @@ check(
     AreaChart: DRAG,
     BarChart: DRAG,
     CandleChart: DRAG,
-    // The donut selects discrete slices: hover previews, a tap (click) pins.
-    DonutChart: ['onClick', 'onPointerenter', 'onPointerleave'],
   }
 
   for (const [name, events] of Object.entries(EXPECTED)) {
@@ -1339,6 +1209,48 @@ check(
     out.push('MUTATED')
     check('search: the source list is not mutated', input.length === 1)
   }
+}
+
+/* --------------------------------------------------------- audit removals */
+
+{
+  const fs = await import('node:fs')
+  const read = (p) => fs.readFileSync(p, 'utf8')
+
+  // The donut chart had no production caller and is gone for good.
+  check(
+    'audit: the unused donut chart stays deleted',
+    !fs.existsSync('src/components/charts/DonutChart.vue') &&
+      !/DonutChart|useSliceSelection/.test(
+        read('src/composables/useChartPointer.js') + read('src/components/Icon.vue'),
+      ),
+  )
+  check(
+    'audit: the dead stylesheet rules stay deleted',
+    !/\.(meter|meter-fill|chart-legend|legend-item|grid-3|grid-auto|grid-auto-lg|span-2|span-full|btn--icon|card-body--tight|input--error)\b/.test(
+      read('src/styles/main.css'),
+    ),
+  )
+  const helpers = read('src/utils/format.js') + read('src/stores/bot.js') + read('src/api/endpoints.js')
+  check(
+    'audit: the dead helpers stay deleted',
+    !/fromNow|durationFromString|pairBase|pairQuote|logCount|log_count/.test(helpers),
+  )
+  check(
+    'audit: the unused endpoints stay deleted',
+    !/\b(ping|entries|exits|mixTags|trade):/.test(read('src/api/endpoints.js')),
+  )
+  check(
+    'audit: the never-rendered summary fields stay deleted',
+    !/pctClosed|fiatAll|openTradeCount|bestPair|bestRate|avgDuration|expectancyRatio|currentDrawdown|firstTradeDate|latestTradeDate|botStartDate/.test(
+      read('src/stores/bot.js'),
+    ),
+  )
+  // One global rule instead of a scoped copy per component.
+  const fadeUsers = ['src/components/AppShell.vue', 'src/components/ConfirmDialog.vue',
+    'src/components/TradeDetail.vue', 'src/views/SystemView.vue']
+    .filter((p) => /fade-enter-active/.test(read(p)))
+  check('audit: the fade transition is defined once', fadeUsers.length === 0, fadeUsers.join(', '))
 }
 
 /* ------------------------------------------------------ security invariants */
