@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useBotStore } from '@/stores/bot'
 import { useBotActions } from '@/composables/useBotActions'
 import { useUiStore } from '@/stores/ui'
-import { fmtDate, fmtSigned, profitClass } from '@/utils/format'
+import { fmtDate, fmtPercentRatio, fmtSigned, profitClass } from '@/utils/format'
 import EmptyState from '@/components/EmptyState.vue'
 import Icon from '@/components/Icon.vue'
 
@@ -17,17 +17,14 @@ const search = ref('')
 const newBlacklist = ref('')
 const lockForm = ref({ pair: '', until: '', side: 'long', reason: '手动锁定' })
 
-const whitelist = computed(() => {
-  const list = bot.data.whitelist?.whitelist || []
+/** The whitelist and the blacklist are both narrowed by the same search box. */
+function keep(list) {
   const needle = search.value.trim().toUpperCase()
   return needle ? list.filter((pair) => pair.includes(needle)) : list
-})
+}
 
-const blacklist = computed(() => {
-  const list = bot.data.blacklist?.blacklist || []
-  const needle = search.value.trim().toUpperCase()
-  return needle ? list.filter((pair) => pair.includes(needle)) : list
-})
+const whitelist = computed(() => keep(bot.data.whitelist?.whitelist || []))
+const blacklist = computed(() => keep(bot.data.blacklist?.blacklist || []))
 
 const locks = computed(() => bot.data.locks || [])
 const activeLocks = computed(() => locks.value.filter((lock) => lock.active !== false))
@@ -63,15 +60,14 @@ async function addLock() {
   if (ok) lockForm.value = { ...lockForm.value, pair: '', until: '' }
 }
 
-function defaultUntil() {
-  const date = new Date(Date.now() + 6 * 3600 * 1000)
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
-    date.getHours(),
-  )}:${pad(date.getMinutes())}`
-}
-
-lockForm.value.until = defaultUntil()
+// `datetime-local` expects local wall-clock time, so shift the offset out of the
+// ISO string instead of padding the fields by hand.
+const defaultUntil = new Date(Date.now() + 6 * 3600 * 1000)
+lockForm.value.until = new Date(
+  defaultUntil.getTime() - defaultUntil.getTimezoneOffset() * 60_000,
+)
+  .toISOString()
+  .slice(0, 16)
 </script>
 
 <template>
@@ -127,11 +123,7 @@ lockForm.value.until = defaultUntil()
                   {{ performanceFor(pair) ? fmtSigned(performanceFor(pair).abs, 4) : '—' }}
                 </td>
                 <td class="num hide-xs faint">
-                  {{
-                    performanceFor(pair)?.ratio !== undefined
-                      ? `${(performanceFor(pair).ratio * 100).toFixed(2)}%`
-                      : '—'
-                  }}
+                  {{ fmtPercentRatio(performanceFor(pair)?.ratio) }}
                 </td>
                 <td class="right">
                   <button
