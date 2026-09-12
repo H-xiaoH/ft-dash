@@ -11,7 +11,6 @@ import {
   profitClass,
 } from '@/utils/format'
 import BarChart from '@/components/charts/BarChart.vue'
-import EmptyState from '@/components/EmptyState.vue'
 import Icon from '@/components/Icon.vue'
 import StatTile from '@/components/StatTile.vue'
 import TradeDetail from '@/components/TradeDetail.vue'
@@ -19,12 +18,10 @@ import TradesTable from '@/components/TradesTable.vue'
 
 const bot = useBotStore()
 const actions = useBotActions()
-const { summary, balanceTotal, stakeCurrency, openTradesCount, maxOpenTrades, performanceRows } =
-  storeToRefs(bot)
+const { summary, balanceTotal, stakeCurrency, openTradesCount, maxOpenTrades } = storeToRefs(bot)
 
 const selected = ref(null)
 const openTrades = computed(() => bot.data.openTrades || [])
-const recentClosed = computed(() => (bot.data.trades || []).filter((t) => !t.is_open).slice(0, 8))
 const daily = computed(() => bot.profitTrend || [])
 
 const recentBars = computed(() =>
@@ -33,12 +30,6 @@ const recentBars = computed(() =>
     value: row.abs,
   })),
 )
-
-const topPairs = computed(() => {
-  const rows = performanceRows.value.slice(0, 6)
-  const max = Math.max(...rows.map((row) => Math.abs(row.abs)), 1)
-  return rows.map((row) => ({ ...row, width: (Math.abs(row.abs) / max) * 100 }))
-})
 
 const loadingCore = computed(() => !bot.bootstrapped && !bot.data.profit)
 </script>
@@ -184,57 +175,6 @@ const loadingCore = computed(() => !bot.bootstrapped && !bot.data.profit)
         empty-message="机器人开仓后会在这里实时显示。"
         @select="selected = $event"
       />
-    </div>
-  </div>
-
-  <div class="grid grid-2">
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title"><Icon name="trades" :size="16" /> 最近平仓</div>
-        <RouterLink class="btn btn--sm btn--ghost" :to="{ name: 'trades' }">
-          更多 <Icon name="chevronRight" :size="14" />
-        </RouterLink>
-      </div>
-      <div class="card-body card-body--flush">
-        <TradesTable
-          :trades="recentClosed"
-          mode="closed"
-          compact
-          :actions="false"
-          empty-title="还没有平仓记录"
-          @select="selected = $event"
-        />
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <div class="card-title"><Icon name="market" :size="16" /> 交易对表现</div>
-          <div class="card-sub">按累计盈亏排序（Top 6）</div>
-        </div>
-      </div>
-      <div class="card-body">
-        <EmptyState v-if="!topPairs.length" icon="market" title="暂无交易数据" />
-        <div v-else class="col" style="gap: 14px">
-          <div v-for="row in topPairs" :key="row.pair" class="col" style="gap: 6px">
-            <div class="row-between small">
-              <span class="truncate strong">{{ row.pair }}</span>
-              <span class="mono" :class="profitClass(row.abs)">
-                {{ fmtSigned(row.abs, 4) }}
-                <span class="faint">· {{ fmtPercentRatio(row.ratio) }}</span>
-              </span>
-            </div>
-            <div class="meter">
-              <div
-                class="meter-fill"
-                :class="row.abs >= 0 ? 'meter-fill--profit' : 'meter-fill--loss'"
-                :style="{ width: `${row.width}%` }"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 
