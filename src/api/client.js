@@ -99,14 +99,13 @@ function authHeader() {
 
 /* ------------------------------------------------------------- auth helpers */
 
-function applyTokens(payload, fallbackMinutes = 15) {
+function applyTokens(payload) {
   if (!payload || typeof payload !== 'object') return false
   session.accessToken = payload.access_token || ''
   if (payload.refresh_token) session.refreshToken = payload.refresh_token
   const expires = Number(payload.expires_in)
-  session.expiresAt = Date.now() + (Number.isFinite(expires) && expires > 0
-    ? expires * 1000
-    : fallbackMinutes * 60_000)
+  session.expiresAt =
+    Date.now() + (Number.isFinite(expires) && expires > 0 ? expires * 1000 : 15 * 60_000)
   return Boolean(session.accessToken)
 }
 
@@ -247,39 +246,21 @@ function notifyUnauthorized() {
 /* ------------------------------------------------------------------ request */
 
 async function request(path, options = {}) {
-  const {
-    method = 'GET',
-    params,
-    body,
-    auth = true,
-    retry = true,
-    timeout = 25_000,
-    signal,
-  } = options
+  const { method = 'GET', params, body, retry = true } = options
 
   // Refresh ahead of expiry so a normal poll never eats a wasted 401 round-trip.
-  if (
-    auth &&
-    retry &&
-    session.mode === 'jwt' &&
-    !isTokenFresh() &&
-    session.refreshToken
-  ) {
+  if (retry && session.mode === 'jwt' && !isTokenFresh() && session.refreshToken) {
     await refreshAccessToken()
   }
 
   const url = buildUrl(session.baseUrl, path, params)
   const headers = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
-  if (auth) {
-    const header = authHeader()
-    if (header) headers.Authorization = header
-  }
+  const header = authHeader()
+  if (header) headers.Authorization = header
 
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeout)
-  const abort = () => controller.abort()
-  signal?.addEventListener('abort', abort, { once: true })
+  const timer = setTimeout(() => controller.abort(), 25_000)
 
   let res
   try {
@@ -293,14 +274,12 @@ async function request(path, options = {}) {
       signal: controller.signal,
     })
   } catch (error) {
-    if (error?.name === 'AbortError' && !signal?.aborted) {
+    if (error?.name === 'AbortError') {
       throw new ApiError('请求超时', { url })
     }
-    if (signal?.aborted) throw error
     throw new ApiError('无法连接到服务器（网络或 CORS 错误）', { url })
   } finally {
     clearTimeout(timer)
-    signal?.removeEventListener('abort', abort)
   }
 
   const text = await res.text()
@@ -316,7 +295,7 @@ async function request(path, options = {}) {
   if (res.ok) return payload
 
   // An expired access token is expected during normal use - refresh once and replay.
-  if (res.status === 401 && auth && retry && session.mode === 'jwt' && session.refreshToken) {
+  if (res.status === 401 && retry && session.mode === 'jwt' && session.refreshToken) {
     const refreshed = await refreshAccessToken()
     if (refreshed) return request(path, { ...options, retry: false })
   }
