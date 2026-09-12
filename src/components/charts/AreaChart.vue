@@ -63,9 +63,20 @@ const geometry = computed(() => {
       const p2 = points[i + 1]
       const p3 = points[i + 2] || p2
       const c1x = p1[0] + (p2[0] - p0[0]) / 6
-      const c1y = p1[1] + (p2[1] - p0[1]) / 6
       const c2x = p2[0] - (p3[0] - p1[0]) / 6
-      const c2y = p2[1] - (p3[1] - p1[1]) / 6
+
+      /*
+       * Catmull-Rom tangents overshoot where the slope changes sharply. On a
+       * step-shaped series (flat, then a jump) that draws a dip below a value the
+       * data never had - a cumulative profit curve appeared to lose money before it
+       * made any. Clamping each control point to the y-range of its own segment
+       * removes it: a cubic Bezier never leaves the convex hull of its control
+       * points, so the curve cannot leave that range either.
+       */
+      const low = Math.min(p1[1], p2[1])
+      const high = Math.max(p1[1], p2[1])
+      const c1y = Math.min(high, Math.max(low, p1[1] + (p2[1] - p0[1]) / 6))
+      const c2y = Math.min(high, Math.max(low, p2[1] - (p3[1] - p1[1]) / 6))
       line += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2[0]} ${p2[1]}`
     }
   } else {
