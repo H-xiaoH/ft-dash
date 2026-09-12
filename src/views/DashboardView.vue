@@ -175,7 +175,6 @@ const loadingCore = computed(() => !bot.bootstrapped && !bot.data.profit)
         <TradesTable
           :trades="openTrades"
           mode="open"
-          compact
           empty-title="当前没有持仓"
           empty-message="机器人开仓后会在这里实时显示。"
           @select="selected = $event"
@@ -197,7 +196,6 @@ const loadingCore = computed(() => !bot.bootstrapped && !bot.data.profit)
         <TradesTable
           :trades="recentClosed"
           mode="closed"
-          compact
           :actions="false"
           empty-title="还没有平仓记录"
           @select="selected = $event"
