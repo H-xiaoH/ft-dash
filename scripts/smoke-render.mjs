@@ -395,11 +395,11 @@ const EXPECTATIONS = [
   ['/', ['账户总资产', '每日盈亏', '当前持仓']],
   ['/trades', ['持仓中', '历史 (3)']],
   ['/charts', ['K线图', '最近 300 根']],
-  ['/stats', ['盈亏比', '盈利交易', '持仓时长']],
+  ['/stats', ['盈亏比', '最大回撤', '交易对表现']],
   ['/market', ['白名单', 'XRP/USDT', 'Stoploss guard']],
   ['/logs', ['Bot heartbeat', 'INFO']],
   ['/system', ['Freqtrade 版本', 'not in the correct state', '交易模式']],
-  ['/settings', ['认证方式', '数据刷新']],
+  ['/settings', ['认证方式', '外观', '应用安装']],
 ]
 
 const dumpIndex = process.argv.indexOf('--dump')
@@ -641,36 +641,6 @@ check(
 }
 
 /* ------------------------------------------- geometry / layout assertions */
-
-/**
- * An SVG stroke straddles its path, so a circle clips flat once
- * `r + strokeWidth / 2` exceeds half the viewBox. Only the donut uses a
- * 100x100 viewBox.
- */
-function overflowingCircles(html) {
-  const problems = []
-  for (const svg of html.matchAll(/<svg[^>]*viewBox="0 0 100 100"[^>]*>([\s\S]*?)<\/svg>/g)) {
-    for (const circle of svg[1].matchAll(/<circle\b[^>]*>/g)) {
-      const tag = circle[0]
-      const r = Number((tag.match(/\br="([\d.]+)"/) || [])[1])
-      const stroke = Number((tag.match(/stroke-width="([\d.]+)"/) || [])[1] ?? 0)
-      if (Number.isFinite(r) && r + stroke / 2 > 50) {
-        problems.push(`r=${r} stroke=${stroke} reaches ${r + stroke / 2} > 50`)
-      }
-    }
-  }
-  return problems
-}
-
-for (const path of ['/stats']) {
-  const html = renderedPages.get(path) || ''
-  const problems = overflowingCircles(html)
-  check(
-    `layout: donut ring inside its viewBox on ${path}`,
-    html.includes('viewBox="0 0 100 100"') && problems.length === 0,
-    problems.join('; ') || 'no donut rendered',
-  )
-}
 
 /* ------------------------------- "don't remember me" must not break the session */
 
