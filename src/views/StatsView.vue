@@ -75,7 +75,6 @@ const periodChart = computed(() => {
       :value="fmtProfitFactor(summary.profitFactor)"
       sub="Profit Factor"
       :tone="profitFactorTone"
-      title="总盈利 ÷ 总亏损（没有亏损交易时为 ∞）"
     />
     <StatTile
       label="最大回撤"
@@ -90,7 +89,6 @@ const periodChart = computed(() => {
       :value="`${summary.sharpe === null ? '—' : fmtNumber(summary.sharpe, 2)} / ${
         summary.sortino === null ? 'N/A' : fmtNumber(summary.sortino, 2)
       }`"
-      title="夏普 = 日均收益率 ÷ 收益率标准差 × √365；索提诺 = 日均收益率 ÷ 下行标准差 × √365（无亏损交易时无法计算）；SQN = √笔数 × 单笔平均收益率 ÷ 单笔收益率标准差；CAGR = (期末余额 ÷ 期初余额) ^ (365 ÷ 天数) − 1；Calmar = 年化收益率 ÷ 最大回撤。均由 freqtrade 依据已平仓交易计算"
     >
       <template #foot>
         <span v-if="summary.sqn !== null" class="faint">SQN {{ fmtNumber(summary.sqn, 2) }}</span>
