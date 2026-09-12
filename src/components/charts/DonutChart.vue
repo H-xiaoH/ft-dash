@@ -29,27 +29,40 @@ const maxStroke = computed(() => Number(props.thickness) + HOVER_GROW)
 const radius = computed(() => 50 - maxStroke.value / 2 - 1)
 const circumference = computed(() => 2 * Math.PI * radius.value)
 
+/** Visual separation between adjacent slices, in viewBox units. */
+const SEGMENT_GAP = 2
+
 const arcs = computed(() => {
   if (!total.value) return []
+
+  const visible = (props.segments || [])
+    .map((segment, index) => ({
+      index,
+      label: segment.label,
+      value: Number(segment.value) || 0,
+      color: segment.color || 'var(--accent)',
+    }))
+    .filter((segment) => segment.value > 0)
+  if (!visible.length) return []
+
   const c = circumference.value
+  // The gap exists to separate slices from each other. With a single slice there is
+  // nothing to separate, and the gap just leaves the ring visibly unclosed - which
+  // is what a 100% win rate (one segment) looked like.
+  const gap = visible.length > 1 ? SEGMENT_GAP : 0
+
   let offset = 0
-  return (props.segments || [])
-    .map((segment, index) => {
-      const value = Number(segment.value) || 0
-      const fraction = value / total.value
-      const arc = {
-        index,
-        label: segment.label,
-        value,
-        color: segment.color || 'var(--accent)',
-        fraction,
-        dash: `${Math.max(0, fraction * c - 2)} ${c}`,
-        offset: -offset * c,
-      }
-      offset += fraction
-      return arc
-    })
-    .filter((arc) => arc.fraction > 0)
+  return visible.map((segment) => {
+    const fraction = segment.value / total.value
+    const arc = {
+      ...segment,
+      fraction,
+      dash: `${Math.max(0.5, fraction * c - gap)} ${c}`,
+      offset: -offset * c,
+    }
+    offset += fraction
+    return arc
+  })
 })
 
 const active = computed(
