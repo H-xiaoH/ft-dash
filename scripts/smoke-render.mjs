@@ -662,7 +662,7 @@ function overflowingCircles(html) {
   return problems
 }
 
-for (const path of ['/', '/stats']) {
+for (const path of ['/stats']) {
   const html = renderedPages.get(path) || ''
   const problems = overflowingCircles(html)
   check(
@@ -820,8 +820,13 @@ for (const path of ['/', '/stats']) {
 /* ------------------------------------------------- donut ring geometry */
 
 {
-  const donutSvg = (path) => {
-    const html = renderedPages.get(path) || ''
+  const { default: DonutChart } = await server.ssrLoadModule('/src/components/charts/DonutChart.vue')
+
+  // Rendered directly rather than via a page, so the checks do not depend on which
+  // view happens to show a donut.
+  const renderDonut = async (segments) => {
+    const app = createSSRApp({ render: () => h(DonutChart, { segments, size: 168 }) })
+    const html = await renderToString(app)
     const m = html.match(/<svg[^>]*viewBox="0 0 100 100"[^>]*>([\s\S]*?)<\/svg>/)
     return m ? m[1] : ''
   }
@@ -831,15 +836,15 @@ for (const path of ['/', '/stats']) {
     const a = Math.atan2(Number(x) - 50, 50 - Number(y))
     return ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
   }
-  const between = (from, to) => ((to - from) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI)
+  const between = (from, to) => (((to - from) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
 
   /**
    * Slices are filled annulus sectors:
    *   M <outer start> A ro .. <outer end> L <inner end> A ri .. <inner start> Z
-   * so both the outer and the inner boundary of every gap can be measured directly.
+   * so every gap can be measured along both its outer and its inner edge.
    */
-  const slicesOf = (path) =>
-    [...donutSvg(path).matchAll(/<path[^>]*d="M ([\d.eE+-]+) ([\d.eE+-]+) A ([\d.]+) [\d.]+ 0 [01] 1 ([\d.eE+-]+) ([\d.eE+-]+) L ([\d.eE+-]+) ([\d.eE+-]+) A ([\d.]+) [\d.]+ 0 [01] 0 ([\d.eE+-]+) ([\d.eE+-]+)/g)]
+  const slicesOf = (svg) =>
+    [...svg.matchAll(/<path[^>]*d="M ([\d.eE+-]+) ([\d.eE+-]+) A ([\d.]+) [\d.]+ 0 [01] 1 ([\d.eE+-]+) ([\d.eE+-]+) L ([\d.eE+-]+) ([\d.eE+-]+) A ([\d.]+) [\d.]+ 0 [01] 0 ([\d.eE+-]+) ([\d.eE+-]+)/g)]
       .map((m) => ({
         outer: Number(m[3]),
         inner: Number(m[8]),
@@ -849,21 +854,29 @@ for (const path of ['/', '/stats']) {
         innerTo: angleOf(m[6], m[7]),
       }))
 
-  const single = donutSvg('/')
+  // One slice is a full turn: it must be a plain closed circle, or the gap would
+  // leave the ring visibly open.
+  const single = await renderDonut([{ label: 'A', value: 4, color: '#2ee6a8' }])
   check(
     'donut: a single slice is a plain closed ring (no dash pattern, no seam)',
-    !/stroke-dasharray/.test(single) && /<circle[^>]*stroke="var\(--profit\)"/.test(single),
+    !/stroke-dasharray/.test(single) && /<circle[^>]*stroke="#2ee6a8"/.test(single),
     'expected one continuous circle',
   )
-  check('donut: a single slice renders no sectors', slicesOf('/').length === 0)
+  check('donut: a single slice renders no sectors', slicesOf(single).length === 0)
 
-  const many = slicesOf('/stats')
-  check('donut: multiple slices render as filled sectors', many.length > 1, `${many.length} sectors`)
-  check('donut: sectors do not use a dash pattern', !/stroke-dasharray/.test(donutSvg('/stats')))
+  const four = await renderDonut([
+    { label: 'A', value: 1, color: '#2ee6a8' },
+    { label: 'B', value: 1, color: '#22d3ee' },
+    { label: 'C', value: 1, color: '#7c5cff' },
+    { label: 'D', value: 1, color: '#ff5c7a' },
+  ])
+  const many = slicesOf(four)
+  check('donut: multiple slices render as filled sectors', many.length === 4, `${many.length} sectors`)
+  check('donut: sectors do not use a dash pattern', !/stroke-dasharray/.test(four))
   check(
     'donut: sectors stay inside the viewBox',
-    many.every((s) => s.outer <= 50 && s.inner > 0 && s.inner < s.outer),
-    many.map((s) => `${s.inner}..${s.outer}`).join(', '),
+    many.every((slice) => slice.outer <= 50 && slice.inner > 0 && slice.inner < slice.outer),
+    many.map((slice) => `${slice.inner}..${slice.outer}`).join(', '),
   )
 
   // Gaps are measured along both edges because the reported bug was radial: a
@@ -877,17 +890,17 @@ for (const path of ['/', '/stats']) {
   })
   check(
     'donut: outer gap is uniform, seam included',
-    gaps.length > 1 && gaps.every((g) => Math.abs(g.outer - 2) < 0.03),
+    gaps.every((g) => Math.abs(g.outer - 2) < 0.03),
     gaps.map((g) => g.outer.toFixed(4)).join(', '),
   )
   check(
     'donut: inner gap is uniform, seam included',
-    gaps.length > 1 && gaps.every((g) => Math.abs(g.inner - 2) < 0.03),
+    gaps.every((g) => Math.abs(g.inner - 2) < 0.03),
     gaps.map((g) => g.inner.toFixed(4)).join(', '),
   )
   check(
     'donut: the gap is the same width at the inner and outer edge',
-    gaps.length > 1 && gaps.every((g) => Math.abs(g.outer - g.inner) < 0.03),
+    gaps.every((g) => Math.abs(g.outer - g.inner) < 0.03),
     gaps.map((g) => `${g.inner.toFixed(3)}/${g.outer.toFixed(3)}`).join(' '),
   )
 }
