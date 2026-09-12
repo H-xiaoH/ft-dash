@@ -33,6 +33,20 @@ export function fmtAmount(value, digits = 2) {
   return fmtNumber(n, digits)
 }
 
+/**
+ * Position sizes arrive padded to the exchange precision ("8.00000000"), so a
+ * quantity of 8 read as "8.000000" in the table. Drop the zeros that carry no
+ * information; `digits` stays the ceiling for genuinely fractional sizes.
+ */
+export function fmtQuantity(value, digits = 8) {
+  const n = toNumber(value)
+  if (n === null) return '—'
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits,
+  })
+}
+
 export function fmtSigned(value, digits = 2) {
   const n = toNumber(value)
   if (n === null) return '—'
