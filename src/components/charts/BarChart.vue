@@ -32,6 +32,12 @@ const geometry = computed(() => {
   const slot = innerW / items.length
   const barW = Math.max(2, Math.min(34, slot * 0.62))
 
+  // A scale to read the bar heights against, like the area chart has.
+  const grid = [max, (max + min) / 2, min]
+    .map((value) => ({ value, y: PAD.top + innerH - ((value - min) / span) * innerH }))
+    // The zero line is already drawn solid; a dashed line on it just doubles up.
+    .filter((item) => Math.abs(item.y - zeroY) > 2)
+
   const bars = items.map((item, index) => {
     const value = values[index]
     const valueY = PAD.top + innerH - ((value - min) / span) * innerH
@@ -49,7 +55,7 @@ const geometry = computed(() => {
     }
   })
 
-  return { bars, zeroY, slot, innerW }
+  return { bars, zeroY, slot, innerW, grid }
 })
 
 // A tap on empty space should dismiss, so return the index only when it hits a bar.
@@ -78,6 +84,30 @@ const tickLabels = computed(() => {
 
     <template v-else>
       <svg class="chart" :height="height" :width="width || '100%'">
+        <g>
+          <line
+            v-for="(item, index) in geometry.grid"
+            :key="`grid-${index}`"
+            :x1="PAD.left"
+            :x2="(width || 640) - PAD.right"
+            :y1="item.y"
+            :y2="item.y"
+            stroke="var(--border)"
+            stroke-dasharray="3 5"
+          />
+          <text
+            v-for="(item, index) in geometry.grid"
+            :key="`grid-label-${index}`"
+            :x="(width || 640) - PAD.right"
+            :y="item.y - 4"
+            text-anchor="end"
+            font-size="10"
+            fill="var(--text-faint)"
+          >
+            {{ format(item.value) }}
+          </text>
+        </g>
+
         <line
           :x1="PAD.left"
           :x2="(width || 640) - PAD.right"
