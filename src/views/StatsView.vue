@@ -19,6 +19,19 @@ const { summary, performanceRows, stakeCurrency } = storeToRefs(bot)
 
 const timescale = ref('daily')
 
+/** freqtrade sends `null` for a profit factor that is actually infinite. */
+function fmtProfitFactor(value) {
+  if (value === null || value === undefined) return '—'
+  if (!Number.isFinite(value)) return '∞'
+  return fmtNumber(value, 2)
+}
+
+const profitFactorTone = computed(() => {
+  const value = summary.value.profitFactor
+  if (value === null || value === undefined) return 'neutral'
+  return value >= 1 ? 'profit' : 'loss'
+})
+
 const TIMESCALES = [
   { id: 'daily', label: '每日', endpoint: () => bot.data.daily },
   { id: 'weekly', label: '每周', endpoint: () => bot.data.weekly },
@@ -59,9 +72,10 @@ const periodChart = computed(() => {
     <StatTile
       label="盈亏比"
       icon="gauge"
-      :value="summary.profitFactor === null ? '—' : fmtNumber(summary.profitFactor, 2)"
+      :value="fmtProfitFactor(summary.profitFactor)"
       sub="Profit Factor"
-      :tone="summary.profitFactor >= 1 ? 'profit' : 'loss'"
+      :tone="profitFactorTone"
+      title="总盈利 ÷ 总亏损（没有亏损交易时为 ∞）"
     />
     <StatTile
       label="最大回撤"
@@ -76,6 +90,7 @@ const periodChart = computed(() => {
       :value="`${summary.sharpe === null ? '—' : fmtNumber(summary.sharpe, 2)} / ${
         summary.sortino === null ? 'N/A' : fmtNumber(summary.sortino, 2)
       }`"
+      title="夏普 = 日均收益率 ÷ 收益率标准差 × √365；索提诺 = 日均收益率 ÷ 下行标准差 × √365（无亏损交易时无法计算）；SQN = √笔数 × 单笔平均收益率 ÷ 单笔收益率标准差；CAGR = (期末余额 ÷ 期初余额) ^ (365 ÷ 天数) − 1；Calmar = 年化收益率 ÷ 最大回撤。均由 freqtrade 依据已平仓交易计算"
     >
       <template #foot>
         <span v-if="summary.sqn !== null" class="faint">SQN {{ fmtNumber(summary.sqn, 2) }}</span>
