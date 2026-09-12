@@ -65,7 +65,7 @@ function rowClass(trade) {
     />
 
     <div v-else class="table-wrap">
-      <table class="table" :class="isCompact ? 'table--compact' : ''">
+      <table class="table table--trades" :class="isCompact ? 'table--compact' : ''">
         <thead>
           <tr>
             <th>交易对</th>
