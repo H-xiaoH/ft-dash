@@ -6,6 +6,7 @@ import {
   fmtNumber,
   fmtPercentRatio,
   fmtPrice,
+  fmtQuantity,
   fmtSigned,
   isOpenTrade,
   nowSeconds,
@@ -49,7 +50,7 @@ const fields = computed(() => {
   return [
     row('开仓价', fmtPrice(t.open_rate)),
     row('当前价 / 平仓价', fmtPrice(isOpen.value ? t.current_rate : t.close_rate)),
-    row('数量', fmtNumber(t.amount, 8)),
+    row('数量', fmtQuantity(t.amount)),
     row('投入', fmtNumber(t.stake_amount, 4)),
     row('最大投入', fmtNumber(t.max_stake_amount, 4)),
     row('止损价', fmtPrice(t.stop_loss_abs ?? t.initial_stop_loss_abs)),
@@ -159,7 +160,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
                   </div>
                   <div class="row-between small">
                     <span class="muted">数量</span>
-                    <span class="mono">{{ fmtNumber(order.filled ?? order.amount, 8) }}</span>
+                    <span class="mono">{{ fmtQuantity(order.filled ?? order.amount) }}</span>
                   </div>
                   <div class="row-between small">
                     <span class="muted">订单类型</span>
