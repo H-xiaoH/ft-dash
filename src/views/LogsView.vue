@@ -92,17 +92,6 @@ function download() {
   anchor.click()
   URL.revokeObjectURL(url)
 }
-
-const counts = computed(() => {
-  const raw = bot.data.logs
-  if (!Array.isArray(raw)) return {}
-  const result = {}
-  for (const entry of raw) {
-    const key = parseLine(entry).level
-    result[key] = (result[key] || 0) + 1
-  }
-  return result
-})
 </script>
 
 <template>
@@ -126,28 +115,6 @@ const counts = computed(() => {
         <Icon name="refresh" :size="14" :class="bot.loading.logs ? 'spin' : ''" />
         刷新
       </button>
-    </div>
-  </div>
-
-  <div class="grid grid-4">
-    <div v-for="item in LEVELS.slice(1)" :key="item" class="stat" style="padding: 12px 14px">
-      <div class="stat-head">
-        <span
-          class="stat-label upper"
-          :class="
-            item === 'ERROR' || item === 'CRITICAL'
-              ? 'loss'
-              : item === 'WARNING'
-                ? 'warn'
-                : item === 'INFO'
-                  ? ''
-                  : 'faint'
-          "
-        >
-          {{ item }}
-        </span>
-      </div>
-      <div class="stat-value" style="font-size: 20px">{{ counts[item] || 0 }}</div>
     </div>
   </div>
 
