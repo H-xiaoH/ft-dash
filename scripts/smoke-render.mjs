@@ -554,7 +554,46 @@ check('trend: cumulative profit summed oldest-first', Math.abs(bot.profitTrend.a
 check('stats: totalTrades derived from exit reasons', bot.statsSummary.totalTrades === 5, `got ${bot.statsSummary.totalTrades}`)
 check('stats: numeric durations normalised', bot.statsSummary.durations.some((d) => d.key === 'wins' && d.avg === 7764.158535))
 check('profit: win rate computed from win/loss counts', bot.summary.winRate === 100, `got ${bot.summary.winRate}`)
-check('profit: null profit_factor stays null', bot.summary.profitFactor === null)
+// freqtrade reports null whenever the ratio would be infinite - a bot with wins
+// and no losses. The view shows ∞ instead of an empty tile.
+check(
+  'profit: a null profit_factor with no losers becomes ∞',
+  bot.summary.profitFactor === Infinity,
+  `got ${bot.summary.profitFactor}`,
+)
+
+// Older builds omit the field even when losing trades exist; then it has to be
+// derived from the closed trades.
+{
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const botFallback = useBotStore()
+  botFallback.data.profit = {
+    profit_factor: undefined,
+    winning_trades: 2,
+    losing_trades: 1,
+    closed_trade_count: 3,
+    profit_closed_coin: 2,
+  }
+  botFallback.data.trades = [
+    { trade_id: 1, is_open: false, profit_abs: 3 },
+    { trade_id: 2, is_open: false, profit_abs: 1 },
+    { trade_id: 3, is_open: false, profit_abs: -2 },
+  ]
+  check(
+    'profit: an omitted profit_factor is derived from closed trades',
+    botFallback.summary.profitFactor === 2,
+    `got ${botFallback.summary.profitFactor}`,
+  )
+
+  // One page of a longer history must not be mistaken for the whole history.
+  botFallback.data.profit.closed_trade_count = 99
+  check(
+    'profit: a partial trade page does not fabricate a ratio',
+    botFallback.summary.profitFactor === null,
+    `got ${botFallback.summary.profitFactor}`,
+  )
+}
 check(
   'profit: -100 sortino/calmar sentinels surfaced as null',
   bot.summary.sortino === null && bot.summary.calmar === null,
@@ -987,6 +1026,90 @@ check(
     r.currentRoute.value.name === 'dashboard',
     `landed on ${String(r.currentRoute.value.name)}`,
   )
+}
+
+/* ------------------------------------------------------ layout invariants */
+
+{
+  const rootHtml = renderedPages.get('/') || ''
+  const tradesHtml = renderedPages.get('/trades') || ''
+  const chartsHtml = renderedPages.get('/charts') || ''
+
+  // The 标签 column is gone from the shared table; enter_tag / exit_reason stay
+  // reachable through the trade detail dialog and the trades search box (which
+  // is why its placeholder still mentions 标签).
+  check(
+    'trades: the 标签 column is gone from the shared table',
+    !rootHtml.includes('>标签</th>') && !tradesHtml.includes('>标签</th>'),
+    'TradesTable must not render a 标签 header',
+  )
+
+  // 当前持仓 and 最近平仓 must look identical.
+  check(
+    'dashboard: neither position card uses a ghost button',
+    !rootHtml.includes('btn btn--sm btn--ghost'),
+  )
+
+  // freqtrade only backfills the strategy timeframe (every other timeframe
+  // answers 200 with zero rows), so the picker was replaced by a static label.
+  const chartSelects = (chartsHtml.match(/<select/g) || []).length
+  check(
+    'charts: the timeframe picker is gone, the limit picker remains',
+    chartSelects === 1,
+    `found ${chartSelects} selects`,
+  )
+  check('charts: the strategy timeframe is shown instead', chartsHtml.includes('周期 5m'))
+}
+
+/* -------------------------------------------------------- stat tile glow */
+
+{
+  // The glow used to be positioned with `right: -30%`, so its visible part
+  // shrank as the card grew (190px - 0.30 x width) and vanished on wide phones;
+  // the blur filter was also dropped by some mobile compositors.
+  const css = (await import('node:fs')).readFileSync('src/styles/main.css', 'utf8')
+  const block = css.match(/\.stat-glow \{[\s\S]*?\n\}/)?.[0] || ''
+  // Strip comments so the prose explaining the fix is not mistaken for the fix.
+  const rules = block.replace(/\/\*[\s\S]*?\*\//g, '')
+  check('stats: .stat-glow exists', block.length > 0)
+  check(
+    'stats: .stat-glow offsets are fixed units, not percentages',
+    /right:\s*-?\d+px/.test(rules) && /bottom:\s*-?\d+px/.test(rules) && !/inset\s*:/.test(rules),
+    rules.replace(/\s+/g, ' ').slice(0, 100),
+  )
+  check(
+    'stats: .stat-glow paints with a gradient, not filter: blur',
+    rules.includes('radial-gradient') && !rules.includes('blur('),
+    rules.replace(/\s+/g, ' ').slice(0, 100),
+  )
+}
+
+/* -------------------------------------------------------- pair search box */
+
+{
+  const { filterPairs } = await server.ssrLoadModule('/src/utils/pairSearch.js')
+  const universe = ['BTC/USDT:USDT', 'WBTC/USDT:USDT', 'ETH/USDT:USDT']
+
+  check(
+    'search: an empty query offers every pair',
+    filterPairs(universe, '').length === 3 && filterPairs(universe, '   ').length === 3,
+  )
+  check(
+    'search: matching is case-insensitive and ranks prefixes first',
+    JSON.stringify(filterPairs(universe, 'btc')) ===
+      JSON.stringify(['BTC/USDT:USDT', 'WBTC/USDT:USDT']),
+    JSON.stringify(filterPairs(universe, 'btc')),
+  )
+  check(
+    'search: the result never includes non-matches',
+    filterPairs(universe, 'eth').length === 1 && filterPairs(universe, 'zzz').length === 0,
+  )
+  {
+    const input = ['A/USDT']
+    const out = filterPairs(input, '')
+    out.push('MUTATED')
+    check('search: the source list is not mutated', input.length === 1)
+  }
 }
 
 /* ------------------------------------------------------ security invariants */
