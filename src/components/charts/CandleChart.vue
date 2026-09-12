@@ -9,8 +9,10 @@ const props = defineProps({
   /** `[{ date, open, high, low, close, volume }]` */
   candles: { type: Array, default: () => [] },
   height: { type: Number, default: 380 },
-  priceDigits: { type: Number, default: 4 },
 })
+
+/** Decimals used for the price axis and the OHLC readout. */
+const PRICE_DIGITS = 4
 
 const wrap = ref(null)
 const width = useElementSize(wrap)
@@ -98,9 +100,6 @@ const { hoverIndex, onPointerDown, onPointerMove, onPointerLeave, onPointerCance
   return index >= 0 && index < geo.bars.length ? index : null
 })
 
-function candleTitle(bar) {
-  return fmtDate(bar.candle.date)
-}
 </script>
 
 <template>
@@ -131,7 +130,7 @@ function candleTitle(bar) {
             fill="var(--text-faint)"
             class="mono"
           >
-            {{ fmtNumber(tick.value, tick.value > 100 ? 2 : priceDigits) }}
+            {{ fmtNumber(tick.value, tick.value > 100 ? 2 : PRICE_DIGITS) }}
           </text>
         </g>
 
@@ -221,14 +220,14 @@ function candleTitle(bar) {
           top: `${active.bodyTop}px`,
         }"
       >
-        <div class="faint tiny">{{ candleTitle(active) }}</div>
+        <div class="faint tiny">{{ fmtDate(active.candle.date) }}</div>
         <div class="row tiny mono" style="gap: 8px; margin-top: 3px">
-          <span>开 {{ fmtNumber(active.candle.open, priceDigits) }}</span>
-          <span>高 {{ fmtNumber(active.candle.high, priceDigits) }}</span>
+          <span>开 {{ fmtNumber(active.candle.open, PRICE_DIGITS) }}</span>
+          <span>高 {{ fmtNumber(active.candle.high, PRICE_DIGITS) }}</span>
         </div>
         <div class="row tiny mono" style="gap: 8px">
-          <span>低 {{ fmtNumber(active.candle.low, priceDigits) }}</span>
-          <span>收 {{ fmtNumber(active.candle.close, priceDigits) }}</span>
+          <span>低 {{ fmtNumber(active.candle.low, PRICE_DIGITS) }}</span>
+          <span>收 {{ fmtNumber(active.candle.close, PRICE_DIGITS) }}</span>
         </div>
         <div class="tiny faint mono" style="margin-top: 2px">
           量 {{ fmtNumber(active.candle.volume, 2) }}
