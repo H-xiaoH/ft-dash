@@ -22,6 +22,10 @@ const { summary, balanceTotal, stakeCurrency, openTradesCount, maxOpenTrades } =
 
 const selected = ref(null)
 const openTrades = computed(() => bot.data.openTrades || [])
+/** Newest first (the API is asked for `order_by_id=false`), capped for the card. */
+const recentClosed = computed(() =>
+  (bot.data.trades || []).filter((trade) => !trade.is_open).slice(0, 6),
+)
 const daily = computed(() => bot.profitTrend || [])
 
 const recentBars = computed(() =>
@@ -153,28 +157,52 @@ const loadingCore = computed(() => !bot.bootstrapped && !bot.data.profit)
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-head">
-      <div>
-        <div class="card-title"><Icon name="layers" :size="16" /> 当前持仓</div>
-        <div class="card-sub">
-          共 {{ openTrades.length }} 个 · 市值 {{ fmtAmount(bot.openTradesValue, 2) }} {{ stakeCurrency }}
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title"><Icon name="layers" :size="16" /> 当前持仓</div>
+          <div class="card-sub">
+            共 {{ openTrades.length }} 个 · 市值 {{ fmtAmount(bot.openTradesValue, 2) }} {{ stakeCurrency }}
+          </div>
         </div>
+        <RouterLink class="btn btn--sm" :to="{ name: 'trades' }">
+          全部交易
+          <Icon name="chevronRight" :size="14" />
+        </RouterLink>
       </div>
-      <RouterLink class="btn btn--sm" :to="{ name: 'trades' }">
-        全部交易
-        <Icon name="chevronRight" :size="14" />
-      </RouterLink>
+      <div class="card-body card-body--flush">
+        <TradesTable
+          :trades="openTrades"
+          mode="open"
+          compact
+          empty-title="当前没有持仓"
+          empty-message="机器人开仓后会在这里实时显示。"
+          @select="selected = $event"
+        />
+      </div>
     </div>
-    <div class="card-body card-body--flush">
-      <TradesTable
-        :trades="openTrades"
-        mode="open"
-        compact
-        empty-title="当前没有持仓"
-        empty-message="机器人开仓后会在这里实时显示。"
-        @select="selected = $event"
-      />
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title"><Icon name="trades" :size="16" /> 最近平仓</div>
+          <div class="card-sub">最近 {{ recentClosed.length }} 笔</div>
+        </div>
+        <RouterLink class="btn btn--sm btn--ghost" :to="{ name: 'trades' }">
+          更多 <Icon name="chevronRight" :size="14" />
+        </RouterLink>
+      </div>
+      <div class="card-body card-body--flush">
+        <TradesTable
+          :trades="recentClosed"
+          mode="closed"
+          compact
+          :actions="false"
+          empty-title="还没有平仓记录"
+          @select="selected = $event"
+        />
+      </div>
     </div>
   </div>
 
