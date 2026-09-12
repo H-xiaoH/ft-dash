@@ -170,6 +170,7 @@ async function openStrategy(name) {
         <BarChart
           :items="coreBars"
           :height="180"
+          :max="100"
           :format="(v) => `${fmtNumber(v, 1)}%`"
         />
       </div>
