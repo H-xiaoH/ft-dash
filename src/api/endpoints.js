@@ -5,8 +5,6 @@ import { del, get, post } from './client'
  * Reference: https://www.freqtrade.io/en/stable/rest-api/
  */
 export const api = {
-  ping: () => get('/ping', null, { auth: false }),
-
   version: () => get('/version'),
   showConfig: () => get('/show_config'),
   health: () => get('/health'),
@@ -27,11 +25,6 @@ export const api = {
   /** Returns `{ trades, trades_count, offset, total_trades }`. `orderById: false` sorts newest first. */
   trades: ({ limit = 50, offset = 0, orderById = false } = {}) =>
     get('/trades', { limit, offset, order_by_id: orderById }),
-  trade: (id) => get(`/trade/${encodeURIComponent(id)}`),
-
-  entries: (pair) => get('/entries', pair ? { pair } : null),
-  exits: (pair) => get('/exits', pair ? { pair } : null),
-  mixTags: (pair) => get('/mix_tags', pair ? { pair } : null),
 
   whitelist: () => get('/whitelist'),
   blacklist: () => get('/blacklist'),
@@ -46,16 +39,8 @@ export const api = {
   strategies: () => get('/strategies'),
   strategy: (name) => get(`/strategy/${encodeURIComponent(name)}`),
 
-  pairCandles: ({ pair, timeframe, limit = 300, columns }) => {
-    if (Array.isArray(columns) && columns.length) {
-      return post(
-        '/pair_candles',
-        { columns },
-        { params: { pair, timeframe, limit } },
-      )
-    }
-    return get('/pair_candles', { pair, timeframe, limit })
-  },
+  pairCandles: ({ pair, timeframe, limit = 300 }) =>
+    get('/pair_candles', { pair, timeframe, limit }),
 
   /* ------------------------------------------------------------- bot control */
 
