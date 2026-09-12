@@ -5,8 +5,7 @@ import { useUiStore } from '@/stores/ui'
 
 /**
  * Every mutating call to the bot funnels through here so that each one gets the
- * same treatment: optional confirmation, a command-log entry, a toast and a
- * data refresh.
+ * same treatment: optional confirmation, a toast and a data refresh.
  */
 export function useBotActions() {
   const bot = useBotStore()
@@ -21,20 +20,17 @@ export function useBotActions() {
       if (!ok) return false
     }
     busy.value = key
-    const entry = ui.log({ action: label, key })
     try {
       const result = await fn()
       const detail =
         result && typeof result === 'object'
           ? result.status || result.result || JSON.stringify(result).slice(0, 160)
           : String(result ?? '')
-      entry.ok(detail)
       ui.success(successMessage || `${label} 成功`, detail)
       if (refresh) await bot.refreshCore({ silent: false })
       return true
     } catch (error) {
       const message = error?.message || '请求失败'
-      entry.fail(message)
       ui.error(`${label} 失败`, message)
       return false
     } finally {
