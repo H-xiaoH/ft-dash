@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useElementSize } from '@/composables/useElementSize'
+import { useChartPointer } from '@/composables/useChartPointer'
 import EmptyState from '../EmptyState.vue'
 
 const props = defineProps({
@@ -12,7 +13,6 @@ const props = defineProps({
 
 const wrap = ref(null)
 const width = useElementSize(wrap)
-const hoverIndex = ref(-1)
 
 const PAD = { top: 16, right: 8, bottom: 26, left: 8 }
 
@@ -52,13 +52,14 @@ const geometry = computed(() => {
   return { bars, zeroY, slot, innerW }
 })
 
-function onMove(event) {
+// A tap on empty space should dismiss, so return the index only when it hits a bar.
+const { hoverIndex, handlers } = useChartPointer((event) => {
   const geo = geometry.value
-  if (!geo) return
+  if (!geo) return null
   const rect = event.currentTarget.getBoundingClientRect()
   const index = Math.floor((event.clientX - rect.left - PAD.left) / geo.slot)
-  hoverIndex.value = index >= 0 && index < geo.bars.length ? index : -1
-}
+  return index >= 0 && index < geo.bars.length ? index : null
+})
 
 const active = computed(() => geometry.value?.bars[hoverIndex.value] || null)
 
@@ -115,15 +116,18 @@ const tickLabels = computed(() => {
           :width="width || 640"
           :height="height"
           fill="transparent"
-          @pointermove="onMove"
-          @pointerleave="hoverIndex = -1"
+          class="chart-hit"
+          v-on="handlers"
         />
       </svg>
 
       <div
         v-if="active"
         class="chart-tip"
-        :style="{ left: `${active.x + active.width / 2}px`, top: `${active.y}px` }"
+        :style="{
+          left: `${Math.min(Math.max(active.x + active.width / 2, 60), (width || 640) - 60)}px`,
+          top: `${active.y}px`,
+        }"
       >
         <div class="faint tiny">{{ active.label }}</div>
         <div class="mono strong" :class="active.positive ? 'profit' : 'loss'">
