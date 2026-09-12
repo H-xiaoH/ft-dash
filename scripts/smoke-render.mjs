@@ -777,6 +777,45 @@ for (const path of ['/', '/stats']) {
   check('a resolver returning null leaves the value untouched', outOfRange.hoverIndex.value === -1)
 }
 
+/* ---------------------------------------------- donut slice selection */
+
+{
+  const { useSliceSelection, isMousePointer } = pointerModule
+  const mouse = { pointerType: 'mouse' }
+  const touch = { pointerType: 'touch' }
+
+  check('donut: mouse pointer detected', isMousePointer(mouse) && !isMousePointer(touch))
+
+  const m = useSliceSelection()
+  m.preview(2, mouse)
+  check('donut/mouse: hovering previews a slice', m.activeIndex.value === 2, String(m.activeIndex.value))
+  m.clearOnLeave(mouse)
+  check('donut/mouse: leaving clears', m.activeIndex.value === -1, String(m.activeIndex.value))
+
+  const t = useSliceSelection()
+  // The old bug: a tap fired pointerenter (preview) then pointerleave (clear), so the
+  // value flashed and vanished. Touch must ignore both and select on click instead.
+  t.preview(1, touch)
+  check('donut/touch: hover events are ignored', t.activeIndex.value === -1, String(t.activeIndex.value))
+  t.clearOnLeave(touch)
+  check('donut/touch: lifting a finger does not clear', t.activeIndex.value === -1, String(t.activeIndex.value))
+
+  t.toggle(1)
+  check('donut/touch: a tap selects a slice', t.activeIndex.value === 1, String(t.activeIndex.value))
+  t.clearOnLeave(touch)
+  check('donut/touch: the selection survives the finger lifting', t.activeIndex.value === 1, String(t.activeIndex.value))
+  t.preview(3, touch)
+  check('donut/touch: hovering another slice does not steal the selection', t.activeIndex.value === 1, String(t.activeIndex.value))
+
+  t.toggle(1)
+  check('donut/touch: tapping the same slice again deselects', t.activeIndex.value === -1, String(t.activeIndex.value))
+  t.toggle(2)
+  t.toggle(3)
+  check('donut/touch: tapping another slice moves the selection', t.activeIndex.value === 3, String(t.activeIndex.value))
+  t.clear()
+  check('donut/touch: the backdrop clears the selection', t.activeIndex.value === -1, String(t.activeIndex.value))
+}
+
 /* ------------------------------------------- chart event wiring (compiled) */
 
 {
@@ -784,22 +823,31 @@ for (const path of ['/', '/stats']) {
   // components for the client and assert the bindings are actually there. This is
   // the check that catches `v-on="handlers"` emitting `on:onPointerDown` - a custom
   // event name that never fires, which silently killed mouse hover AND touch.
-  const EVENTS = ['onPointerdown', 'onPointermove', 'onPointerleave', 'onPointercancel']
-  for (const name of ['AreaChart', 'BarChart', 'CandleChart']) {
+  const DRAG = ['onPointerdown', 'onPointermove', 'onPointerleave', 'onPointercancel']
+  const EXPECTED = {
+    // Positional charts scrub by dragging across the plot.
+    AreaChart: DRAG,
+    BarChart: DRAG,
+    CandleChart: DRAG,
+    // The donut selects discrete slices: hover previews, a tap (click) pins.
+    DonutChart: ['onClick', 'onPointerenter', 'onPointerleave'],
+  }
+
+  for (const [name, events] of Object.entries(EXPECTED)) {
     const { code } = await server.transformRequest(
       `/src/components/charts/${name}.vue`,
       { ssr: false },
     )
-    const missing = EVENTS.filter((event) => !new RegExp(`\\b${event}\\b`).test(code))
+    const missing = events.filter((event) => !new RegExp(`\\b${event}\\b`).test(code))
     check(
-      `charts: ${name} binds all four pointer events`,
+      `charts: ${name} binds ${events.length} listeners for its interaction model`,
       missing.length === 0,
       missing.length ? `missing ${missing.join(', ')}` : '',
     )
     check(
       `charts: ${name} avoids the v-on object form`,
       !/toHandlers\(/.test(code),
-      'v-on="obj" needs bare lowercase keys - use explicit @pointerdown bindings',
+      'v-on="obj" needs bare lowercase keys - use explicit bindings',
     )
   }
 }
