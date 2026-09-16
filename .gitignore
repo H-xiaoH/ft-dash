@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# CodeGraph local index (per-machine, rebuild with `codegraph init`)
+.codegraph/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
