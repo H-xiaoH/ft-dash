@@ -1044,26 +1044,30 @@ check(
     !/white-space/.test(genericTd),
     genericTd.replace(/\s+/g, ' ').slice(0, 80),
   )
-  // A closed row has no live leverage to report, so it badges the direction.
-  // The fixture has two closed longs, one closed short and one open short.
+  // The dashboard renders two tables: 当前持仓 (open) and 最近平仓 (closed).
+  // Both badge direction, and neither reports the leverage multiplier.
+  // Open fixtures: one long (#1) and one short (#2, leveraged) — the leveraged
+  // long used to render "3x" here, so 3 longs only appear once direction
+  // replaces the multiplier on open rows too.
+  // Closed fixtures: two longs (#5, #3) and one short (#2).
   check(
-    'trades: closed rows badge the direction instead of the leverage',
-    (rootHtml.match(/>多\s*<\/span>/g) || []).length === 2 &&
+    'trades: every dashboard row badges its direction, leveraged or not',
+    (rootHtml.match(/>多\s*<\/span>/g) || []).length === 3 &&
       (rootHtml.match(/>空\s*<\/span>/g) || []).length === 2,
     `多=${(rootHtml.match(/>多\s*<\/span>/g) || []).length} 空=${(rootHtml.match(/>空\s*<\/span>/g) || []).length}`,
   )
-  // Only the live ETH position is leveraged, so a single multiplier may remain.
   check(
-    'trades: a closed row never shows a leverage multiplier',
-    (rootHtml.match(/>\d+x\s*<\/span>/g) || []).length === 1,
+    'trades: no leverage multiplier is rendered on the dashboard',
+    !/>\d+x\s*<\/span>/.test(rootHtml),
     `${(rootHtml.match(/>\d+x\s*<\/span>/g) || []).length} multipliers on the dashboard`,
   )
-  // The /trades page opens on the live tab, which keeps the multiplier.
+  // /trades opens on the live tab: one open long, one open short, no multiplier.
   check(
-    'trades: open rows still badge the leverage',
-    (tradesHtml.match(/>3x\s*<\/span>/g) || []).length === 1 &&
-      !/>多\s*<\/span>/.test(tradesHtml),
-    'expected 3x on the open table and no direction badge',
+    'trades: the live tab badges direction instead of leverage',
+    (tradesHtml.match(/>多\s*<\/span>/g) || []).length === 1 &&
+      (tradesHtml.match(/>空\s*<\/span>/g) || []).length === 1 &&
+      !/>\d+x\s*<\/span>/.test(tradesHtml),
+    `多=${(tradesHtml.match(/>多\s*<\/span>/g) || []).length} 空=${(tradesHtml.match(/>空\s*<\/span>/g) || []).length}`,
   )
 
   check('trades: the trade table carries the marker class', tradesHtml.includes('table--trades'))
