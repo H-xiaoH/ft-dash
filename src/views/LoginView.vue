@@ -223,7 +223,6 @@ async function submit() {
               v-model="form.username"
               class="input"
               type="text"
-              placeholder="your-username"
               autocomplete="username"
               spellcheck="false"
             />
@@ -238,7 +237,6 @@ async function submit() {
               v-model="form.password"
               class="input"
               :type="showPassword ? 'text' : 'password'"
-              placeholder="••••••••"
               autocomplete="current-password"
               style="padding-right: 42px"
             />
