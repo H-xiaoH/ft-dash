@@ -22,7 +22,6 @@
   --radius-full: 999px;
 
   --sidebar-w: 232px;
-  --topbar-h: 60px;
   --bottomnav-h: 62px;
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
@@ -427,26 +426,6 @@ svg {
   margin-left: var(--sidebar-w);
   display: flex;
   flex-direction: column;
-}
-
-.app-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  /* The installed iOS PWA runs with `black-translucent` + `viewport-fit=cover`,
-     so the bar paints under the status bar / Dynamic Island. Grow it by the top
-     inset so its content clears the cutout; a desktop or Android browser reports
-     0 and is unaffected. The fallback keeps the height if `env()` is unsupported. */
-  height: var(--topbar-h);
-  height: calc(var(--topbar-h) + env(safe-area-inset-top));
-  padding: 0 22px;
-  padding-top: env(safe-area-inset-top);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: color-mix(in srgb, var(--bg) 78%, transparent);
-  backdrop-filter: blur(18px) saturate(160%);
-  border-bottom: 1px solid var(--border);
 }
 
 .app-content {
@@ -1725,10 +1704,6 @@ table.table--compact th {
 }
 
 @media (max-width: 860px) {
-  :root {
-    --topbar-h: 56px;
-  }
-
   .app-sidebar {
     display: none;
   }
@@ -1742,13 +1717,13 @@ table.table--compact th {
   }
 
   .app-content {
-    padding: 16px 14px calc(var(--bottomnav-h) + 26px + env(safe-area-inset-bottom));
+    /* With the topbar gone this is the topmost surface. The installed iOS PWA
+       runs `black-translucent` + `viewport-fit=cover`, so it would otherwise
+       start under the status bar / Dynamic Island; the top inset keeps the page
+       heading below the cutout. Desktop and Android report 0. */
+    padding: calc(16px + env(safe-area-inset-top)) 14px
+      calc(var(--bottomnav-h) + 26px + env(safe-area-inset-bottom));
     gap: 14px;
-  }
-
-  .app-topbar {
-    /* Keep the top inset - this shorthand would otherwise clear it. */
-    padding: env(safe-area-inset-top) 14px 0;
   }
 
   .grid-2,
