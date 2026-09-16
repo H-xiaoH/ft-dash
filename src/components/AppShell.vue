@@ -5,10 +5,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { CORE_KEYS, useBotStore } from '@/stores/bot'
 import { REFRESH_INTERVAL_MS } from '@/stores/settings'
-import { useSettingsStore } from '@/stores/settings'
 import { useUiStore } from '@/stores/ui'
 import { applyUpdate, installAvailable, promptInstall, swUpdateReady } from '@/pwa/register'
-import { fmtTime } from '@/utils/format'
 import Icon from './Icon.vue'
 import ToastHost from './ToastHost.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
@@ -17,11 +15,9 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const bot = useBotStore()
-const settings = useSettingsStore()
 const ui = useUiStore()
 
-const { online, refreshing, lastUpdated, openTradesCount, botState, dryRun } = storeToRefs(bot)
-const { theme } = storeToRefs(settings)
+const { online, openTradesCount } = storeToRefs(bot)
 
 const NAV = [
   { name: 'dashboard', label: '总览', icon: 'dashboard' },
@@ -38,33 +34,6 @@ const PRIMARY_NAV = NAV.slice(0, 4)
 const SECONDARY_NAV = NAV.slice(4)
 
 const showMore = ref(false)
-
-const pageTitle = computed(() => route.meta?.title || '总览')
-
-const stateTone = computed(() => {
-  const state = botState.value
-  if (state === 'running') return 'profit'
-  if (state === 'paused' || state === 'stopbuy') return 'warn'
-  if (state === 'stopped') return 'loss'
-  return 'neutral'
-})
-
-const stateLabel = computed(() => {
-  const labels = {
-    running: '运行中',
-    paused: '已暂停',
-    stopbuy: '停止开仓',
-    stopped: '已停止',
-    unknown: '未知',
-  }
-  return labels[botState.value] || botState.value
-})
-
-const connectionLabel = computed(() => (online.value ? '轮询中' : '连接中断'))
-
-const updatedLabel = computed(() =>
-  lastUpdated.value ? fmtTime(lastUpdated.value) : '—',
-)
 
 function go(name) {
   showMore.value = false
@@ -179,48 +148,6 @@ onBeforeUnmount(() => {
     </aside>
 
     <div class="app-main">
-      <header class="app-topbar">
-        <div class="grow row" style="gap: 10px; min-width: 0">
-          <h1 class="page-title truncate" style="font-size: 17px">{{ pageTitle }}</h1>
-          <span class="badge hide-xs" :class="`badge--${stateTone}`">
-            <span
-              class="dot"
-              :class="botState === 'running' ? 'dot--pulse' : ''"
-            />
-            {{ stateLabel }}
-          </span>
-          <span v-if="dryRun" class="badge badge--info hide-xs">Dry-run</span>
-        </div>
-
-        <div class="row" style="gap: 6px">
-          <span class="pill hide-xs" :title="connectionLabel">
-            <Icon
-              :name="online ? 'wifi' : 'wifiOff'"
-              :size="14"
-              :class="online ? 'profit' : 'loss'"
-            />
-            <span class="faint mono">{{ updatedLabel }}</span>
-          </span>
-
-          <button
-            class="icon-btn"
-            :disabled="refreshing"
-            title="刷新数据"
-            @click="bot.refreshAll()"
-          >
-            <Icon name="refresh" :size="17" :class="refreshing ? 'spin' : ''" />
-          </button>
-
-          <button class="icon-btn" :title="theme === 'dark' ? '切换浅色' : '切换深色'" @click="settings.toggleTheme()">
-            <Icon :name="theme === 'dark' ? 'sun' : 'moon'" :size="17" />
-          </button>
-
-          <button class="icon-btn" title="更多" @click="showMore = true">
-            <Icon name="menu" :size="17" />
-          </button>
-        </div>
-      </header>
-
       <main class="app-content">
         <div v-if="!online && auth.authenticated" class="conn-strip">
           <Icon name="wifiOff" :size="16" />
