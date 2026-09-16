@@ -55,7 +55,6 @@ const fields = computed(() => {
     row('最大投入', fmtNumber(t.max_stake_amount, 4)),
     row('止损价', fmtPrice(t.stop_loss_abs ?? t.initial_stop_loss_abs)),
     row('止损比例', fmtPercentRatio(t.stop_loss_ratio ?? t.initial_stop_loss_ratio)),
-    row('杠杆', t.leverage ? `${Number(t.leverage).toFixed(1)}x` : '1x'),
     row('方向', t.is_short ? '做空' : '做多'),
     row('开仓时间', String(t.open_date || '').replace('T', ' ').slice(0, 19)),
     row(
