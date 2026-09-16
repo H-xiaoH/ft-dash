@@ -433,11 +433,17 @@ svg {
   position: sticky;
   top: 0;
   z-index: 30;
+  /* The installed iOS PWA runs with `black-translucent` + `viewport-fit=cover`,
+     so the bar paints under the status bar / Dynamic Island. Grow it by the top
+     inset so its content clears the cutout; a desktop or Android browser reports
+     0 and is unaffected. The fallback keeps the height if `env()` is unsupported. */
   height: var(--topbar-h);
+  height: calc(var(--topbar-h) + env(safe-area-inset-top));
+  padding: 0 22px;
+  padding-top: env(safe-area-inset-top);
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 22px;
   background: color-mix(in srgb, var(--bg) 78%, transparent);
   backdrop-filter: blur(18px) saturate(160%);
   border-bottom: 1px solid var(--border);
@@ -1741,7 +1747,8 @@ table.table--compact th {
   }
 
   .app-topbar {
-    padding: 0 14px;
+    /* Keep the top inset - this shorthand would otherwise clear it. */
+    padding: env(safe-area-inset-top) 14px 0;
   }
 
   .grid-2,
