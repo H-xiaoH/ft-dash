@@ -1388,7 +1388,11 @@ table.table--compact th {
 .toast-host {
   position: fixed;
   z-index: 200;
-  bottom: calc(18px + env(safe-area-inset-bottom));
+  /* Clears a modal/drawer footer (`.modal-foot`: 14px padding x2 + a 37px
+     `.btn--sm` = 65px) plus 13px of breathing room. Both surfaces are pinned to
+     the bottom, and the toast stacks above them (200 vs the overlay's 100), so
+     at the old 18px a toast landed squarely on the drawer's action buttons. */
+  bottom: calc(78px + env(safe-area-inset-bottom));
   right: 18px;
   display: flex;
   flex-direction: column;
@@ -1760,7 +1764,9 @@ table.table--compact th {
   .toast-host {
     left: 14px;
     right: 14px;
-    bottom: calc(var(--bottomnav-h) + 14px + env(safe-area-inset-bottom));
+    /* Same clearance as desktop: the modal becomes a bottom sheet here, so the
+       toast has to sit above its footer rather than behind it. */
+    bottom: calc(92px + env(safe-area-inset-bottom));
     max-width: none;
   }
 
