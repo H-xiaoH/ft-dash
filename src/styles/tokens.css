@@ -1,0 +1,197 @@
+/*
+ * ft-dash design tokens.
+ *
+ * Direction: an instrument panel for a machine that trades money. The palette
+ * is a deep steel ink, not pure black; green and red are reserved strictly for
+ * P&L semantics, and amber marks anything the operator can act on. Numbers are
+ * set in IBM Plex Mono so columns of digits line up the way a ledger does.
+ */
+
+:root {
+  /* surfaces */
+  --ink-900: #0e141d;
+  --ink-850: #121a24;
+  --ink-800: #16202c;
+  --ink-750: #1b2634;
+  --ink-700: #202d3d;
+
+  /* lines */
+  --line: #23303f;
+  --line-strong: #32445a;
+
+  /* text */
+  --text: #e7eef6;
+  --text-2: #9fb0c2;
+  --text-3: #6e8091;
+
+  /* semantics — P&L only */
+  --long: #2fc08d;
+  --long-dim: #1d5c46;
+  --short: #e5656f;
+  --short-dim: #61282e;
+
+  /* interaction */
+  --accent: #e9a13c;
+  --accent-dim: #4a3418;
+  --accent-text: #1a1206;
+
+  --warn: #e9a13c;
+  --info: #6fa8dc;
+
+  /* type */
+  --font-ui: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  --font-data: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --fs-xs: 0.6875rem;
+  --fs-sm: 0.75rem;
+  --fs-base: 0.8125rem;
+  --fs-md: 0.875rem;
+  --fs-lg: 1rem;
+  --fs-xl: 1.25rem;
+  --fs-2xl: 1.625rem;
+  --fs-3xl: 2.125rem;
+
+  /* space */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  /* shape */
+  --r-1: 6px;
+  --r-2: 10px;
+  --r-3: 14px;
+  --ring: 0 0 0 2px var(--ink-900), 0 0 0 4px color-mix(in srgb, var(--accent) 70%, transparent);
+
+  --rail-w: 60px;
+  --tape-w: 296px;
+  --topbar-h: 56px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+html {
+  background: var(--ink-900);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--ink-900);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--accent);
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-underline-offset: 2px;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--r-1);
+}
+
+.num {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.u-pos {
+  color: var(--long);
+}
+
+.u-neg {
+  color: var(--short);
+}
+
+.u-flat {
+  color: var(--text-2);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* Scrollbars stay out of the way but remain visible on hover. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
