@@ -5,7 +5,6 @@ import { useRouter } from 'vue-router'
 import BarChart from '@/components/BarChart.vue'
 import type { BarItem } from '@/components/charts'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import EventTape from '@/components/EventTape.vue'
 import MetricTile from '@/components/MetricTile.vue'
 import SideBadge from '@/components/SideBadge.vue'
 import Sparkline from '@/components/Sparkline.vue'
@@ -286,10 +285,6 @@ async function confirmExit() {
       </div>
 
       <aside class="dash__aside stack">
-        <div class="u-mobile-only">
-          <EventTape compact />
-        </div>
-
         <section class="panel">
           <div class="panel__head">
             <span class="panel__title">{{ t('dashboard.topPairs') }}</span>

@@ -2,7 +2,6 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
-import { useFormat } from '@/composables/useFormat'
 import { pushToast } from '@/composables/useToast'
 import { LOCALE_LABELS, SUPPORTED_LOCALES } from '@/i18n'
 import { normalizeBaseUrl } from '@/lib/api'
@@ -16,11 +15,10 @@ import {
 } from '@/pwa'
 import { useBotStore } from '@/stores/bot'
 import { useEventsStore } from '@/stores/events'
-import { REFRESH_OPTIONS, useSettingsStore } from '@/stores/settings'
+import { useSettingsStore } from '@/stores/settings'
 import type { StreamAuthPreference } from '@/lib/stream'
 
 const { t } = useI18n()
-const format = useFormat()
 const settings = useSettingsStore()
 const bot = useBotStore()
 const events = useEventsStore()
@@ -245,15 +243,6 @@ async function install() {
             </button>
           </div>
         </div>
-
-        <label class="field field--row">
-          <span class="field__label">{{ t('settings.refreshInterval') }}</span>
-          <select v-model.number="settings.refreshInterval" class="select select--sm">
-            <option v-for="option in REFRESH_OPTIONS" :key="option" :value="option">
-              {{ format.number(option, 0) }}s
-            </option>
-          </select>
-        </label>
 
         <label class="switch">
           <input v-model="settings.websocket" type="checkbox" />

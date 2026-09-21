@@ -3,7 +3,6 @@ import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
-import EventTape from '@/components/EventTape.vue'
 import StatusStrip from '@/components/StatusStrip.vue'
 import ConnectView from '@/views/ConnectView.vue'
 import { useToasts } from '@/composables/useToast'
@@ -39,13 +38,9 @@ async function refresh() {
   await bot.refreshAll()
 }
 
-/** The event tape lives in the dashboard on narrow screens. */
+/** The live tape lives on the System page. */
 function openTape() {
-  if (route.name !== 'dashboard') {
-    void router.push('/')
-    return
-  }
-  document.querySelector('.tape')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  if (route.name !== 'system') void router.push('/system')
 }
 
 onMounted(async () => {
@@ -125,9 +120,6 @@ watch(
             <component :is="Component" />
           </RouterView>
         </main>
-        <aside class="aside">
-          <EventTape />
-        </aside>
       </div>
     </div>
 
@@ -234,11 +226,7 @@ watch(
 }
 
 .shell__body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--tape-w);
-  gap: var(--sp-4);
   padding: var(--sp-4);
-  align-items: start;
   min-width: 0;
 }
 
@@ -247,14 +235,7 @@ watch(
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
-  max-width: 1400px;
-}
-
-.aside {
-  position: sticky;
-  top: calc(var(--topbar-h) + var(--sp-4));
-  height: calc(100vh - var(--topbar-h) - var(--sp-8));
-  height: calc(100dvh - var(--topbar-h) - var(--sp-8));
+  max-width: 1600px;
 }
 
 .shell__banner {
@@ -263,16 +244,6 @@ watch(
 
 .tabbar {
   display: none;
-}
-
-@media (max-width: 1200px) {
-  .shell__body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .aside {
-    display: none;
-  }
 }
 
 @media (max-width: 900px) {

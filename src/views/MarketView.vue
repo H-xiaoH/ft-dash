@@ -3,8 +3,10 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import CandleChart from '@/components/CandleChart.vue'
-import type { Candle } from '@/components/charts'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
+import SearchToggle from '@/components/SearchToggle.vue'
+import type { Candle, CandleFormatters } from '@/components/charts'
 import { useFormat } from '@/composables/useFormat'
 import { pushToast } from '@/composables/useToast'
 import type { Lock } from '@/lib/types'
@@ -22,16 +24,28 @@ const tab = ref<Tab>('whitelist')
 const search = ref('')
 const positionsOnly = ref(false)
 const selectedPair = ref('')
-const timeframe = ref(bot.showConfig?.timeframe ?? '5m')
 const loadingCandles = ref(false)
 const candleError = ref(false)
 const blacklistInput = ref('')
 const lockTarget = ref<Lock | null>(null)
 const blacklistTarget = ref<string | null>(null)
 
-const TIMEFRAMES = ['1m', '3m', '5m', '15m', '30m', '1h', '4h', '1d']
+/** The bot trades a single timeframe, so it is displayed rather than chosen. */
+const timeframe = computed(() => String(bot.showConfig?.timeframe ?? '5m'))
+
+const formatters: CandleFormatters = {
+  price: (value) => format.price(value),
+  time: (value) => format.stamp(value),
+  volume: (value) => format.compact(value),
+  change: (ratio) => format.ratio(ratio),
+}
 
 const openPairs = computed(() => new Set(bot.openTrades.map((trade) => trade.pair)))
+
+const pairOptions = computed<FilterOption[]>(() => {
+  const pairs = new Set<string>([...openPairs.value, ...(bot.whitelist?.whitelist ?? [])])
+  return [...pairs].map((pair) => ({ value: pair, label: pair }))
+})
 
 const whitelistRows = computed(() => {
   const query = search.value.trim().toLowerCase()
@@ -50,22 +64,31 @@ const blacklistRows = computed(() => {
 })
 
 const candles = computed<Candle[]>(() => {
-  const key = `${selectedPair.value}|${timeframe.value}`
-  const response = bot.candleCache[key]
+  const response = bot.candleCache[`${selectedPair.value}|${timeframe.value}`]
   if (!response) return []
-  const columns = response.columns
-  const indexOf = (name: string) => columns.indexOf(name)
-  const [o, h, l, c] = [indexOf('open'), indexOf('high'), indexOf('low'), indexOf('close')]
-  if ([o, h, l, c].some((index) => index === -1)) return []
+  const index = (name: string) => response.columns.indexOf(name)
+  const [o, h, l, c, time, volume] = [
+    index('open'),
+    index('high'),
+    index('low'),
+    index('close'),
+    index('date'),
+    index('volume'),
+  ]
+  if ([o, h, l, c].some((position) => position === -1)) return []
   return response.data.map((row) => ({
     open: Number(row[o]),
     high: Number(row[h]),
     low: Number(row[l]),
     close: Number(row[c]),
+    time: time === -1 ? null : (row[time] as string | number | null),
+    volume: volume === -1 ? null : Number(row[volume]),
   }))
 })
 
-const candleMeta = computed(() => bot.candleCache[`${selectedPair.value}|${timeframe.value}`] ?? null)
+const candleMeta = computed(
+  () => bot.candleCache[`${selectedPair.value}|${timeframe.value}`] ?? null,
+)
 
 async function loadCandles() {
   if (!selectedPair.value) return
@@ -74,10 +97,6 @@ async function loadCandles() {
   const result = await bot.fetchCandles(selectedPair.value, timeframe.value, 180)
   candleError.value = !result
   loadingCandles.value = false
-}
-
-function selectPair(pair: string) {
-  selectedPair.value = pair
 }
 
 async function submitBlacklist() {
@@ -111,8 +130,9 @@ async function confirmLockDelete() {
 watch(
   () => [selectedPair.value, timeframe.value],
   () => {
-    const key = `${selectedPair.value}|${timeframe.value}`
-    if (selectedPair.value && !bot.candleCache[key]) void loadCandles()
+    if (selectedPair.value && !bot.candleCache[`${selectedPair.value}|${timeframe.value}`]) {
+      void loadCandles()
+    }
   },
 )
 
@@ -133,8 +153,42 @@ onMounted(() => {
 
 <template>
   <div class="stack">
-    <div class="market__grid">
-    <section class="panel market__list">
+    <!-- Candles come first: pick a pair from the selector here or from the list below. -->
+    <section class="panel">
+      <div class="panel__head">
+        <span class="panel__title">{{ t('market.candleChart') }}</span>
+        <span class="chip">{{ timeframe }}</span>
+        <div class="panel__actions row row--wrap">
+          <FilterMenu
+            v-model="selectedPair"
+            :options="pairOptions"
+            :prefix="t('market.pair')"
+            :label="t('market.pair')"
+            align="end"
+          />
+          <span v-if="candleMeta?.last_analyzed_ts" class="panel__meta num">
+            {{ t('market.lastAnalyzed') }} {{ format.dateTime(candleMeta.last_analyzed_ts) }}
+          </span>
+        </div>
+      </div>
+      <div class="panel__body">
+        <p v-if="!selectedPair" class="empty">{{ t('market.noCandles') }}</p>
+        <div v-else-if="loadingCandles && !candles.length" class="skeleton" style="height: 240px" />
+        <p v-else-if="candleError || !candles.length" class="empty">{{ t('market.noCandles') }}</p>
+        <CandleChart v-else :candles="candles" :height="280" :formatters="formatters" />
+        <div v-if="candleMeta" class="row row--wrap small muted" style="margin-top: 8px">
+          <span>{{ candleMeta.strategy }}</span>
+          <span v-if="candleMeta.buy_signals !== undefined">
+            · {{ t('market.buySignals') }} {{ candleMeta.buy_signals }}
+          </span>
+          <span v-if="candleMeta.sell_signals !== undefined">
+            · {{ t('market.sellSignals') }} {{ candleMeta.sell_signals }}
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
       <div class="panel__head">
         <div class="seg">
           <button
@@ -155,21 +209,17 @@ onMounted(() => {
             {{ t('market.blacklist') }}
             <span class="small muted">{{ bot.blacklist?.blacklist.length ?? 0 }}</span>
           </button>
-          <button type="button" class="seg__item" :aria-pressed="tab === 'locks'" @click="tab = 'locks'">
+          <button
+            type="button"
+            class="seg__item"
+            :aria-pressed="tab === 'locks'"
+            @click="tab = 'locks'"
+          >
             {{ t('market.locks') }}
             <span class="small muted">{{ bot.locks?.lock_count ?? 0 }}</span>
           </button>
         </div>
-        <div class="panel__actions row">
-          <label class="search">
-            <AppIcon name="search" />
-            <input
-              v-model="search"
-              class="search__input"
-              type="search"
-              :placeholder="t('market.searchPairs')"
-            />
-          </label>
+        <div class="panel__actions row row--wrap">
           <label v-if="tab === 'whitelist'" class="switch">
             <input v-model="positionsOnly" type="checkbox" />
             <span class="switch__track" />
@@ -177,10 +227,11 @@ onMounted(() => {
               <span class="switch__title small">{{ t('market.showOnlyPositions') }}</span>
             </span>
           </label>
+          <SearchToggle v-model="search" :placeholder="t('market.searchPairs')" />
         </div>
       </div>
 
-      <div v-if="tab === 'whitelist'" class="panel__body panel__body--flush">
+      <div v-if="tab === 'whitelist'" class="panel__body panel__body--flush market__scroll">
         <div v-if="!whitelistRows.length" class="empty">{{ t('empty.table') }}</div>
         <div v-else class="table-wrap">
           <table class="table table--clickable">
@@ -196,9 +247,9 @@ onMounted(() => {
                 v-for="pair in whitelistRows"
                 :key="pair"
                 :class="{ 'is-selected': selectedPair === pair }"
-                @click="selectPair(pair)"
+                @click="selectedPair = pair"
               >
-                <td class="num">{{ pair }}</td>
+                <td>{{ pair }}</td>
                 <td>
                   <span v-if="openPairs.has(pair)" class="chip chip--accent">
                     {{ t('trades.open') }}
@@ -237,7 +288,9 @@ onMounted(() => {
             {{ t('actions.blacklistAdd') }}
           </button>
         </div>
-        <p v-if="!settings.writesEnabled" class="small muted">{{ t('actions.controlsDisabledHint') }}</p>
+        <p v-if="!settings.writesEnabled" class="small muted">
+          {{ t('actions.controlsDisabledHint') }}
+        </p>
         <div v-if="!blacklistRows.length" class="empty">{{ t('empty.table') }}</div>
         <ul v-else class="blist">
           <li v-for="entry in blacklistRows" :key="entry" class="blist__item">
@@ -253,7 +306,10 @@ onMounted(() => {
             </button>
           </li>
         </ul>
-        <p v-if="bot.blacklist?.errors && Object.keys(bot.blacklist.errors).length" class="banner banner--warn">
+        <p
+          v-if="bot.blacklist?.errors && Object.keys(bot.blacklist.errors).length"
+          class="banner banner--warn"
+        >
           {{ t('market.blacklistErrors') }}
         </p>
       </div>
@@ -273,7 +329,7 @@ onMounted(() => {
             </thead>
             <tbody>
               <tr v-for="lock in bot.locks.locks" :key="lock.id">
-                <td class="num">{{ lock.pair }}</td>
+                <td>{{ lock.pair }}</td>
                 <td class="num">{{ format.dateTime(lock.lock_end_timestamp) }}</td>
                 <td class="table__muted">{{ lock.reason }}</td>
                 <td>
@@ -293,40 +349,6 @@ onMounted(() => {
         </div>
       </div>
     </section>
-
-    <section class="panel market__chart">
-      <div class="panel__head">
-        <span class="panel__title">{{ t('market.candleChart') }}</span>
-        <span class="panel__meta num">{{ selectedPair || '—' }}</span>
-        <div class="panel__actions row">
-          <select v-model="timeframe" class="select select--sm">
-            <option v-for="option in TIMEFRAMES" :key="option" :value="option">{{ option }}</option>
-          </select>
-          <button type="button" class="btn btn--sm" :disabled="loadingCandles" @click="loadCandles">
-            <AppIcon name="refresh" />
-            {{ t('common.refresh') }}
-          </button>
-        </div>
-      </div>
-      <div class="panel__body">
-        <p v-if="!selectedPair" class="empty">{{ t('market.noCandles') }}</p>
-        <div v-else-if="loadingCandles && !candles.length" class="skeleton" style="height: 200px" />
-        <p v-else-if="candleError || !candles.length" class="empty">{{ t('market.noCandles') }}</p>
-        <CandleChart v-else :candles="candles" :height="240" />
-        <div v-if="candleMeta" class="row row--wrap small muted" style="margin-top: 8px">
-          <span>{{ candleMeta.strategy }}</span>
-          <span>· {{ timeframe }}</span>
-          <span>· {{ t('market.lastAnalyzed') }} {{ format.dateTime(candleMeta.last_analyzed_ts ?? null) }}</span>
-          <span v-if="candleMeta.buy_signals !== undefined">
-            · {{ t('market.buySignals') }} {{ candleMeta.buy_signals }}
-          </span>
-          <span v-if="candleMeta.sell_signals !== undefined">
-            · {{ t('market.sellSignals') }} {{ candleMeta.sell_signals }}
-          </span>
-        </div>
-      </div>
-    </section>
-    </div>
 
     <ConfirmDialog
       :open="blacklistTarget !== null"
@@ -353,6 +375,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Toolbar controls drop to a second line instead of squeezing the tabs. */
 .panel__head {
   flex-wrap: wrap;
   row-gap: var(--sp-2);
@@ -362,59 +385,9 @@ onMounted(() => {
   flex: none;
 }
 
-.market__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-  gap: var(--sp-4);
-  align-items: start;
-}
-
-.market__list :deep(.panel__body) {
+.market__scroll {
   max-height: 62vh;
   overflow-y: auto;
-}
-
-.market__chart {
-  position: sticky;
-  top: calc(var(--topbar-h) + var(--sp-4));
-}
-
-@media (max-width: 1100px) {
-  .market__grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .market__chart {
-    position: static;
-  }
-}
-
-.search {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--ink-900);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-1);
-  padding: 4px 8px;
-  color: var(--text-3);
-}
-
-.search__input {
-  border: 0;
-  background: transparent;
-  padding: 3px 0;
-  min-width: 140px;
-  color: var(--text);
-}
-
-.search__input:focus {
-  outline: none;
-}
-
-.select--sm {
-  width: auto;
-  padding: 5px 8px;
 }
 
 .is-selected {

@@ -226,6 +226,7 @@ export default {
     noCandles: 'No candle data available (pair may be outside the whitelist or data is missing).',
     buySignals: 'Buy signals',
     sellSignals: 'Sell signals',
+    candlesInfo: 'Candle info',
     lockUntil: 'Locked until',
     lockReason: 'Reason',
     lockActive: 'Active',
@@ -244,6 +245,8 @@ export default {
     byEnterTag: 'By entry tag',
     byExitReason: 'By exit reason',
     byMixTag: 'By full tag',
+    kind: 'Kind',
+    group: 'Group',
     exitReasons: 'Exit reason breakdown',
     durations: 'Durations',
     wins: 'Wins',
@@ -417,6 +420,15 @@ export default {
     wsRejected:
       'WebSocket handshake rejected (403): the token was refused, or your reverse proxy does not forward Upgrade requests. Try a ws_token or check the proxy config.',
     wsDisabled: 'Live stream is off.',
+  },
+  chart: {
+    open: 'O',
+    high: 'H',
+    low: 'L',
+    close: 'C',
+    volume: 'Vol',
+    change: 'Chg',
+    latest: 'Latest',
   },
   duration: {
     day: 'd',

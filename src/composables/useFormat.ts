@@ -11,6 +11,7 @@ import {
   formatPercent,
   formatPrice,
   formatRatio,
+  formatShortStamp,
   formatSignedMoney,
   parseTimestamp,
   type DurationLabels,
@@ -29,6 +30,7 @@ export interface Formatter {
   duration: (ms: Numberish) => string
   dateTime: (value: Numberish) => string
   day: (value: Numberish) => string
+  stamp: (value: Numberish) => string
   toneClass: (value: Numberish) => string
   toneOf: (value: Numberish) => 'good' | 'bad' | 'flat'
   timestamp: (value: Numberish) => number | null
@@ -60,6 +62,7 @@ export function useFormat(): Formatter {
     duration: (ms) => formatDuration(ms, durationLabels.value),
     dateTime: (value) => formatDateTime(value, current.value),
     day: (value) => formatDay(value, current.value),
+    stamp: (value) => formatShortStamp(value, current.value),
     toneClass: (value) => {
       const dir = direction(value)
       return dir > 0 ? 'u-pos' : dir < 0 ? 'u-neg' : 'u-flat'

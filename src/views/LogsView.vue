@@ -2,6 +2,8 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
+import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
+import SearchToggle from '@/components/SearchToggle.vue'
 import { useFormat } from '@/composables/useFormat'
 import { useBotStore } from '@/stores/bot'
 
@@ -12,12 +14,14 @@ const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
 
-const minLevel = ref<Level>('INFO')
+const minLevel = ref<string>('INFO')
 const search = ref('')
 const follow = ref(true)
 
+const levelOptions: FilterOption[] = LEVELS.map((level) => ({ value: level, label: level }))
+
 const lines = computed(() => {
-  const minIndex = LEVELS.indexOf(minLevel.value)
+  const minIndex = Math.max(0, LEVELS.indexOf(minLevel.value as Level))
   const query = search.value.trim().toLowerCase()
   const rows = bot.logs?.logs ?? []
   return rows
@@ -47,21 +51,13 @@ function levelClass(level: string): string {
       <span class="panel__title">{{ t('logs.title') }}</span>
       <span class="panel__meta num">{{ t('logs.lines', { n: lines.length }) }}</span>
       <div class="panel__actions row row--wrap">
-        <label class="field field--inline">
-          <span class="field__label small">{{ t('logs.filterLevel') }}</span>
-          <select v-model="minLevel" class="select select--sm">
-            <option v-for="level in LEVELS" :key="level" :value="level">{{ level }}</option>
-          </select>
-        </label>
-        <label class="search">
-          <AppIcon name="search" />
-          <input
-            v-model="search"
-            class="search__input"
-            type="search"
-            :placeholder="t('logs.searchLogs')"
-          />
-        </label>
+        <FilterMenu
+          v-model="minLevel"
+          :options="levelOptions"
+          :prefix="t('logs.level')"
+          :label="t('logs.filterLevel')"
+        />
+        <SearchToggle v-model="search" :placeholder="t('logs.searchLogs')" />
         <label class="switch">
           <input v-model="follow" type="checkbox" />
           <span class="switch__track" />
@@ -90,40 +86,6 @@ function levelClass(level: string): string {
 </template>
 
 <style scoped>
-.select--sm {
-  width: auto;
-  padding: 5px 8px;
-}
-
-.search {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--ink-900);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-1);
-  padding: 4px 8px;
-  color: var(--text-3);
-}
-
-.search__input {
-  border: 0;
-  background: transparent;
-  padding: 3px 0;
-  min-width: 140px;
-  color: var(--text);
-}
-
-.search__input:focus {
-  outline: none;
-}
-
-.field--inline {
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-}
-
 .logs {
   display: flex;
   flex-direction: column;

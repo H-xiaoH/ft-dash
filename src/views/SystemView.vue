@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import EventTape from '@/components/EventTape.vue'
 import { useFormat } from '@/composables/useFormat'
 import { pushToast } from '@/composables/useToast'
 import { useBotStore } from '@/stores/bot'
@@ -123,7 +124,7 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
         <span class="metric__label">{{ t('system.wsStatus') }}</span>
         <span class="metric__value metric__value--sm">{{ wsLabel }}</span>
         <span class="metric__sub">
-          {{ t('system.polling') }} {{ settings.refreshInterval }}s ·
+          {{ t('system.polling') }} {{ bot.pollIntervalSeconds }}s ·
           {{ bot.latencyMs !== null ? `${bot.latencyMs}ms` : '—' }}
         </span>
       </div>
@@ -185,12 +186,6 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
       <section class="panel">
         <div class="panel__head">
           <span class="panel__title">{{ t('system.connection') }}</span>
-          <div class="panel__actions">
-            <button type="button" class="btn btn--sm" @click="bot.refreshAll()">
-              <AppIcon name="refresh" />
-              {{ t('common.refresh') }}
-            </button>
-          </div>
         </div>
         <div class="panel__body">
           <dl class="dl">
@@ -289,6 +284,11 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
       </div>
     </section>
 
+    <!-- The live tape lives here now, next to the connection it depends on. -->
+    <div class="system__tape">
+      <EventTape />
+    </div>
+
     <ConfirmDialog
       :open="stopConfirm"
       tone="danger"
@@ -305,6 +305,11 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
 <style scoped>
 .metric--warn .metric__value {
   color: var(--warn);
+}
+
+.system__tape {
+  height: 380px;
+  min-height: 280px;
 }
 
 .cores {

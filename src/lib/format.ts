@@ -196,6 +196,18 @@ export function formatDay(value: Numberish, locale = 'en', fallback = '—'): st
   )
 }
 
+/** Short "MM-DD HH:mm" stamp in the viewer's own timezone, for chart readouts. */
+export function formatShortStamp(value: Numberish, locale = 'en', fallback = '—'): string {
+  const ts = parseTimestamp(value)
+  if (ts === null) return fallback
+  return new Intl.DateTimeFormat(locale, {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(ts))
+}
+
 export function toIsoDate(value: Date = new Date()): string {
   return value.toISOString().slice(0, 10)
 }

@@ -47,6 +47,8 @@ import { useSettingsStore } from './settings'
 export type ConnectionState = 'idle' | 'connecting' | 'online' | 'unauthorized' | 'unreachable'
 
 const TRADES_PAGE_SIZE = 300
+/** Poll cadence. Cheap slices run every tick, heavier ones every few ticks. */
+const POLL_INTERVAL_SECONDS = 1
 
 export const useBotStore = defineStore('bot', () => {
   const settings = useSettingsStore()
@@ -87,6 +89,7 @@ export const useBotStore = defineStore('bot', () => {
   const candleCache = ref<Record<string, PairCandlesResponse>>({})
 
   let pollTimer: number | null = null
+  let pollInFlight = false
   let tick = 0
   let ws: WebSocket | null = null
   let wsRetry = 0
@@ -292,19 +295,24 @@ export const useBotStore = defineStore('bot', () => {
   /** Cheap slices refreshed on every poll tick. */
   async function pollTick() {
     if (document.visibilityState === 'hidden') return
-    tick += 1
-    await refreshCore()
-    if (tick % 4 === 0) await Promise.all([refreshTrades(), refreshMarket()])
-    if (tick % 12 === 0) await Promise.all([refreshAnalytics(), refreshSystem()])
+    // A slow round trip must not stack requests on the next tick.
+    if (pollInFlight) return
+    pollInFlight = true
+    try {
+      tick += 1
+      await refreshCore()
+      if (tick % 4 === 0) await Promise.all([refreshTrades(), refreshMarket()])
+      if (tick % 12 === 0) await Promise.all([refreshAnalytics(), refreshSystem()])
+    } finally {
+      pollInFlight = false
+    }
   }
 
   function startPolling() {
     stopPolling()
-    const seconds = Number.isFinite(settings.refreshInterval) ? settings.refreshInterval : 30
-    const intervalMs = Math.max(5, seconds) * 1000
     pollTimer = window.setInterval(() => {
       void pollTick()
-    }, intervalMs)
+    }, POLL_INTERVAL_SECONDS * 1000)
   }
 
   function stopPolling() {
@@ -623,14 +631,6 @@ export const useBotStore = defineStore('bot', () => {
     return result
   }
 
-  // Keep the scheduler and the live stream in sync with user preferences.
-  watch(
-    () => settings.refreshInterval,
-    () => {
-      if (connection.value === 'online') startPolling()
-    },
-  )
-
   watch(
     () => settings.websocket,
     (enabled) => {
@@ -713,6 +713,7 @@ export const useBotStore = defineStore('bot', () => {
     streamAuthMode,
     streamReasonKey,
     streamBlocked,
+    pollIntervalSeconds: POLL_INTERVAL_SECONDS,
     fetchCandles,
     runAction,
     ensureClient,

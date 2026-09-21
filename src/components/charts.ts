@@ -15,4 +15,15 @@ export interface Candle {
   high: number
   low: number
   close: number
+  /** Candle timestamp; optional so the chart also works without one. */
+  time?: number | string | null
+  volume?: number | null
+}
+
+/** Number/time formatting is injected so the chart matches the app's locale. */
+export interface CandleFormatters {
+  price: (value: number) => string
+  time?: (value: number | string | null | undefined) => string
+  volume?: (value: number) => string
+  change?: (ratio: number) => string
 }

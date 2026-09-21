@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
+import SearchToggle from '@/components/SearchToggle.vue'
 import SideBadge from '@/components/SideBadge.vue'
 import TradeDetail from '@/components/TradeDetail.vue'
 import { useFormat } from '@/composables/useFormat'
@@ -23,7 +25,7 @@ const router = useRouter()
 
 const filter = ref<Filter>('all')
 const search = ref('')
-const result = ref<'all' | 'win' | 'loss'>('all')
+const result = ref<string>('all')
 const sortKey = ref<SortKey>('open_timestamp')
 const sortDir = ref<'asc' | 'desc'>('desc')
 const selected = ref<Trade | null>(null)
@@ -31,6 +33,12 @@ const exitTarget = ref<Trade | null>(null)
 const limit = ref(300)
 
 const stake = computed(() => bot.stakeCurrency)
+
+const resultOptions = computed<FilterOption[]>(() => [
+  { value: 'all', label: t('common.all') },
+  { value: 'win', label: t('stats.wins') },
+  { value: 'loss', label: t('stats.losses') },
+])
 
 function durationOf(trade: Trade): number | null {
   const open = format.timestamp(trade.open_timestamp)
@@ -201,27 +209,13 @@ onMounted(() => {
           </button>
         </div>
         <div class="panel__actions row">
-          <label class="search">
-            <AppIcon name="search" />
-            <input
-              v-model="search"
-              class="search__input"
-              type="search"
-              :placeholder="t('market.searchPairs')"
-            />
-          </label>
-          <div class="seg">
-            <button
-              v-for="option in (['all', 'win', 'loss'] as const)"
-              :key="option"
-              type="button"
-              class="seg__item"
-              :aria-pressed="result === option"
-              @click="result = option"
-            >
-              {{ option === 'all' ? t('common.all') : option === 'win' ? t('stats.wins') : t('stats.losses') }}
-            </button>
-          </div>
+          <SearchToggle v-model="search" :placeholder="t('market.searchPairs')" />
+          <FilterMenu
+            v-model="result"
+            :options="resultOptions"
+            :prefix="t('trades.profit')"
+            :label="t('trades.profit')"
+          />
           <button type="button" class="btn btn--sm" @click="exportCsv">
             <AppIcon name="download" />
             {{ t('trades.exportCsv') }}
@@ -397,29 +391,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.search {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--ink-900);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-1);
-  padding: 4px 8px;
-  color: var(--text-3);
-}
-
-.search__input {
-  border: 0;
-  background: transparent;
-  padding: 3px 0;
-  min-width: 140px;
-  color: var(--text);
-}
-
-.search__input:focus {
-  outline: none;
-}
-
 .sort {
   display: inline-flex;
   align-items: center;

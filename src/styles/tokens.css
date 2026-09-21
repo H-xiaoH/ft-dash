@@ -68,7 +68,6 @@
   --ring: 0 0 0 2px var(--ink-900), 0 0 0 4px color-mix(in srgb, var(--accent) 70%, transparent);
 
   --rail-w: 60px;
-  --tape-w: 296px;
   --topbar-h: 56px;
 }
 

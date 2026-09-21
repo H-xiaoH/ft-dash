@@ -2,15 +2,19 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BarChart from '@/components/BarChart.vue'
+import AppIcon from '@/components/AppIcon.vue'
+import SearchToggle from '@/components/SearchToggle.vue'
 import type { BarItem } from '@/components/charts'
 import { useFormat } from '@/composables/useFormat'
 import { useBotStore } from '@/stores/bot'
 
-type Tab = 'pairs' | 'entries' | 'exits' | 'mix'
+type Kind = 'pair' | 'entry' | 'exit' | 'mix'
 type Period = 'daily' | 'weekly' | 'monthly'
+type SortKey = 'kind' | 'name' | 'count' | 'profitAbs' | 'profitRatio'
 
 interface Row {
-  key: string
+  kind: Kind
+  name: string
   count: number
   profitAbs: number
   profitRatio: number
@@ -20,47 +24,85 @@ const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
 
-const tab = ref<Tab>('pairs')
 const period = ref<Period>('daily')
-const limit = ref(20)
+const search = ref('')
+const sortKey = ref<SortKey>('profitAbs')
+const sortDir = ref<'asc' | 'desc'>('desc')
 
 const stake = computed(() => bot.stakeCurrency)
 
+const KIND_LABELS: Record<Kind, string> = {
+  pair: 'stats.byPair',
+  entry: 'stats.byEnterTag',
+  exit: 'stats.byExitReason',
+  mix: 'stats.byMixTag',
+}
+
+/** Every grouping in one grid, so the header clicks do the filtering work. */
+const allRows = computed<Row[]>(() => [
+  ...bot.performance.map((entry) => ({
+    kind: 'pair' as const,
+    name: entry.pair,
+    count: entry.count,
+    profitAbs: entry.profit_abs,
+    profitRatio: entry.profit_ratio,
+  })),
+  ...bot.entryStats.map((entry) => ({
+    kind: 'entry' as const,
+    name: entry.enter_tag.trim() || '—',
+    count: entry.count,
+    profitAbs: entry.profit_abs,
+    profitRatio: entry.profit_ratio,
+  })),
+  ...bot.exitStats.map((entry) => ({
+    kind: 'exit' as const,
+    name: entry.exit_reason,
+    count: entry.count,
+    profitAbs: entry.profit_abs,
+    profitRatio: entry.profit_ratio,
+  })),
+  ...bot.mixTags.map((entry) => ({
+    kind: 'mix' as const,
+    name: entry.mix_tag,
+    count: entry.count,
+    profitAbs: entry.profit_abs,
+    profitRatio: entry.profit_ratio,
+  })),
+])
+
 const rows = computed<Row[]>(() => {
-  switch (tab.value) {
-    case 'entries':
-      return bot.entryStats.map((entry) => ({
-        key: entry.enter_tag.trim() || '—',
-        count: entry.count,
-        profitAbs: entry.profit_abs,
-        profitRatio: entry.profit_ratio,
-      }))
-    case 'exits':
-      return bot.exitStats.map((entry) => ({
-        key: entry.exit_reason,
-        count: entry.count,
-        profitAbs: entry.profit_abs,
-        profitRatio: entry.profit_ratio,
-      }))
-    case 'mix':
-      return bot.mixTags.map((entry) => ({
-        key: entry.mix_tag,
-        count: entry.count,
-        profitAbs: entry.profit_abs,
-        profitRatio: entry.profit_ratio,
-      }))
-    default:
-      return bot.performance.map((entry) => ({
-        key: entry.pair,
-        count: entry.count,
-        profitAbs: entry.profit_abs,
-        profitRatio: entry.profit_ratio,
-      }))
-  }
+  const query = search.value.trim().toLowerCase()
+  const filtered = query
+    ? allRows.value.filter((row) => row.name.toLowerCase().includes(query))
+    : allRows.value
+  const direction = sortDir.value === 'asc' ? 1 : -1
+  return [...filtered].sort((a, b) => {
+    switch (sortKey.value) {
+      case 'kind':
+        return a.kind.localeCompare(b.kind) * direction || a.name.localeCompare(b.name)
+      case 'name':
+        return a.name.localeCompare(b.name) * direction
+      case 'count':
+        return (a.count - b.count) * direction
+      case 'profitRatio':
+        return (a.profitRatio - b.profitRatio) * direction
+      default:
+        return (a.profitAbs - b.profitAbs) * direction
+    }
+  })
 })
 
-const sortedRows = computed(() =>
-  [...rows.value].sort((a, b) => b.profitAbs - a.profitAbs).slice(0, limit.value),
+function toggleSort(key: SortKey) {
+  if (sortKey.value === key) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+    return
+  }
+  sortKey.value = key
+  sortDir.value = key === 'kind' || key === 'name' ? 'asc' : 'desc'
+}
+
+const maxAbsProfitRatio = computed(() =>
+  Math.max(0.0001, ...rows.value.map((row) => Math.abs(row.profitRatio))),
 )
 
 const periodData = computed(() => {
@@ -97,18 +139,6 @@ const summary = computed(() => bot.profit)
 const openCount = computed(() => bot.count?.current ?? bot.openTrades.length)
 const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades ?? 0)
 
-const groupLabel = computed(() => {
-  switch (tab.value) {
-    case 'entries':
-      return t('stats.byEnterTag')
-    case 'exits':
-      return t('stats.byExitReason')
-    case 'mix':
-      return t('stats.byMixTag')
-    default:
-      return t('stats.byPair')
-  }
-})
 </script>
 
 <template>
@@ -207,50 +237,77 @@ const groupLabel = computed(() => {
     <section class="panel">
       <div class="panel__head">
         <span class="panel__title">{{ t('stats.title') }}</span>
-        <div class="seg">
-          <button type="button" class="seg__item" :aria-pressed="tab === 'pairs'" @click="tab = 'pairs'">
-            {{ t('stats.byPair') }}
-          </button>
-          <button type="button" class="seg__item" :aria-pressed="tab === 'entries'" @click="tab = 'entries'">
-            {{ t('stats.byEnterTag') }}
-          </button>
-          <button type="button" class="seg__item" :aria-pressed="tab === 'exits'" @click="tab = 'exits'">
-            {{ t('stats.byExitReason') }}
-          </button>
-          <button type="button" class="seg__item" :aria-pressed="tab === 'mix'" @click="tab = 'mix'">
-            {{ t('stats.byMixTag') }}
-          </button>
+        <span class="panel__meta num">{{ rows.length }} / {{ allRows.length }}</span>
+        <div class="panel__actions">
+          <SearchToggle v-model="search" :placeholder="t('stats.group')" />
         </div>
       </div>
       <div class="panel__body panel__body--flush">
-        <div v-if="!sortedRows.length" class="empty">{{ t('stats.noData') }}</div>
+        <div v-if="!rows.length" class="empty">{{ t('stats.noData') }}</div>
         <div v-else class="table-wrap">
           <table class="table">
             <thead>
               <tr>
-                <th>{{ groupLabel }}</th>
-                <th class="num">{{ t('stats.count') }}</th>
+                <th>
+                  <button type="button" class="sort" @click="toggleSort('kind')">
+                    {{ t('stats.kind') }}
+                    <AppIcon
+                      v-if="sortKey === 'kind'"
+                      :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
+                      :size="12"
+                    />
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort" @click="toggleSort('name')">
+                    {{ t('stats.group') }}
+                    <AppIcon
+                      v-if="sortKey === 'name'"
+                      :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
+                      :size="12"
+                    />
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort" @click="toggleSort('count')">
+                    {{ t('stats.count') }}
+                    <AppIcon
+                      v-if="sortKey === 'count'"
+                      :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
+                      :size="12"
+                    />
+                  </button>
+                </th>
                 <th class="num">{{ t('stats.totalProfit') }}</th>
-                <th class="num">{{ t('stats.avgProfit') }}</th>
-                <th class="num">{{ t('stats.winRate') }}</th>
+                <th class="num">
+                  <button type="button" class="sort" @click="toggleSort('profitRatio')">
+                    {{ t('stats.avgProfit') }}
+                    <AppIcon
+                      v-if="sortKey === 'profitRatio'"
+                      :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
+                      :size="12"
+                    />
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in sortedRows" :key="row.key">
-                <td class="num">{{ row.key }}</td>
-                <td class="num">{{ row.count }}</td>
+              <tr v-for="row in rows" :key="`${row.kind}-${row.name}`">
+                <td>
+                  <span class="chip">{{ t(KIND_LABELS[row.kind]) }}</span>
+                </td>
+                <td>{{ row.name }}</td>
+                <td>{{ row.count }}</td>
                 <td class="num" :class="format.toneClass(row.profitAbs)">
                   {{ format.signedMoney(row.profitAbs, stake) }}
                 </td>
-                <td class="num" :class="format.toneClass(row.profitAbs)">
-                  {{ format.ratio(row.count ? row.profitRatio : null) }}
-                </td>
-                <td class="num">
+                <td class="num stats__ratio" :class="format.toneClass(row.profitAbs)">
+                  <span>{{ format.ratio(row.count ? row.profitRatio : null) }}</span>
                   <div class="meter">
                     <div
                       class="meter__fill"
                       :class="row.profitAbs >= 0 ? 'meter__fill--good' : 'meter__fill--bad'"
-                      :style="{ width: `${Math.min(100, Math.abs(row.profitRatio) * 400)}%` }"
+                      :style="{ width: `${(Math.abs(row.profitRatio) / maxAbsProfitRatio) * 100}%` }"
                     />
                   </div>
                 </td>
@@ -371,5 +428,25 @@ const groupLabel = computed(() => {
 <style scoped>
 .stats__summary {
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.stats__ratio {
+  min-width: 120px;
+}
+
+.stats__ratio .meter {
+  margin-top: 3px;
 }
 </style>

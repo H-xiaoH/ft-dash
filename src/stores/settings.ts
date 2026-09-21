@@ -15,7 +15,6 @@ export interface StoredCredentials {
 
 interface StoredSettings {
   locale: AppLocale | null
-  refreshInterval: number
   websocket: boolean
   streamAuth: StreamAuthPreference
   wsToken: string
@@ -27,7 +26,6 @@ interface StoredSettings {
 
 const DEFAULT_SETTINGS: StoredSettings = {
   locale: null,
-  refreshInterval: 30,
   websocket: true,
   streamAuth: 'auto',
   wsToken: '',
@@ -37,23 +35,7 @@ const DEFAULT_SETTINGS: StoredSettings = {
   controlsAcknowledged: false,
 }
 
-export const REFRESH_OPTIONS = [10, 15, 30, 60, 120, 300] as const
 export const STREAM_AUTH_OPTIONS: StreamAuthPreference[] = ['auto', 'ws_token', 'off']
-
-/**
- * Guards against a missing or hand-edited stored value: anything that is not an
- * allowed interval falls back to the default instead of becoming NaN.
- */
-function resolveRefreshInterval(value: unknown): number {
-  if (
-    typeof value === 'number' &&
-    Number.isFinite(value) &&
-    (REFRESH_OPTIONS as readonly number[]).includes(value)
-  ) {
-    return value
-  }
-  return DEFAULT_SETTINGS.refreshInterval
-}
 
 function resolveStreamAuth(value: unknown): StreamAuthPreference {
   return STREAM_AUTH_OPTIONS.includes(value as StreamAuthPreference)
@@ -75,7 +57,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const username = ref(source.username ?? '')
   const password = ref(source.password ?? '')
   const locale = ref<AppLocale>(isSupportedLocale(persisted.locale) ? persisted.locale : detectLocale())
-  const refreshInterval = ref(resolveRefreshInterval(persisted.refreshInterval))
   const websocket = ref(persisted.websocket ?? DEFAULT_SETTINGS.websocket)
   const streamAuth = ref(resolveStreamAuth(persisted.streamAuth))
   const wsToken = ref(typeof persisted.wsToken === 'string' ? persisted.wsToken : '')
@@ -93,7 +74,6 @@ export const useSettingsStore = defineStore('settings', () => {
   function persist() {
     writeJson(SETTINGS_KEY, {
       locale: locale.value,
-      refreshInterval: refreshInterval.value,
       websocket: websocket.value,
       streamAuth: streamAuth.value,
       wsToken: wsToken.value,
@@ -142,7 +122,6 @@ export const useSettingsStore = defineStore('settings', () => {
   watch(
     [
       locale,
-      refreshInterval,
       websocket,
       streamAuth,
       wsToken,
@@ -159,7 +138,6 @@ export const useSettingsStore = defineStore('settings', () => {
     username,
     password,
     locale,
-    refreshInterval,
     websocket,
     streamAuth,
     wsToken,
