@@ -17,6 +17,9 @@ const props = withDefaults(
 )
 
 const activeIndex = ref<number | null>(null)
+const barsLayer = ref<HTMLElement | null>(null)
+/** Pointer captured during a touch drag, so scrubbing keeps working outside the bars. */
+let capturedPointer: number | null = null
 
 const domain = computed(() => signedDomain(props.items.map((item) => item.value)))
 const zeroPercent = computed(() => valueToPercent(0, domain.value.min, domain.value.max))
@@ -67,8 +70,18 @@ const tooltipStyle = computed(() => {
   if (!bar) return {}
   const center = bar.left + bar.width / 2
   if (center < 18) return { left: '0%' }
-  if (center > 82) return { left: '100%', transform: 'translateX(-100%)' }
+  // Anchor with `right` rather than translateX(-100%): an absolutely positioned box
+  // anchored at left:100% has no available width and collapses to one character per line.
+  // The gutter offset keeps the card clear of the axis labels.
+  if (center > 82) return { right: 'var(--axis-gutter)', left: 'auto' }
   return { left: `${center}%`, transform: 'translateX(-50%)' }
+})
+
+/** Vertical guide under the active bar, so the finger position is readable. */
+const cursorStyle = computed(() => {
+  const bar = activeBar.value
+  if (!bar) return null
+  return { left: `${bar.left + bar.width / 2}%` }
 })
 
 const labelStep = computed(() =>
@@ -83,9 +96,67 @@ function select(index: number | null) {
   activeIndex.value = index
 }
 
-function onBackgroundPointer(event: PointerEvent) {
-  // Only a tap on empty plot space clears; taps on a bar are handled by the bar.
-  if (event.target === event.currentTarget) select(null)
+/** Maps a viewport x coordinate to a bar index, or null outside the bar area. */
+function indexAt(clientX: number): number | null {
+  const element = barsLayer.value
+  if (!element || props.items.length === 0) return null
+  const rect = element.getBoundingClientRect()
+  if (rect.width <= 0) return null
+  if (clientX < rect.left || clientX > rect.right) return null
+  const ratio = (clientX - rect.left) / rect.width
+  return Math.min(props.items.length - 1, Math.max(0, Math.floor(ratio * props.items.length)))
+}
+
+function capturePointer(event: PointerEvent) {
+  const element = event.currentTarget as HTMLElement | null
+  if (!element || typeof element.setPointerCapture !== 'function') return
+  try {
+    element.setPointerCapture(event.pointerId)
+    capturedPointer = event.pointerId
+  } catch {
+    /* capture is an optimisation; scrubbing still works without it */
+  }
+}
+
+function releasePointer(event: PointerEvent) {
+  const element = event.currentTarget as HTMLElement | null
+  if (capturedPointer !== event.pointerId) return
+  capturedPointer = null
+  if (element && typeof element.releasePointerCapture === 'function') {
+    try {
+      element.releasePointerCapture(event.pointerId)
+    } catch {
+      /* already released */
+    }
+  }
+}
+
+function onPointerDown(event: PointerEvent) {
+  const index = indexAt(event.clientX)
+  if (index === null) {
+    // Tapping the axis gutter or the plot padding dismisses the tooltip.
+    select(null)
+    return
+  }
+  select(index)
+  capturePointer(event)
+}
+
+/** Touch and pen drags scrub the selection; the mouse just hovers. */
+function onPointerMove(event: PointerEvent) {
+  if (event.pointerType !== 'mouse' && capturedPointer !== event.pointerId) return
+  const index = indexAt(event.clientX)
+  // Sliding past either end keeps the first/last bar rather than flickering.
+  if (index !== null) select(index)
+}
+
+function onPointerUp(event: PointerEvent) {
+  releasePointer(event)
+}
+
+function onPointerCancel(event: PointerEvent) {
+  releasePointer(event)
+  select(null)
 }
 
 function onPointerLeave(event: PointerEvent) {
@@ -113,6 +184,10 @@ function onKeydown(event: KeyboardEvent) {
       tabindex="0"
       role="img"
       :aria-label="unit ? `Bar chart in ${unit}` : 'Bar chart'"
+      @pointerdown="onPointerDown"
+      @pointermove="onPointerMove"
+      @pointerup="onPointerUp"
+      @pointercancel="onPointerCancel"
       @pointerleave="onPointerLeave"
       @keydown="onKeydown"
     >
@@ -129,15 +204,8 @@ function onKeydown(event: KeyboardEvent) {
         <span v-if="unit" class="chart__unit num">{{ unit }}</span>
       </div>
 
-      <div class="chart__bars" @pointerdown="onBackgroundPointer">
-        <div
-          v-for="bar in bars"
-          :key="`hit-${bar.index}`"
-          class="chart__hit"
-          :style="{ left: `${bar.left - (slotPercent - bar.width) / 2}%`, width: `${slotPercent}%` }"
-          @pointerenter="select(bar.index)"
-          @pointerdown.stop="select(bar.index)"
-        />
+      <div ref="barsLayer" class="chart__bars">
+        <div v-if="cursorStyle" class="chart__cursor" :style="cursorStyle" aria-hidden="true" />
         <div
           v-for="bar in bars"
           :key="`bar-${bar.index}`"
@@ -194,6 +262,9 @@ function onKeydown(event: KeyboardEvent) {
   height: var(--chart-height);
   border-radius: var(--r-1);
   outline-offset: 2px;
+  /* Vertical swipes still scroll the page; horizontal drags scrub the chart. */
+  touch-action: pan-y;
+  cursor: crosshair;
 }
 
 /* A whole-chart focus ring should read as a hint, not a warning. */
@@ -241,15 +312,6 @@ function onKeydown(event: KeyboardEvent) {
   inset: 0 var(--axis-gutter) 0 0;
 }
 
-.chart__hit {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: transparent;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
 .chart__bar {
   position: absolute;
   border-radius: 2px;
@@ -281,12 +343,23 @@ function onKeydown(event: KeyboardEvent) {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  max-width: 190px;
+  /* max-content keeps the card legible; max-width stops it outgrowing the plot. */
+  width: max-content;
+  max-width: min(200px, calc(100% - 12px));
   padding: 6px 9px;
   border: 1px solid var(--line-strong);
   border-radius: var(--r-1);
   background: var(--ink-700);
   box-shadow: 0 8px 20px rgb(0 0 0 / 45%);
+  pointer-events: none;
+}
+
+.chart__cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
   pointer-events: none;
 }
 
