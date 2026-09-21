@@ -108,6 +108,34 @@ describe('FreqtradeApi', () => {
     expect((secondInit.headers as Record<string, string>).Authorization).toBe('Bearer jwt-token')
   })
 
+  it('retries once with basic auth when the cached bearer is rejected', async () => {
+    const fetchMock = vi.mocked(fetch)
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'stale-token' }))
+      .mockResolvedValueOnce(jsonResponse({ detail: 'Could not validate credentials' }, 401))
+      .mockResolvedValueOnce(jsonResponse({ status: 'pong' }))
+    const api = new FreqtradeApi(credentials)
+    await api.login()
+    await expect(api.ping()).resolves.toEqual({ status: 'pong' })
+
+    const [, retryInit] = fetchMock.mock.calls[2] as [string, RequestInit]
+    expect((retryInit.headers as Record<string, string>).Authorization).toBe(
+      `Basic ${btoa('apiuser:secret')}`,
+    )
+  })
+
+  it('does not retry forever when both bearer and basic are rejected', async () => {
+    const fetchMock = vi.mocked(fetch)
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'stale-token' }))
+      // A fresh Response per call: a body can only be read once.
+      .mockImplementation(() => Promise.resolve(jsonResponse({ detail: 'Unauthorized' }, 401)))
+    const api = new FreqtradeApi(credentials)
+    await api.login()
+    await expect(api.ping()).rejects.toMatchObject({ kind: 'auth' })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
   it('maps 401 responses to an auth error', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       jsonResponse({ detail: 'Incorrect username or password' }, 401),
