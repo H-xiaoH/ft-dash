@@ -27,19 +27,29 @@ const bot = useBotStore()
 
 const period = ref<Period>('daily')
 const search = ref('')
-/** One grouping at a time; the kind is chosen from the first column header. */
-const kindFilter = ref<string>('pair')
+/** The grouping is chosen from the first column header; "all" lists every group. */
+const kindFilter = ref<string>('all')
 const sortKey = ref<SortKey>('profitAbs')
 const sortDir = ref<'asc' | 'desc'>('desc')
 
 const stake = computed(() => bot.stakeCurrency)
 
 const kindOptions = computed<FilterOption[]>(() => [
+  { value: 'all', label: t('common.all') },
   { value: 'pair', label: t('stats.byPair') },
   { value: 'entry', label: t('stats.byEnterTag') },
   { value: 'exit', label: t('stats.byExitReason') },
   { value: 'mix', label: t('stats.byMixTag') },
 ])
+
+const KIND_ORDER: Kind[] = ['pair', 'entry', 'exit', 'mix']
+
+const KIND_LABELS: Record<Kind, string> = {
+  pair: 'stats.byPair',
+  entry: 'stats.byEnterTag',
+  exit: 'stats.byExitReason',
+  mix: 'stats.byMixTag',
+}
 
 /** Every grouping in one grid, so the header clicks do the filtering work. */
 const allRows = computed<Row[]>(() => [
@@ -76,7 +86,7 @@ const allRows = computed<Row[]>(() => [
 const rows = computed<Row[]>(() => {
   const query = search.value.trim().toLowerCase()
   const filtered = allRows.value.filter((row) => {
-    if (row.kind !== kindFilter.value) return false
+    if (kindFilter.value !== 'all' && row.kind !== kindFilter.value) return false
     if (query && !row.name.toLowerCase().includes(query)) return false
     return true
   })
@@ -108,6 +118,17 @@ function toggleSort(key: SortKey) {
 
 const maxAbsProfitRatio = computed(() =>
   Math.max(0.0001, ...rows.value.map((row) => Math.abs(row.profitRatio))),
+)
+
+/** Rows grouped by kind, in a stable order, so one table can show everything. */
+const sections = computed(() =>
+  KIND_ORDER.filter((kind) => kindFilter.value === 'all' || kindFilter.value === kind)
+    .map((kind) => ({
+      kind,
+      labelKey: KIND_LABELS[kind],
+      rows: rows.value.filter((row) => row.kind === kind),
+    }))
+    .filter((section) => section.rows.length > 0),
 )
 
 const periodData = computed(() => {
@@ -286,23 +307,31 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in rows" :key="`${row.kind}-${row.name}`">
-                <td>{{ row.name }}</td>
-                <td>{{ row.count }}</td>
-                <td class="num" :class="format.toneClass(row.profitAbs)">
-                  {{ format.signedMoney(row.profitAbs, stake) }}
-                </td>
-                <td class="num stats__ratio" :class="format.toneClass(row.profitAbs)">
-                  <span>{{ format.ratio(row.count ? row.profitRatio : null) }}</span>
-                  <div class="meter">
-                    <div
-                      class="meter__fill"
-                      :class="row.profitAbs >= 0 ? 'meter__fill--good' : 'meter__fill--bad'"
-                      :style="{ width: `${(Math.abs(row.profitRatio) / maxAbsProfitRatio) * 100}%` }"
-                    />
-                  </div>
-                </td>
-              </tr>
+              <template v-for="section in sections" :key="section.kind">
+                <tr v-if="kindFilter === 'all'" class="stats__section">
+                  <td colspan="4">
+                    <span>{{ t(section.labelKey) }}</span>
+                    <span class="muted small">{{ section.rows.length }}</span>
+                  </td>
+                </tr>
+                <tr v-for="row in section.rows" :key="`${row.kind}-${row.name}`">
+                  <td>{{ row.name }}</td>
+                  <td>{{ row.count }}</td>
+                  <td class="num" :class="format.toneClass(row.profitAbs)">
+                    {{ format.signedMoney(row.profitAbs, stake) }}
+                  </td>
+                  <td class="num stats__ratio" :class="format.toneClass(row.profitAbs)">
+                    <span>{{ format.ratio(row.count ? row.profitRatio : null) }}</span>
+                    <div class="meter">
+                      <div
+                        class="meter__fill"
+                        :class="row.profitAbs >= 0 ? 'meter__fill--good' : 'meter__fill--bad'"
+                        :style="{ width: `${(Math.abs(row.profitRatio) / maxAbsProfitRatio) * 100}%` }"
+                      />
+                    </div>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -439,5 +468,17 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
 
 .stats__ratio .meter {
   margin-top: 3px;
+}
+
+.stats__section td {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 5px var(--sp-3);
+  background: var(--ink-850);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
 }
 </style>

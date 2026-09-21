@@ -34,6 +34,17 @@ const limit = ref(300)
 
 const stake = computed(() => bot.stakeCurrency)
 
+/**
+ * Freqtrade's `/trades` only returns closed trades, so "all" has to merge the live
+ * positions from `/status` — otherwise open trades silently disappear from the list.
+ */
+const allTrades = computed(() => {
+  const byId = new Map<number, Trade>()
+  for (const trade of bot.trades) byId.set(trade.trade_id, trade)
+  for (const trade of bot.openTrades) byId.set(trade.trade_id, trade)
+  return [...byId.values()]
+})
+
 const resultOptions = computed<FilterOption[]>(() => [
   { value: 'all', label: t('common.all') },
   { value: 'win', label: t('stats.wins') },
@@ -48,7 +59,12 @@ function durationOf(trade: Trade): number | null {
 }
 
 const rows = computed(() => {
-  const base = filter.value === 'open' ? bot.openTrades : bot.trades
+  const base =
+    filter.value === 'open'
+      ? bot.openTrades
+      : filter.value === 'closed'
+        ? bot.trades.filter((trade) => !trade.is_open)
+        : allTrades.value
   const query = search.value.trim().toLowerCase()
   return base
     .filter((trade) => {
@@ -81,6 +97,7 @@ const rows = computed(() => {
 
 const openCount = computed(() => bot.openTrades.length)
 const closedCount = computed(() => bot.profit?.closed_trade_count ?? bot.closedTrades.length)
+const allCount = computed(() => allTrades.value.length)
 
 function toggleSort(key: SortKey) {
   if (sortKey.value === key) {
@@ -206,6 +223,7 @@ onMounted(() => {
             @click="filter = 'all'"
           >
             {{ t('trades.all') }}
+            <span class="small muted">{{ allCount }}</span>
           </button>
         </div>
         <div class="panel__actions row">
