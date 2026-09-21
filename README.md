@@ -74,6 +74,30 @@ CORS list, use the dev proxy instead (see `.env.example`): point `VITE_API_BASE_
 `/ft-api` and set `FT_DEV_PROXY_TARGET` to the origin serving `/api/v1` in a git-ignored
 `.env.local`.
 
+## Authentication
+
+Two transports, two mechanisms — Freqtrade decides which one each accepts:
+
+| Transport | Mechanism | Notes |
+| --- | --- | --- |
+| REST (`/status`, `/profit`, actions, …) | **HTTP Basic** `Authorization: Basic …` | Always used, and always available. If a cached JWT is rejected (a bot restarted with a new `jwt_secret_key`), the client silently retries that request with Basic, so polling keeps working. |
+| `POST /token/login` | **HTTP Basic** | Only called to mint the JWT below. |
+| WebSocket (`/message/ws`) | **`?token=` query parameter** | A browser cannot attach an `Authorization` header to a WebSocket handshake, so Basic is impossible here. Freqtrade accepts either a JWT from `/token/login` (requires `api_server.jwt_secret_key`) or the shared `api_server.ws_token`. |
+
+**Live stream auth** is configurable in Settings and defaults to *Automatic*:
+
+1. **Automatic (JWT)** — fetch a 15-minute JWT from `/token/login` for each connection. If the
+   endpoint is missing (old Freqtrade, no `jwt_secret_key`), or the handshake is refused, the
+   app falls back to your `ws_token` when one is set.
+2. **ws_token** — use the shared secret from `api_server.ws_token` directly. Useful behind a
+   reverse proxy, or when you do not want to expose credentials to the login endpoint.
+3. **Disable stream** — poll only. Everything except the live event tape keeps working.
+
+Failures are explicit rather than silent: a rejected handshake (Freqtrade answers `403` for a
+bad token; the browser cannot see a close code) surfaces as "handshake rejected — token
+refused, or your proxy does not forward Upgrade requests", and automatic retries stop after
+three attempts so a broken config cannot spin. Polling is unaffected — Basic auth still works.
+
 ## Deploying to GitHub Pages
 
 1. Push this repository to GitHub.
@@ -118,8 +142,8 @@ Never commit a real host, username or password: `.env*` files are git-ignored.
 Built against **Freqtrade 2026.8 / API v2.5** and verified end to end against a live futures
 instance. Older releases may lack individual endpoints (`/exits`, `/mix_tags`,
 `/pair_candles` column filtering); the affected panels then show an error or stay empty
-instead of breaking the app. WebSocket delivery requires the bot's
-`api_server.jwt_secret_key`; no separate `ws_token` is needed.
+instead of breaking the app. WebSocket delivery needs either `api_server.jwt_secret_key` (for
+automatic JWT auth) or a configured `api_server.ws_token`.
 
 ## Tech stack
 
