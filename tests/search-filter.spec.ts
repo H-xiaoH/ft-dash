@@ -92,14 +92,4 @@ describe('FilterMenu', () => {
     expect(document.querySelector('.filter-menu__list')).toBeNull()
   })
 
-  it('renders a bare header variant with a hint arrow', () => {
-    const wrapper = mount(FilterMenu, {
-      props: { options, variant: 'text', modelValue: 'pair' },
-      global,
-    })
-    const trigger = wrapper.find('.filter-menu__text')
-    expect(trigger.exists()).toBe(true)
-    expect(trigger.text()).toContain('All')
-    expect(wrapper.find('.btn').exists()).toBe(false)
-  })
 })

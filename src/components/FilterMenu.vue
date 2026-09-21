@@ -16,10 +16,8 @@ const props = withDefaults(
     /** Shown before the value, e.g. "Level". */
     prefix?: string
     align?: 'start' | 'end'
-    /** `text` renders as a bare header label with a hint arrow instead of a button. */
-    variant?: 'button' | 'text'
   }>(),
-  { label: '', prefix: '', align: 'end', variant: 'button' },
+  { label: '', prefix: '', align: 'end' },
 )
 
 const model = defineModel<string>({ default: '' })
@@ -69,7 +67,7 @@ const listStyle = computed(() => ({
     <button
       ref="trigger"
       type="button"
-      :class="variant === 'text' ? 'filter-menu__text' : 'btn btn--sm filter-menu__button'"
+      class="btn btn--sm filter-menu__button"
       :aria-expanded="open"
       :aria-label="prefix ? `${prefix}: ${current}` : current"
       @click="toggle"
@@ -115,22 +113,6 @@ const listStyle = computed(() => ({
 
 .filter-menu__prefix {
   color: var(--text-3);
-}
-
-.filter-menu__text {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.filter-menu__text:hover {
-  color: var(--text);
 }
 
 .filter-menu__backdrop {

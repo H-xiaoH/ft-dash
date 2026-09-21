@@ -245,7 +245,6 @@ export default {
     byEnterTag: 'Entry tag',
     byExitReason: 'Exit reason',
     byMixTag: 'Full tag',
-    kind: 'Kind',
     group: 'Group',
     exitReasons: 'Exit reason breakdown',
     durations: 'Durations',

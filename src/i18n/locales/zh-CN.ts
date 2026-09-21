@@ -244,7 +244,6 @@ export default {
     byEnterTag: '入场标签',
     byExitReason: '平仓原因',
     byMixTag: '完整标签',
-    kind: '类型',
     group: '分组',
     exitReasons: '平仓原因分布',
     durations: '持仓时长',
