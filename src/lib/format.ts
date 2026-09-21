@@ -111,8 +111,27 @@ export function parseTimestamp(value: Numberish): number | null {
   }
   const trimmed = value.trim()
   if (/^\d+(\.\d+)?$/.test(trimmed)) return parseTimestamp(Number(trimmed))
+
+  /*
+   * Date-only values ("2026-09-07", used by /daily, /weekly and /monthly) are UTC
+   * midnights. They are built with Date.UTC rather than string concatenation:
+   * engines disagree on shortened forms — Safari returns NaN for "2026-09-07Z"
+   * while Chrome accepts it, which silently replaced dates with fallback dashes.
+   */
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed)
+  if (dateOnly) {
+    const year = Number(dateOnly[1])
+    const month = Number(dateOnly[2])
+    const day = Number(dateOnly[3])
+    const utc = Date.UTC(year, month - 1, day)
+    const parsedDate = new Date(utc)
+    // Reject impossible dates such as 2026-02-31, which Date.UTC would roll over.
+    if (parsedDate.getUTCMonth() !== month - 1 || parsedDate.getUTCDate() !== day) return null
+    return utc
+  }
+
   const normalized = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T')
-  const withZone = /(Z|[+-]\d{2}:?\d{2})$/.test(normalized) ? normalized : `${normalized}Z`
+  const withZone = /(Z|[+-]\d{2}:?\d{2})$/i.test(normalized) ? normalized : `${normalized}Z`
   const parsed = Date.parse(withZone)
   return Number.isFinite(parsed) ? parsed : null
 }

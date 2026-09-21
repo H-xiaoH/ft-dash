@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   direction,
   formatCompact,
+  formatDay,
   formatDuration,
   formatMoney,
   formatNumber,
@@ -58,6 +59,23 @@ describe('format helpers', () => {
     expect(parseTimestamp('2026-09-21 19:28:22')).toBe(Date.parse('2026-09-21T19:28:22Z'))
     expect(parseTimestamp('2026-09-21T19:28:22Z')).toBe(Date.parse('2026-09-21T19:28:22Z'))
     expect(parseTimestamp('nonsense')).toBeNull()
+  })
+
+  it('parses date-only values without a lenient engine (Safari regression)', () => {
+    // Safari returns NaN for "2026-09-07Z", so this must never reach Date.parse.
+    const spy = vi.spyOn(Date, 'parse')
+    expect(parseTimestamp('2026-09-07')).toBe(Date.UTC(2026, 8, 7))
+    expect(spy).not.toHaveBeenCalled()
+    spy.mockRestore()
+
+    expect(formatDay('2026-09-07', 'en')).toBe('Sep 7, 2026')
+    expect(formatDay('2026-09-07', 'zh-CN')).toContain('9月7日')
+    expect(formatDay(null)).toBe('—')
+  })
+
+  it('rejects impossible dates instead of rolling them over', () => {
+    expect(parseTimestamp('2026-02-31')).toBeNull()
+    expect(parseTimestamp('2026-13-01')).toBeNull()
   })
 
   it('renders durations with a locale-specific unit set', () => {
