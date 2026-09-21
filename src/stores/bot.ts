@@ -21,13 +21,10 @@ import type {
   BlacklistResponse,
   DailyResponse,
   DeleteLockPayload,
-  EntryStats,
-  ExitStats,
   ForceEnterPayload,
   HealthResponse,
   LocksResponse,
   LogsResponse,
-  MixTagStats,
   PairCandlesResponse,
   PerformanceEntry,
   ProfitAllResponse,
@@ -76,9 +73,6 @@ export const useBotStore = defineStore('bot', () => {
   const tradeStats = ref<TradeStats | null>(null)
   // Named `performanceStats` because the global `performance` is used for latency.
   const performanceStats = ref<PerformanceEntry[]>([])
-  const entryStats = ref<EntryStats[]>([])
-  const exitStats = ref<ExitStats[]>([])
-  const mixTags = ref<MixTagStats[]>([])
   const daily = ref<DailyResponse | null>(null)
   const weekly = ref<DailyResponse | null>(null)
   const monthly = ref<DailyResponse | null>(null)
@@ -233,23 +227,16 @@ export const useBotStore = defineStore('bot', () => {
 
   async function refreshAnalytics() {
     const api = ensureClient()
-    const [stats, perf, entries, exits, mix, dailyRes, weeklyRes, monthlyRes, all] =
-      await Promise.all([
-        track(() => api.tradeStats()),
-        track(() => api.performance()),
-        track(() => api.entries()),
-        track(() => api.exits()),
-        track(() => api.mixTags()),
-        track(() => api.daily(60)),
-        track(() => api.weekly(52)),
-        track(() => api.monthly(24)),
-        track(() => api.profitAll()),
-      ])
+    const [stats, perf, dailyRes, weeklyRes, monthlyRes, all] = await Promise.all([
+      track(() => api.tradeStats()),
+      track(() => api.performance()),
+      track(() => api.daily(60)),
+      track(() => api.weekly(52)),
+      track(() => api.monthly(24)),
+      track(() => api.profitAll()),
+    ])
     if (stats) tradeStats.value = stats
     if (perf) performanceStats.value = perf
-    if (entries) entryStats.value = entries
-    if (exits) exitStats.value = exits
-    if (mix) mixTags.value = mix
     if (dailyRes) daily.value = dailyRes
     if (weeklyRes) weekly.value = weeklyRes
     if (monthlyRes) monthly.value = monthlyRes
@@ -335,9 +322,6 @@ export const useBotStore = defineStore('bot', () => {
     tradesTotal.value = 0
     tradeStats.value = null
     performanceStats.value = []
-    entryStats.value = []
-    exitStats.value = []
-    mixTags.value = []
     daily.value = null
     weekly.value = null
     monthly.value = null
@@ -669,9 +653,6 @@ export const useBotStore = defineStore('bot', () => {
     tradesTotal,
     tradeStats,
     performance: performanceStats,
-    entryStats,
-    exitStats,
-    mixTags,
     daily,
     weekly,
     monthly,

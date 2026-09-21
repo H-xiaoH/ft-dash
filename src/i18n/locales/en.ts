@@ -242,9 +242,6 @@ export default {
   stats: {
     title: 'Statistics',
     byPair: 'Pair',
-    byEnterTag: 'Entry tag',
-    byExitReason: 'Exit reason',
-    byMixTag: 'Full tag',
     group: 'Group',
     exitReasons: 'Exit reason breakdown',
     durations: 'Durations',

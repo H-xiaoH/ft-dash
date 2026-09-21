@@ -4,15 +4,12 @@ import type {
   BlacklistResponse,
   DailyResponse,
   DeleteLockPayload,
-  EntryStats,
-  ExitStats,
   ForceEnterPayload,
   ForceExitPayload,
   HealthResponse,
   LockPayload,
   LocksResponse,
   LogsResponse,
-  MixTagStats,
   PairCandlesResponse,
   PerformanceEntry,
   ProfitAllResponse,
@@ -349,18 +346,6 @@ export class FreqtradeApi {
 
   performance(): Promise<PerformanceEntry[]> {
     return this.request('/performance')
-  }
-
-  entries(): Promise<EntryStats[]> {
-    return this.request('/entries')
-  }
-
-  exits(): Promise<ExitStats[]> {
-    return this.request('/exits')
-  }
-
-  mixTags(): Promise<MixTagStats[]> {
-    return this.request('/mix_tags')
   }
 
   daily(days?: number): Promise<DailyResponse> {

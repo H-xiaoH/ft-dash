@@ -3,18 +3,15 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BarChart from '@/components/BarChart.vue'
 import AppIcon from '@/components/AppIcon.vue'
-import type { FilterOption } from '@/components/FilterMenu.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
 import type { BarItem } from '@/components/charts'
 import { useFormat } from '@/composables/useFormat'
 import { useBotStore } from '@/stores/bot'
 
-type Kind = 'pair' | 'entry' | 'exit' | 'mix'
 type Period = 'daily' | 'weekly' | 'monthly'
-type SortKey = 'kind' | 'name' | 'count' | 'profitAbs' | 'profitRatio'
+type SortKey = 'name' | 'count' | 'profitAbs' | 'profitRatio'
 
 interface Row {
-  kind: Kind
   name: string
   count: number
   profitAbs: number
@@ -27,46 +24,15 @@ const bot = useBotStore()
 
 const period = ref<Period>('daily')
 const search = ref('')
-/** One grouping at a time; the kind is chosen from the first column header. */
-const kindFilter = ref<string>('pair')
 const sortKey = ref<SortKey>('profitAbs')
 const sortDir = ref<'asc' | 'desc'>('desc')
 
 const stake = computed(() => bot.stakeCurrency)
 
-const kindOptions = computed<FilterOption[]>(() => [
-  { value: 'pair', label: t('stats.byPair') },
-  { value: 'entry', label: t('stats.byEnterTag') },
-  { value: 'exit', label: t('stats.byExitReason') },
-  { value: 'mix', label: t('stats.byMixTag') },
-])
-
-/** Every grouping in one grid, so the header clicks do the filtering work. */
+/** Per-pair performance, one row per traded pair. */
 const allRows = computed<Row[]>(() => [
   ...bot.performance.map((entry) => ({
-    kind: 'pair' as const,
     name: entry.pair,
-    count: entry.count,
-    profitAbs: entry.profit_abs,
-    profitRatio: entry.profit_ratio,
-  })),
-  ...bot.entryStats.map((entry) => ({
-    kind: 'entry' as const,
-    name: entry.enter_tag.trim() || '—',
-    count: entry.count,
-    profitAbs: entry.profit_abs,
-    profitRatio: entry.profit_ratio,
-  })),
-  ...bot.exitStats.map((entry) => ({
-    kind: 'exit' as const,
-    name: entry.exit_reason,
-    count: entry.count,
-    profitAbs: entry.profit_abs,
-    profitRatio: entry.profit_ratio,
-  })),
-  ...bot.mixTags.map((entry) => ({
-    kind: 'mix' as const,
-    name: entry.mix_tag,
     count: entry.count,
     profitAbs: entry.profit_abs,
     profitRatio: entry.profit_ratio,
@@ -76,15 +42,12 @@ const allRows = computed<Row[]>(() => [
 const rows = computed<Row[]>(() => {
   const query = search.value.trim().toLowerCase()
   const filtered = allRows.value.filter((row) => {
-    if (row.kind !== kindFilter.value) return false
     if (query && !row.name.toLowerCase().includes(query)) return false
     return true
   })
   const direction = sortDir.value === 'asc' ? 1 : -1
   return [...filtered].sort((a, b) => {
     switch (sortKey.value) {
-      case 'kind':
-        return a.kind.localeCompare(b.kind) * direction || a.name.localeCompare(b.name)
       case 'name':
         return a.name.localeCompare(b.name) * direction
       case 'count':
@@ -103,7 +66,7 @@ function toggleSort(key: SortKey) {
     return
   }
   sortKey.value = key
-  sortDir.value = key === 'kind' || key === 'name' ? 'asc' : 'desc'
+  sortDir.value = key === 'name' ? 'asc' : 'desc'
 }
 
 const maxAbsProfitRatio = computed(() =>
@@ -202,13 +165,17 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
         <span class="metric__value">{{ format.number(summary?.profit_factor ?? null) }}</span>
       </div>
       <div class="metric">
-        <span class="metric__label">{{ t('kpi.sharpe') }} / {{ t('kpi.sortino') }}</span>
-        <span class="metric__value metric__value--sm">
-          {{ format.number(summary?.sharpe ?? null) }} / {{ format.number(summary?.sortino ?? null) }}
-        </span>
+        <span class="metric__label">{{ t('kpi.sharpe') }}</span>
+        <span class="metric__value">{{ format.number(summary?.sharpe ?? null) }}</span>
         <span class="metric__sub">
-          {{ t('kpi.sqn') }} {{ format.number(summary?.sqn ?? null) }} · {{ t('kpi.calmar') }}
-          {{ format.number(summary?.calmar ?? null) }}
+          {{ t('kpi.sqn') }} {{ format.number(summary?.sqn ?? null) }}
+        </span>
+      </div>
+      <div class="metric">
+        <span class="metric__label">{{ t('kpi.sortino') }}</span>
+        <span class="metric__value">{{ format.number(summary?.sortino ?? null) }}</span>
+        <span class="metric__sub">
+          {{ t('kpi.calmar') }} {{ format.number(summary?.calmar ?? null) }}
         </span>
       </div>
       <div class="metric">
@@ -254,20 +221,14 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
             <thead>
               <tr>
                 <th>
-                  <!-- Every grouping sits in the header; the active one is highlighted. -->
-                  <div class="kinds">
-                    <button
-                      v-for="option in kindOptions"
-                      :key="option.value"
-                      type="button"
-                      class="kinds__item"
-                      :class="{ 'is-active': kindFilter === option.value }"
-                      :aria-pressed="kindFilter === option.value"
-                      @click="kindFilter = option.value"
-                    >
-                      {{ option.label }}
-                    </button>
-                  </div>
+                  <button type="button" class="sort" @click="toggleSort('name')">
+                    {{ t('stats.byPair') }}
+                    <AppIcon
+                      v-if="sortKey === 'name'"
+                      :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
+                      :size="12"
+                    />
+                  </button>
                 </th>
                 <th>
                   <button type="button" class="sort" @click="toggleSort('count')">
@@ -293,7 +254,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in rows" :key="`${row.kind}-${row.name}`">
+              <tr v-for="row in rows" :key="row.name">
                 <td>{{ row.name }}</td>
                 <td>{{ row.count }}</td>
                 <td class="num" :class="format.toneClass(row.profitAbs)">
@@ -424,10 +385,6 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
 </template>
 
 <style scoped>
-.stats__summary {
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-}
-
 .sort {
   display: inline-flex;
   align-items: center;
@@ -446,33 +403,6 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
 
 .stats__ratio .meter {
   margin-top: 3px;
-}
-
-/* Grouping switcher living inside the first column header. */
-.kinds {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-}
-
-.kinds__item {
-  border: 0;
-  background: none;
-  padding: 0 0 3px;
-  color: var(--text-3);
-  font: inherit;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  white-space: nowrap;
-}
-
-.kinds__item:hover {
-  color: var(--text-2);
-}
-
-.kinds__item.is-active {
-  color: var(--text);
-  border-bottom-color: var(--text);
 }
 
 </style>

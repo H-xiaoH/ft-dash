@@ -408,7 +408,20 @@ async function install() {
 
 <style scoped>
 .settings {
-  max-width: 900px;
+  /* Cards reflow into as many columns as fit, so no dead space on wide screens. */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+/* The connection form is the primary task: give it the full width. */
+.settings > .panel:first-child {
+  grid-column: 1 / -1;
+}
+
+.settings > .panel:last-child {
+  grid-column: 1 / -1;
 }
 
 .settings__grid {

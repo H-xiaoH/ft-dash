@@ -241,9 +241,6 @@ export default {
   stats: {
     title: '统计',
     byPair: '交易对',
-    byEnterTag: '入场标签',
-    byExitReason: '平仓原因',
-    byMixTag: '完整标签',
     group: '分组',
     exitReasons: '平仓原因分布',
     durations: '持仓时长',

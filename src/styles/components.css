@@ -53,11 +53,25 @@
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  /* Deterministic column counts: 6 / 3 / 2 all divide the 6- and 12-tile sets,
+     so every row is full and the spacing stays even at any width. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0;
   background: var(--ink-850);
   border-radius: var(--r-2);
   overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  .metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .metric-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
 }
 
 .metric {
@@ -93,6 +107,7 @@
   display: flex;
   align-items: baseline;
   gap: 4px;
+  line-height: 1.35;
 }
 
 .metric__unit {
@@ -103,7 +118,10 @@
 }
 
 .metric__value--sm {
+  /* Same box height as the full-size value, so tile spacing stays uniform. */
   font-size: var(--fs-lg);
+  min-height: calc(var(--fs-xl) * 1.35);
+  align-items: center;
 }
 
 .metric__sub {
