@@ -58,6 +58,7 @@ const cumulative = computed(() => {
 const bars = computed<BarItem[]>(() =>
   dailySeries.value.slice(-30).map((entry) => ({
     label: entry.date.slice(5),
+    tooltip: format.day(entry.date),
     value: entry.abs_profit,
     display: format.signedMoney(entry.abs_profit, stake.value),
     sub: `${entry.trade_count} ${t('stats.tradeCount')}`,
@@ -193,7 +194,13 @@ async function confirmExit() {
             </div>
           </div>
           <div class="panel__body">
-            <BarChart v-if="bars.length" :items="bars" :height="160" />
+            <BarChart
+              v-if="bars.length"
+              :items="bars"
+              :height="180"
+              :unit="stake"
+              :axis-format="(value: number) => format.money(value, '', 2)"
+            />
             <p v-else class="empty">{{ t('stats.noData') }}</p>
           </div>
         </section>

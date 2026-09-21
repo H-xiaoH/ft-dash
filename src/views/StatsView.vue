@@ -74,6 +74,7 @@ const periodBars = computed<BarItem[]>(() =>
     .slice(-30)
     .map((entry) => ({
       label: entry.date.slice(5),
+      tooltip: format.day(entry.date),
       value: entry.abs_profit,
       display: format.signedMoney(entry.abs_profit, stake.value),
       sub: `${entry.trade_count} ${t('stats.tradeCount')}`,
@@ -261,7 +262,13 @@ const groupLabel = computed(() => {
         </div>
       </div>
       <div class="panel__body">
-        <BarChart v-if="periodBars.length" :items="periodBars" :height="150" />
+        <BarChart
+          v-if="periodBars.length"
+          :items="periodBars"
+          :height="170"
+          :unit="stake"
+          :axis-format="(value: number) => format.money(value, '', 2)"
+        />
         <p v-else class="empty">{{ t('stats.noData') }}</p>
       </div>
       <div class="panel__body panel__body--flush">
@@ -278,7 +285,7 @@ const groupLabel = computed(() => {
             </thead>
             <tbody>
               <tr v-for="entry in periodData.slice(0, 12)" :key="entry.date">
-                <td class="num">{{ entry.date }}</td>
+                <td class="num">{{ format.day(entry.date) }}</td>
                 <td class="num" :class="format.toneClass(entry.abs_profit)">
                   {{ format.signedMoney(entry.abs_profit, stake) }}
                 </td>

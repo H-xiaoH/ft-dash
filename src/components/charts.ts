@@ -6,6 +6,8 @@ export interface BarItem {
   /** Pre-formatted value for the tooltip/label. */
   display: string
   sub?: string
+  /** Longer description shown in the interaction tooltip (e.g. the full date). */
+  tooltip?: string
 }
 
 export interface Candle {

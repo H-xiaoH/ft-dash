@@ -165,6 +165,18 @@ export function formatDateShort(value: Numberish, locale = 'en', fallback = '—
   return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(new Date(ts))
 }
 
+/**
+ * Formats a date-only value (Freqtrade's daily/weekly/monthly rows) in UTC, so a
+ * day never shifts for visitors west of Greenwich.
+ */
+export function formatDay(value: Numberish, locale = 'en', fallback = '—'): string {
+  const ts = parseTimestamp(value)
+  if (ts === null) return fallback
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(
+    new Date(ts),
+  )
+}
+
 export function toIsoDate(value: Date = new Date()): string {
   return value.toISOString().slice(0, 10)
 }
