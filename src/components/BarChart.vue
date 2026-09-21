@@ -8,12 +8,10 @@ const props = withDefaults(
     items: BarItem[]
     height?: number
     maxLabels?: number
-    /** Currency or unit shown above the value axis. */
-    unit?: string
     /** Formats axis ticks; defaults to a plain number. */
     axisFormat?: (value: number) => string
   }>(),
-  { height: 176, maxLabels: 6, unit: '' },
+  { height: 176, maxLabels: 6 },
 )
 
 const activeIndex = ref<number | null>(null)
@@ -183,7 +181,7 @@ function onKeydown(event: KeyboardEvent) {
       class="chart__plot"
       tabindex="0"
       role="img"
-      :aria-label="unit ? `Bar chart in ${unit}` : 'Bar chart'"
+      aria-label="Bar chart"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
@@ -201,7 +199,6 @@ function onKeydown(event: KeyboardEvent) {
         >
           <span class="chart__tick-label num">{{ tick.label }}</span>
         </div>
-        <span v-if="unit" class="chart__unit num">{{ unit }}</span>
       </div>
 
       <div ref="barsLayer" class="chart__bars">
@@ -297,14 +294,6 @@ function onKeydown(event: KeyboardEvent) {
   font-size: var(--fs-xs);
   color: var(--text-3);
   background: var(--ink-850);
-}
-
-.chart__unit {
-  position: absolute;
-  right: 0;
-  top: -1.35em;
-  font-size: var(--fs-xs);
-  color: var(--text-3);
 }
 
 .chart__bars {

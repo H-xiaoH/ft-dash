@@ -25,16 +25,6 @@ const router = useRouter()
 const exitTarget = ref<Trade | null>(null)
 
 const stake = computed(() => bot.stakeCurrency)
-const stakeCurrencyRow = computed(() =>
-  bot.balance?.currencies.find((currency) => currency.currency === bot.balance?.stake),
-)
-const available = computed(
-  () => stakeCurrencyRow.value?.free ?? bot.balance?.total_bot ?? bot.balance?.total ?? null,
-)
-const positionValue = computed(() => {
-  const rows = bot.balance?.currencies.filter((currency) => currency.is_position) ?? []
-  return rows.reduce((sum, row) => sum + (row.est_stake ?? 0), 0)
-})
 
 const dailySeries = computed(() => {
   const rows = bot.daily?.data ?? []
@@ -76,13 +66,6 @@ const worstPairs = computed(() =>
     .reverse(),
 )
 
-const winRate = computed(() => {
-  const profit = bot.profit
-  if (!profit) return null
-  const total = profit.winning_trades + profit.losing_trades
-  return total > 0 ? (profit.winning_trades / total) * 100 : null
-})
-
 function durationOf(trade: Trade): number | null {
   const open = format.timestamp(trade.open_timestamp)
   const close = format.timestamp(trade.close_timestamp) ?? Date.now()
@@ -112,20 +95,6 @@ async function confirmExit() {
         <Sparkline :values="cumulative.slice(-30)" :height="26" />
       </MetricTile>
       <MetricTile
-        :label="t('kpi.availableBalance')"
-        :value="available"
-        kind="money"
-        :currency="stake"
-        :sub="`${t('kpi.botManaged')} ${format.money(bot.balance?.total_bot ?? null, stake)}`"
-      />
-      <MetricTile
-        :label="t('kpi.positionValue')"
-        :value="positionValue"
-        kind="money"
-        :currency="stake"
-        :sub="`${bot.count?.current ?? bot.openTrades.length} / ${bot.count?.max ?? bot.showConfig?.max_open_trades ?? 0}`"
-      />
-      <MetricTile
         :label="t('kpi.openPnl')"
         :value="(bot.profit?.profit_all_coin ?? 0) - (bot.profit?.profit_closed_coin ?? 0)"
         kind="money"
@@ -152,23 +121,11 @@ async function confirmExit() {
         signed
       />
       <MetricTile
-        :label="t('kpi.winRate')"
-        :value="winRate"
-        kind="percent"
-        :sub="format.number(bot.profit?.expectancy ?? null, 3)"
-      />
-      <MetricTile
         :label="t('kpi.trades')"
         :value="bot.profit?.trade_count ?? null"
         kind="number"
         :digits="0"
         :sub="`${bot.profit?.winning_trades ?? 0} / ${bot.profit?.losing_trades ?? 0}`"
-      />
-      <MetricTile
-        :label="t('kpi.maxDrawdown')"
-        :value="(bot.profit?.max_drawdown ?? null) === null ? null : (bot.profit?.max_drawdown ?? 0) * 100"
-        kind="percent"
-        :sub="t('kpi.currentDrawdown') + ' ' + format.percent((bot.profit?.current_drawdown ?? null) === null ? null : (bot.profit?.current_drawdown ?? 0) * 100)"
       />
       <MetricTile
         :label="t('kpi.profitFactor')"
@@ -198,7 +155,6 @@ async function confirmExit() {
               v-if="bars.length"
               :items="bars"
               :height="180"
-              :unit="stake"
               :axis-format="(value: number) => format.money(value, '', 2)"
             />
             <p v-else class="empty">{{ t('stats.noData') }}</p>

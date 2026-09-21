@@ -95,15 +95,13 @@ describe('BarChart axis', () => {
     expect(stylePercent(wrapper.findAll('.chart__bar')[0], 'height')).toBeLessThan(2)
   })
 
-  it('formats the axis through the provided formatter and shows the unit', () => {
+  it('formats the axis through the provided formatter', () => {
     const wrapper = mount(BarChart, {
       props: {
         items: items([2]),
-        unit: 'USDT',
         axisFormat: (value: number) => `${value.toFixed(2)} U`,
       },
     })
-    expect(wrapper.find('.chart__unit').text()).toBe('USDT')
     expect(wrapper.findAll('.chart__tick-label').map((node) => node.text())).toContain('2.00 U')
   })
 })

@@ -94,6 +94,8 @@ const exitReasonRows = computed(() =>
 )
 
 const summary = computed(() => bot.profit)
+const openCount = computed(() => bot.count?.current ?? bot.openTrades.length)
+const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades ?? 0)
 
 const groupLabel = computed(() => {
   switch (tab.value) {
@@ -129,27 +131,40 @@ const groupLabel = computed(() => {
         <span class="metric__sub">{{ format.ratio(summary?.profit_closed_ratio ?? null) }}</span>
       </div>
       <div class="metric">
+        <span class="metric__label">{{ t('kpi.availableBalance') }}</span>
+        <span class="metric__value">
+          {{ format.money(bot.availableBalance, '', 2) }}
+          <span class="metric__unit">{{ stake }}</span>
+        </span>
+        <span class="metric__sub">
+          {{ t('kpi.botManaged') }} {{ format.money(bot.balance?.total_bot ?? null, stake) }}
+        </span>
+      </div>
+      <div class="metric">
+        <span class="metric__label">{{ t('kpi.positionValue') }}</span>
+        <span class="metric__value">
+          {{ format.money(bot.positionValue, '', 2) }}
+          <span class="metric__unit">{{ stake }}</span>
+        </span>
+        <span class="metric__sub">{{ openCount }} / {{ maxOpen }}</span>
+      </div>
+      <div class="metric">
         <span class="metric__label">{{ t('stats.wins') }} / {{ t('stats.losses') }}</span>
         <span class="metric__value">
           {{ summary?.winning_trades ?? 0 }} / {{ summary?.losing_trades ?? 0 }}
         </span>
+        <span class="metric__sub">{{ t('kpi.trades') }} {{ summary?.trade_count ?? 0 }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric__label">{{ t('kpi.winRate') }}</span>
+        <span class="metric__value">{{ format.percent(bot.winRate) }}</span>
         <span class="metric__sub">
-          {{ t('kpi.winRate') }}
-          {{
-            format.percent(
-              summary && summary.winning_trades + summary.losing_trades > 0
-                ? (summary.winning_trades / (summary.winning_trades + summary.losing_trades)) * 100
-                : null,
-            )
-          }}
+          {{ t('kpi.expectancy') }} {{ format.number(summary?.expectancy ?? null, 3) }}
         </span>
       </div>
       <div class="metric">
         <span class="metric__label">{{ t('kpi.profitFactor') }}</span>
         <span class="metric__value">{{ format.number(summary?.profit_factor ?? null) }}</span>
-        <span class="metric__sub">
-          {{ t('kpi.expectancy') }} {{ format.number(summary?.expectancy ?? null, 3) }}
-        </span>
       </div>
       <div class="metric">
         <span class="metric__label">{{ t('kpi.sharpe') }} / {{ t('kpi.sortino') }}</span>
@@ -266,7 +281,6 @@ const groupLabel = computed(() => {
           v-if="periodBars.length"
           :items="periodBars"
           :height="170"
-          :unit="stake"
           :axis-format="(value: number) => format.money(value, '', 2)"
         />
         <p v-else class="empty">{{ t('stats.noData') }}</p>

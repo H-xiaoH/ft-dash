@@ -104,6 +104,27 @@ export const useBotStore = defineStore('bot', () => {
   const stakeCurrency = computed(() => showConfig.value?.stake_currency ?? 'USDT')
   const fiatCurrency = computed(() => balance.value?.symbol ?? 'USD')
   const isLiveAccount = computed(() => showConfig.value?.dry_run === false)
+  const stakeCurrencyRow = computed(() =>
+    balance.value?.currencies.find((currency) => currency.currency === balance.value?.stake),
+  )
+  const availableBalance = computed(
+    () =>
+      stakeCurrencyRow.value?.free ??
+      balance.value?.total_bot ??
+      balance.value?.total ??
+      null,
+  )
+  const positionValue = computed(() =>
+    (balance.value?.currencies ?? [])
+      .filter((currency) => currency.is_position)
+      .reduce((sum, currency) => sum + (currency.est_stake ?? 0), 0),
+  )
+  const winRate = computed(() => {
+    const summary = profit.value
+    if (!summary) return null
+    const decided = summary.winning_trades + summary.losing_trades
+    return decided > 0 ? (summary.winning_trades / decided) * 100 : null
+  })
   const isBotRunning = computed(() => {
     const state = showConfig.value?.state
     if (state) return state === 'running'
@@ -662,6 +683,9 @@ export const useBotStore = defineStore('bot', () => {
     // getters
     stakeCurrency,
     fiatCurrency,
+    availableBalance,
+    positionValue,
+    winRate,
     isLiveAccount,
     isBotRunning,
     heartbeatAgeMs,
