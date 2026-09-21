@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BarChart from '@/components/BarChart.vue'
 import AppIcon from '@/components/AppIcon.vue'
+import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
 import type { BarItem } from '@/components/charts'
 import { useFormat } from '@/composables/useFormat'
@@ -26,6 +27,7 @@ const bot = useBotStore()
 
 const period = ref<Period>('daily')
 const search = ref('')
+const kindFilter = ref<string>('all')
 const sortKey = ref<SortKey>('profitAbs')
 const sortDir = ref<'asc' | 'desc'>('desc')
 
@@ -37,6 +39,14 @@ const KIND_LABELS: Record<Kind, string> = {
   exit: 'stats.byExitReason',
   mix: 'stats.byMixTag',
 }
+
+const kindOptions = computed<FilterOption[]>(() => [
+  { value: 'all', label: t('common.all') },
+  { value: 'pair', label: t('stats.byPair') },
+  { value: 'entry', label: t('stats.byEnterTag') },
+  { value: 'exit', label: t('stats.byExitReason') },
+  { value: 'mix', label: t('stats.byMixTag') },
+])
 
 /** Every grouping in one grid, so the header clicks do the filtering work. */
 const allRows = computed<Row[]>(() => [
@@ -72,9 +82,11 @@ const allRows = computed<Row[]>(() => [
 
 const rows = computed<Row[]>(() => {
   const query = search.value.trim().toLowerCase()
-  const filtered = query
-    ? allRows.value.filter((row) => row.name.toLowerCase().includes(query))
-    : allRows.value
+  const filtered = allRows.value.filter((row) => {
+    if (kindFilter.value !== 'all' && row.kind !== kindFilter.value) return false
+    if (query && !row.name.toLowerCase().includes(query)) return false
+    return true
+  })
   const direction = sortDir.value === 'asc' ? 1 : -1
   return [...filtered].sort((a, b) => {
     switch (sortKey.value) {
@@ -238,7 +250,13 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
       <div class="panel__head">
         <span class="panel__title">{{ t('stats.title') }}</span>
         <span class="panel__meta num">{{ rows.length }} / {{ allRows.length }}</span>
-        <div class="panel__actions">
+        <div class="panel__actions row">
+          <FilterMenu
+            v-model="kindFilter"
+            :options="kindOptions"
+            :prefix="t('stats.kind')"
+            :label="t('stats.kind')"
+          />
           <SearchToggle v-model="search" :placeholder="t('stats.group')" />
         </div>
       </div>
@@ -293,9 +311,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
             </thead>
             <tbody>
               <tr v-for="row in rows" :key="`${row.kind}-${row.name}`">
-                <td>
-                  <span class="chip">{{ t(KIND_LABELS[row.kind]) }}</span>
-                </td>
+                <td class="table__muted small">{{ t(KIND_LABELS[row.kind]) }}</td>
                 <td>{{ row.name }}</td>
                 <td>{{ row.count }}</td>
                 <td class="num" :class="format.toneClass(row.profitAbs)">

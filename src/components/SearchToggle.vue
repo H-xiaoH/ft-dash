@@ -108,6 +108,20 @@ function onKeydown(event: KeyboardEvent) {
   outline: none;
 }
 
+/* The shared :focus-visible ring would draw a second border inside this field. */
+.search-toggle__input:focus,
+.search-toggle__input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* The field brings its own clear button. */
+.search-toggle__input::-webkit-search-cancel-button,
+.search-toggle__input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .search-toggle__close {
   display: inline-flex;
   align-items: center;

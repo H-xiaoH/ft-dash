@@ -48,7 +48,7 @@ export type ConnectionState = 'idle' | 'connecting' | 'online' | 'unauthorized' 
 
 const TRADES_PAGE_SIZE = 300
 /** Poll cadence. Cheap slices run every tick, heavier ones every few ticks. */
-const POLL_INTERVAL_SECONDS = 1
+const POLL_INTERVAL_SECONDS = 2
 
 export const useBotStore = defineStore('bot', () => {
   const settings = useSettingsStore()
@@ -202,12 +202,14 @@ export const useBotStore = defineStore('bot', () => {
       track(() => api.balance()),
       track(() => api.profit()),
       track(() => api.health()),
+      track(() => api.sysinfo()),
     ])
     if (results[0]) openTrades.value = results[0]
     if (results[1]) count.value = results[1]
     if (results[2]) balance.value = results[2]
     if (results[3]) profit.value = results[3]
     if (results[4]) health.value = results[4]
+    if (results[5]) sysinfo.value = results[5]
   }
 
   async function refreshTrades() {
@@ -268,12 +270,10 @@ export const useBotStore = defineStore('bot', () => {
 
   async function refreshSystem() {
     const api = ensureClient()
-    const [info, config, logRes] = await Promise.all([
-      track(() => api.sysinfo()),
+    const [config, logRes] = await Promise.all([
       track(() => api.showConfig()),
       track(() => api.logs(150)),
     ])
-    if (info) sysinfo.value = info
     if (config) {
       showConfig.value = config
       applyConfigMetadata(config)
