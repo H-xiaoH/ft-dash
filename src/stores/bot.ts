@@ -8,6 +8,14 @@ import {
   type Credentials,
 } from '@/lib/api'
 import { parseTimestamp } from '@/lib/format'
+import {
+  classifyJwtFailure,
+  nextRetryDelay,
+  planStreamAuth,
+  STREAM_FAILURE_LIMIT,
+  type JwtFailure,
+  type StreamAuthMode,
+} from '@/lib/stream'
 import type {
   BalanceResponse,
   BlacklistResponse,
@@ -84,6 +92,14 @@ export const useBotStore = defineStore('bot', () => {
   let wsRetry = 0
   let wsTimer: number | null = null
   let stopped = false
+  let streamFailures = 0
+  let streamOpened = false
+  /** Set when a JWT handshake is rejected, so auto mode can fall back to ws_token. */
+  let streamPreferToken = false
+
+  const streamAuthMode = ref<StreamAuthMode>('off')
+  const streamReasonKey = ref<string | null>(null)
+  const streamBlocked = ref(false)
 
   const stakeCurrency = computed(() => showConfig.value?.stake_currency ?? 'USDT')
   const fiatCurrency = computed(() => balance.value?.symbol ?? 'USD')
@@ -326,7 +342,7 @@ export const useBotStore = defineStore('bot', () => {
       errorKey.value = null
       await refreshAll()
       startPolling()
-      if (settings.websocket) connectStream()
+      if (settings.websocket) retryStream()
       return true
     } catch (error) {
       recordError(error)
@@ -354,19 +370,71 @@ export const useBotStore = defineStore('bot', () => {
 
   // --- websocket -----------------------------------------------------------
 
+  /** Resolves the token the socket needs: an operator ws_token, or a fresh JWT. */
+  async function resolveStreamAuth(api: FreqtradeApi) {
+    if (settings.streamAuth === 'ws_token') {
+      return planStreamAuth({
+        preference: settings.streamAuth,
+        wsToken: settings.wsToken,
+        jwtToken: null,
+      })
+    }
+
+    let jwtToken: string | null = null
+    let jwtFailure: JwtFailure | undefined
+    const skipJwt = streamPreferToken && settings.wsToken.trim().length > 0
+    if (!skipJwt) {
+      try {
+        jwtToken = await api.login()
+      } catch (error) {
+        jwtFailure = classifyJwtFailure(error)
+        events.push({
+          type: 'stream.auth',
+          subject: jwtFailure,
+          detail: '',
+          severity: 'warn',
+        })
+      }
+    }
+    return planStreamAuth({
+      preference: settings.streamAuth,
+      wsToken: settings.wsToken,
+      jwtToken,
+      jwtFailure,
+      jwtDisallowed: skipJwt,
+    })
+  }
+
   async function connectStream() {
     const api = client.value
     if (!api || !settings.websocket) {
+      streamAuthMode.value = 'off'
+      streamReasonKey.value = null
       events.setStatus('off')
       return
     }
     events.setStatus('connecting')
     try {
-      const token = await api.login()
-      const socket = new WebSocket(websocketUrl(api.baseUrl, token))
+      const plan = await resolveStreamAuth(api)
+      streamAuthMode.value = plan.mode
+      streamReasonKey.value = plan.reason ?? null
+      if (!plan.connectable || !plan.token) {
+        events.setStatus('off')
+        // Configuration problems need a human; transient ones are worth retrying.
+        streamBlocked.value = plan.reason !== 'errors.wsAuthUnavailable'
+        if (!streamBlocked.value) scheduleReconnect()
+        return
+      }
+      streamBlocked.value = false
+      streamOpened = false
+      const socket = new WebSocket(websocketUrl(api.baseUrl, plan.token))
       ws = socket
       socket.addEventListener('open', () => {
         wsRetry = 0
+        streamFailures = 0
+        streamOpened = true
+        streamPreferToken = false
+        streamReasonKey.value = null
         events.setStatus('open')
         socket.send(
           JSON.stringify({
@@ -397,6 +465,26 @@ export const useBotStore = defineStore('bot', () => {
       socket.addEventListener('close', () => {
         if (ws === socket) ws = null
         events.setStatus('closed')
+        if (!streamOpened) {
+          // In auto mode a rejected JWT may just mean the bot wants its ws_token.
+          if (
+            settings.streamAuth === 'auto' &&
+            !streamPreferToken &&
+            settings.wsToken.trim() &&
+            streamAuthMode.value === 'jwt'
+          ) {
+            streamPreferToken = true
+            events.push({ type: 'stream.auth', subject: 'fallback', detail: '', severity: 'warn' })
+            scheduleReconnect()
+            return
+          }
+          streamFailures += 1
+          if (streamFailures >= STREAM_FAILURE_LIMIT) {
+            streamBlocked.value = true
+            streamReasonKey.value = 'errors.wsRejected'
+            return
+          }
+        }
         scheduleReconnect()
       })
       socket.addEventListener('error', () => {
@@ -404,6 +492,7 @@ export const useBotStore = defineStore('bot', () => {
       })
     } catch (error) {
       events.setStatus('error', error instanceof ApiError ? error.kind : 'login-failed')
+      streamReasonKey.value = 'errors.wsAuthUnavailable'
       scheduleReconnect()
     }
   }
@@ -447,13 +536,27 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   function scheduleReconnect() {
-    if (stopped || !settings.websocket || connection.value !== 'online') return
+    if (stopped || !settings.websocket || streamBlocked.value) return
+    if (connection.value !== 'online') return
     if (wsTimer !== null) window.clearTimeout(wsTimer)
     wsRetry += 1
-    const delay = Math.min(30_000, 1500 * 2 ** Math.min(wsRetry, 4))
+    const delay = nextRetryDelay(wsRetry)
     wsTimer = window.setTimeout(() => {
       void connectStream()
     }, delay)
+  }
+
+  /** Manual recovery after a blocked handshake (Settings → live stream). */
+  function retryStream() {
+    streamFailures = 0
+    streamBlocked.value = false
+    streamReasonKey.value = null
+    streamPreferToken = false
+    if (!settings.websocket) {
+      events.setStatus('off')
+      return
+    }
+    void connectStream()
   }
 
   function disconnectStream() {
@@ -461,6 +564,8 @@ export const useBotStore = defineStore('bot', () => {
       window.clearTimeout(wsTimer)
       wsTimer = null
     }
+    streamFailures = 0
+    streamOpened = false
     if (ws) {
       const socket = ws
       ws = null
@@ -512,9 +617,15 @@ export const useBotStore = defineStore('bot', () => {
         disconnectStream()
         return
       }
-      if (connection.value === 'online' && !ws) void connectStream()
+      if (connection.value === 'online' && !ws) retryStream()
     },
   )
+
+  // Changing how the socket authenticates must take effect immediately.
+  watch([() => settings.streamAuth, () => settings.wsToken], () => {
+    if (!settings.websocket) return
+    retryStream()
+  })
 
   return {
     // state
@@ -573,7 +684,11 @@ export const useBotStore = defineStore('bot', () => {
     stopPolling,
     cleanup,
     connectStream,
+    retryStream,
     disconnectStream,
+    streamAuthMode,
+    streamReasonKey,
+    streamBlocked,
     fetchCandles,
     runAction,
     ensureClient,

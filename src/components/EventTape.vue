@@ -37,6 +37,7 @@ function label(type: string): string {
     whitelist: 'events.whitelist',
     'stream.connected': 'events.connected',
     'stream.disconnected': 'events.disconnected',
+    'stream.auth': 'events.auth',
     action: 'actions.done',
   }
   const key = map[type]

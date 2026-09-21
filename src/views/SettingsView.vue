@@ -17,6 +17,7 @@ import {
 import { useBotStore } from '@/stores/bot'
 import { useEventsStore } from '@/stores/events'
 import { REFRESH_OPTIONS, useSettingsStore } from '@/stores/settings'
+import type { StreamAuthPreference } from '@/lib/stream'
 
 const { t } = useI18n()
 const format = useFormat()
@@ -31,6 +32,31 @@ const saving = ref(false)
 const tested = ref<null | 'ok' | 'fail'>(null)
 const clearConfirm = ref(false)
 const appVersion = __APP_VERSION__
+
+const STREAM_AUTH_CHOICES: { value: StreamAuthPreference; label: string }[] = [
+  { value: 'auto', label: 'settings.streamAuthAuto' },
+  { value: 'ws_token', label: 'settings.streamAuthToken' },
+  { value: 'off', label: 'settings.streamAuthOff' },
+]
+
+const streamAuthLabel = computed(() => {
+  switch (bot.streamAuthMode) {
+    case 'jwt':
+      return t('system.wsAuthJwt')
+    case 'ws_token':
+      return t('system.wsAuthToken')
+    case 'unavailable':
+      return t('system.wsAuthUnavailable')
+    default:
+      return t('system.wsAuthOff')
+  }
+})
+
+const streamAuthTone = computed(() => {
+  if (bot.streamBlocked || bot.streamAuthMode === 'unavailable') return 'chip--bad'
+  if (bot.streamAuthMode === 'off') return ''
+  return 'chip--good'
+})
 
 const passwordPlaceholder = computed(() =>
   settings.password ? t('settings.passwordKept') : '••••••••',
@@ -238,6 +264,54 @@ async function install() {
           </span>
         </label>
 
+        <div class="stream-auth" :class="{ 'stream-auth--disabled': !settings.websocket }">
+          <div class="row row--wrap">
+            <span class="chip" :class="streamAuthTone">{{ streamAuthLabel }}</span>
+            <button
+              v-if="settings.websocket"
+              type="button"
+              class="btn btn--sm"
+              @click="bot.retryStream()"
+            >
+              <AppIcon name="refresh" />
+              {{ t('settings.retryStream') }}
+            </button>
+          </div>
+          <p class="small muted">{{ t('settings.streamAuthHint') }}</p>
+          <p v-if="bot.streamReasonKey" class="banner banner--warn small">
+            {{ t(bot.streamReasonKey) }}
+          </p>
+          <div class="settings__grid">
+            <div class="field">
+              <span class="field__label">{{ t('settings.streamAuth') }}</span>
+              <div class="seg">
+                <button
+                  v-for="choice in STREAM_AUTH_CHOICES"
+                  :key="choice.value"
+                  type="button"
+                  class="seg__item"
+                  :aria-pressed="settings.streamAuth === choice.value"
+                  @click="settings.streamAuth = choice.value"
+                >
+                  {{ t(choice.label) }}
+                </button>
+              </div>
+            </div>
+            <label class="field">
+              <span class="field__label">{{ t('settings.wsToken') }}</span>
+              <input
+                v-model="settings.wsToken"
+                class="input num"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+                :placeholder="t('settings.wsTokenPlaceholder')"
+              />
+              <span class="field__hint">{{ t('settings.wsTokenHint') }}</span>
+            </label>
+          </div>
+        </div>
+
         <div class="row row--wrap">
           <label class="switch">
             <input v-model="settings.notifications" type="checkbox" :disabled="notifState !== 'granted'" />
@@ -381,5 +455,19 @@ async function install() {
 
 .settings__danger {
   border-color: color-mix(in srgb, var(--short) 35%, var(--line));
+}
+
+.stream-auth {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--ink-800);
+}
+
+.stream-auth--disabled {
+  opacity: 0.6;
 }
 </style>

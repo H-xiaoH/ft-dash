@@ -38,6 +38,9 @@ export type ApiErrorKind =
   | 'http'
   | 'parse'
 
+/** Raised when an endpoint a feature depends on is missing or refuses to serve us. */
+export const WS_AUTH_UNSUPPORTED_STATUS = [404, 405, 501]
+
 export class ApiError extends Error {
   readonly kind: ApiErrorKind
   readonly status?: number
@@ -171,15 +174,28 @@ export class FreqtradeApi {
   private headers(options: RequestOptions, json: boolean): HeadersInit {
     const headers: Record<string, string> = { Accept: 'application/json' }
     if (json) headers['Content-Type'] = 'application/json'
-    if (!options.basic && this.bearer && this.bearer.expiresAt > Date.now()) {
-      headers.Authorization = `Bearer ${this.bearer.token}`
+    if (!options.basic && this.hasFreshBearer()) {
+      headers.Authorization = `Bearer ${this.bearer?.token ?? ''}`
     } else {
       headers.Authorization = this.authHeader
     }
     return headers
   }
 
+  private hasFreshBearer(): boolean {
+    return this.bearer !== null && this.bearer.expiresAt > Date.now()
+  }
+
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+    return this.send<T>(path, options)
+  }
+
+  /**
+   * Sends a request and, when a cached bearer token is rejected, retries once with HTTP
+   * Basic. A restarted bot can invalidate every JWT it ever issued (new secret), and Basic
+   * credentials are always valid, so this keeps polling alive without a re-login dance.
+   */
+  private async send<T>(path: string, options: RequestOptions, allowRetry = true): Promise<T> {
     const url = `${this.baseUrl}${path}${buildQuery(options.query)}`
     const controller = new AbortController()
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
@@ -245,6 +261,11 @@ export class FreqtradeApi {
 
     if (!response.ok) {
       const detail = extractDetail(payload) ?? `HTTP ${response.status}`
+      const usedBearer = !options.basic && this.hasFreshBearer()
+      if (response.status === 401 && usedBearer && allowRetry) {
+        this.bearer = null
+        return this.send<T>(path, options, false)
+      }
       throw new ApiError(response.status === 401 ? 'auth' : 'http', detail, {
         status: response.status,
         detail,

@@ -45,6 +45,19 @@ const wsLabel = computed(() => {
   }
 })
 
+const wsAuthLabel = computed(() => {
+  switch (bot.streamAuthMode) {
+    case 'jwt':
+      return t('system.wsAuthJwt')
+    case 'ws_token':
+      return t('system.wsAuthToken')
+    case 'unavailable':
+      return t('system.wsAuthUnavailable')
+    default:
+      return t('system.wsAuthOff')
+  }
+})
+
 async function runStop() {
   const result = await bot.stop()
   stopConfirm.value = false
@@ -189,7 +202,25 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
             <dd>{{ format.dateTime(bot.lastFetchAt) }}</dd>
             <dt>{{ t('system.wsStatus') }}</dt>
             <dd>{{ wsLabel }}</dd>
+            <dt>{{ t('system.wsAuth') }}</dt>
+            <dd>{{ wsAuthLabel }}</dd>
           </dl>
+
+          <p
+            v-if="bot.streamReasonKey"
+            class="banner banner--warn small"
+            style="margin-top: var(--sp-4)"
+          >
+            {{ t(bot.streamReasonKey) }}
+            <button
+              type="button"
+              class="btn btn--sm"
+              style="margin-left: 8px"
+              @click="bot.retryStream()"
+            >
+              {{ t('settings.retryStream') }}
+            </button>
+          </p>
 
           <div v-if="settings.writesEnabled" class="row row--wrap" style="margin-top: var(--sp-4)">
             <button

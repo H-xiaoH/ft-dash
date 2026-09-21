@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { detectLocale, isSupportedLocale, type AppLocale } from '@/i18n'
 import { readJson, removeKey, safeSessionStorage, writeJson } from '@/lib/storage'
+import type { StreamAuthPreference } from '@/lib/stream'
 
 const SETTINGS_KEY = 'ftdash.settings.v1'
 const CREDENTIALS_KEY = 'ftdash.credentials.v1'
@@ -16,6 +17,8 @@ interface StoredSettings {
   locale: AppLocale | null
   refreshInterval: number
   websocket: boolean
+  streamAuth: StreamAuthPreference
+  wsToken: string
   allowControls: boolean
   notifications: boolean
   remember: boolean
@@ -26,6 +29,8 @@ const DEFAULT_SETTINGS: StoredSettings = {
   locale: null,
   refreshInterval: 30,
   websocket: true,
+  streamAuth: 'auto',
+  wsToken: '',
   allowControls: false,
   notifications: false,
   remember: true,
@@ -33,6 +38,7 @@ const DEFAULT_SETTINGS: StoredSettings = {
 }
 
 export const REFRESH_OPTIONS = [10, 15, 30, 60, 120, 300] as const
+export const STREAM_AUTH_OPTIONS: StreamAuthPreference[] = ['auto', 'ws_token', 'off']
 
 /**
  * Guards against a missing or hand-edited stored value: anything that is not an
@@ -47,6 +53,12 @@ function resolveRefreshInterval(value: unknown): number {
     return value
   }
   return DEFAULT_SETTINGS.refreshInterval
+}
+
+function resolveStreamAuth(value: unknown): StreamAuthPreference {
+  return STREAM_AUTH_OPTIONS.includes(value as StreamAuthPreference)
+    ? (value as StreamAuthPreference)
+    : DEFAULT_SETTINGS.streamAuth
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -65,6 +77,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const locale = ref<AppLocale>(isSupportedLocale(persisted.locale) ? persisted.locale : detectLocale())
   const refreshInterval = ref(resolveRefreshInterval(persisted.refreshInterval))
   const websocket = ref(persisted.websocket ?? DEFAULT_SETTINGS.websocket)
+  const streamAuth = ref(resolveStreamAuth(persisted.streamAuth))
+  const wsToken = ref(typeof persisted.wsToken === 'string' ? persisted.wsToken : '')
   const allowControls = ref(persisted.allowControls ?? DEFAULT_SETTINGS.allowControls)
   const notifications = ref(persisted.notifications ?? DEFAULT_SETTINGS.notifications)
   const remember = ref(persisted.remember ?? DEFAULT_SETTINGS.remember)
@@ -81,6 +95,8 @@ export const useSettingsStore = defineStore('settings', () => {
       locale: locale.value,
       refreshInterval: refreshInterval.value,
       websocket: websocket.value,
+      streamAuth: streamAuth.value,
+      wsToken: wsToken.value,
       allowControls: allowControls.value,
       notifications: notifications.value,
       remember: remember.value,
@@ -124,7 +140,17 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   watch(
-    [locale, refreshInterval, websocket, allowControls, notifications, remember, controlsAcknowledged],
+    [
+      locale,
+      refreshInterval,
+      websocket,
+      streamAuth,
+      wsToken,
+      allowControls,
+      notifications,
+      remember,
+      controlsAcknowledged,
+    ],
     persist,
   )
 
@@ -135,6 +161,8 @@ export const useSettingsStore = defineStore('settings', () => {
     locale,
     refreshInterval,
     websocket,
+    streamAuth,
+    wsToken,
     allowControls,
     notifications,
     remember,

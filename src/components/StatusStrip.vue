@@ -43,19 +43,6 @@ const heartbeat = computed(() => {
 })
 const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > 5 * 60 * 1000)
 
-const streamTone = computed(() => {
-  switch (events.status) {
-    case 'open':
-      return 'good'
-    case 'connecting':
-      return 'warn'
-    case 'error':
-      return 'bad'
-    default:
-      return 'flat'
-  }
-})
-
 const streamLabel = computed(() => {
   switch (events.status) {
     case 'open':
@@ -70,6 +57,33 @@ const streamLabel = computed(() => {
       return t('system.wsDisabled')
   }
 })
+
+/** The reason key wins in the tooltip so a rejected handshake is self-explaining. */
+const streamTooltip = computed(() =>
+  bot.streamReasonKey ? t(bot.streamReasonKey) : streamLabel.value,
+)
+
+const streamTone = computed<'good' | 'warn' | 'bad' | 'flat'>(() => {
+  if (bot.streamReasonKey) return 'bad'
+  switch (events.status) {
+    case 'open':
+      return 'good'
+    case 'connecting':
+      return 'warn'
+    case 'error':
+      return 'bad'
+    default:
+      return 'flat'
+  }
+})
+
+function onStreamClick() {
+  if (bot.streamReasonKey) {
+    bot.retryStream()
+    return
+  }
+  emit('openTape')
+}
 </script>
 
 <template>
@@ -113,8 +127,8 @@ const streamLabel = computed(() => {
         type="button"
         class="strip__stream"
         :data-tone="streamTone"
-        @click="emit('openTape')"
-        :title="streamLabel"
+        :title="streamTooltip"
+        @click="onStreamClick"
       >
         <span
           class="dot"
