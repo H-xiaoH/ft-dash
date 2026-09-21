@@ -7,6 +7,7 @@ import type { BarItem } from '@/components/charts'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EventTape from '@/components/EventTape.vue'
 import MetricTile from '@/components/MetricTile.vue'
+import SideBadge from '@/components/SideBadge.vue'
 import Sparkline from '@/components/Sparkline.vue'
 import { useFormat } from '@/composables/useFormat'
 import { pushToast } from '@/composables/useToast'
@@ -214,6 +215,7 @@ async function confirmExit() {
                 <thead>
                   <tr>
                     <th>{{ t('trades.pair') }}</th>
+                    <th class="u-hide-sm side-col">{{ t('trades.side') }}</th>
                     <th class="num u-hide-sm">{{ t('trades.entryPrice') }}</th>
                     <th class="num">{{ t('trades.currentPrice') }}</th>
                     <th class="num u-hide-sm">{{ t('trades.stake') }}</th>
@@ -235,11 +237,16 @@ async function confirmExit() {
                           :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
                         />
                         <span class="num">{{ trade.pair }}</span>
+                        <SideBadge
+                          class="u-inline-sm"
+                          :is-short="trade.is_short"
+                        />
                         <span v-if="trade.leverage && trade.leverage > 1" class="chip">
                           {{ trade.leverage }}x
                         </span>
                       </div>
                     </td>
+                    <td class="u-hide-sm side-col"><SideBadge :is-short="trade.is_short" /></td>
                     <td class="num u-hide-sm">{{ format.price(trade.open_rate) }}</td>
                     <td class="num">{{ format.price(trade.current_rate ?? trade.open_rate) }}</td>
                     <td class="num u-hide-sm">{{ format.money(trade.stake_amount, stake) }}</td>
@@ -280,6 +287,7 @@ async function confirmExit() {
                 <thead>
                   <tr>
                     <th>{{ t('trades.pair') }}</th>
+                    <th class="u-hide-sm side-col">{{ t('trades.side') }}</th>
                     <th class="num">{{ t('trades.profit') }}</th>
                     <th class="num u-hide-sm">{{ t('trades.exitPrice') }}</th>
                     <th class="u-hide-sm">{{ t('trades.exitReason') }}</th>
@@ -288,7 +296,17 @@ async function confirmExit() {
                 </thead>
                 <tbody>
                   <tr v-for="trade in bot.recentClosed" :key="trade.trade_id">
-                    <td class="num">{{ trade.pair }}</td>
+                    <td>
+                      <div class="table__pair">
+                        <span
+                          class="table__side"
+                          :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
+                        />
+                        <span class="num">{{ trade.pair }}</span>
+                        <SideBadge class="u-inline-sm" :is-short="trade.is_short" />
+                      </div>
+                    </td>
+                    <td class="u-hide-sm side-col"><SideBadge :is-short="trade.is_short" /></td>
                     <td class="num" :class="format.toneClass(trade.profit_ratio)">
                       {{ format.signedMoney(trade.profit_abs ?? 0, stake) }}
                       <div class="small muted">{{ format.ratio(trade.profit_ratio) }}</div>

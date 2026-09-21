@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import SideBadge from '@/components/SideBadge.vue'
 import TradeDetail from '@/components/TradeDetail.vue'
 import { useFormat } from '@/composables/useFormat'
 import { pushToast } from '@/composables/useToast'
@@ -244,6 +245,7 @@ onMounted(() => {
                     />
                   </button>
                 </th>
+                <th class="u-hide-sm side-col">{{ t('trades.side') }}</th>
                 <th class="num">
                   <button type="button" class="sort" @click="toggleSort('stake_amount')">
                     {{ t('trades.stake') }}
@@ -298,9 +300,11 @@ onMounted(() => {
                       :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
                     />
                     <span class="num">{{ trade.pair }}</span>
+                    <SideBadge class="u-inline-sm" :is-short="trade.is_short" />
                     <span v-if="trade.is_open" class="chip chip--accent">{{ t('trades.open') }}</span>
                   </div>
                 </td>
+                <td class="u-hide-sm side-col"><SideBadge :is-short="trade.is_short" /></td>
                 <td class="num">{{ format.money(trade.stake_amount, stake) }}</td>
                 <td class="num">{{ format.price(trade.open_rate) }}</td>
                 <td class="num">
@@ -341,7 +345,7 @@ onMounted(() => {
             </span>
           </div>
           <div class="card__row small muted">
-            <span>{{ trade.is_short ? t('trades.short') : t('trades.long') }}</span>
+            <SideBadge :is-short="trade.is_short" />
             <span class="num">
               {{ format.price(trade.open_rate) }} →
               {{ format.price(trade.current_rate ?? trade.close_rate ?? null) }}

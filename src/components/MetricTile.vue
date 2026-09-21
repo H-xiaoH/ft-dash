@@ -29,9 +29,10 @@ const display = computed(() => {
   if (value === null) return '—'
   switch (props.kind) {
     case 'money':
+      // The currency is rendered as a separate, smaller unit so it never gets clipped.
       return props.signed
-        ? format.signedMoney(value, props.currency ?? '', props.digits ?? 2)
-        : format.money(value, props.currency ?? '', props.digits ?? 2)
+        ? format.signedMoney(value, '', props.digits ?? 2)
+        : format.money(value, '', props.digits ?? 2)
     case 'percent':
       return format.percent(value, props.digits ?? 2, props.signed)
     case 'ratio':
@@ -40,6 +41,8 @@ const display = computed(() => {
       return format.number(value, props.digits ?? 2)
   }
 })
+
+const unit = computed(() => (props.kind === 'money' ? (props.currency ?? '') : ''))
 
 const toneClass = computed(() =>
   props.tone === 'auto' ? format.toneClass(props.value) : '',
@@ -51,6 +54,7 @@ const toneClass = computed(() =>
     <span class="metric__label">{{ label }}</span>
     <span class="metric__value" :class="[toneClass, { 'metric__value--sm': small }]">
       {{ display }}
+      <span v-if="unit" class="metric__unit">{{ unit }}</span>
     </span>
     <span v-if="sub" class="metric__sub">{{ sub }}</span>
     <slot />

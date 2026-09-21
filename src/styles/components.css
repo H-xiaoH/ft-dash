@@ -67,6 +67,8 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  /* Lets the value scale with the tile instead of overflowing when the grid is dense. */
+  container-type: inline-size;
   /* Hairlines instead of a gap: leftover cells in the last row stay invisible. */
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
@@ -84,10 +86,20 @@
   font-family: var(--font-data);
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-xl);
+  font-size: clamp(0.9rem, 12.5cqw, 1.25rem);
   letter-spacing: -0.02em;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.metric__unit {
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  letter-spacing: 0;
+  flex: none;
 }
 
 .metric__value--sm {
@@ -100,9 +112,7 @@
   display: flex;
   gap: var(--sp-2);
   align-items: baseline;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex-wrap: wrap;
 }
 
 /* --- chips -------------------------------------------------------------- */
@@ -363,6 +373,13 @@
 
 .table__muted {
   color: var(--text-3);
+}
+
+/* Keeps the direction column tight so numeric columns get the space instead. */
+.table th.side-col,
+.table td.side-col {
+  width: 78px;
+  padding-right: 0;
 }
 
 /* --- forms -------------------------------------------------------------- */
@@ -705,6 +722,12 @@
   display: table-cell;
 }
 
+/* Inline badges that only appear once the corresponding column is hidden. */
+.u-inline-sm {
+  /* `!important` so scoped component styles (e.g. a badge's own display) cannot win. */
+  display: none !important;
+}
+
 @media (max-width: 900px) {
   .u-mobile-only {
     display: block;
@@ -718,5 +741,9 @@
 @media (max-width: 720px) {
   .u-hide-sm {
     display: none !important;
+  }
+
+  .u-inline-sm {
+    display: inline-flex !important;
   }
 }
