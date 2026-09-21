@@ -410,7 +410,7 @@ async function install() {
 .settings {
   /* Cards reflow into as many columns as fit, so no dead space on wide screens. */
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(460px, 100%), 1fr));
   gap: var(--sp-4);
   align-items: start;
 }
@@ -426,7 +426,7 @@ async function install() {
 
 .settings__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: var(--sp-3);
 }
 

@@ -8,6 +8,7 @@ import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
 import type { Candle, CandleFormatters } from '@/components/charts'
 import { useFormat } from '@/composables/useFormat'
+import { useChartHeight } from '@/composables/useChartHeight'
 import { pushToast } from '@/composables/useToast'
 import type { Lock } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
@@ -29,6 +30,7 @@ const candleError = ref(false)
 const blacklistInput = ref('')
 const lockTarget = ref<Lock | null>(null)
 const blacklistTarget = ref<string | null>(null)
+const candleHeight = useChartHeight(200, 0.32, 340)
 
 /** The bot trades a single timeframe, so it is displayed rather than chosen. */
 const timeframe = computed(() => String(bot.showConfig?.timeframe ?? '5m'))
@@ -173,9 +175,13 @@ onMounted(() => {
       </div>
       <div class="panel__body">
         <p v-if="!selectedPair" class="empty">{{ t('market.noCandles') }}</p>
-        <div v-else-if="loadingCandles && !candles.length" class="skeleton" style="height: 240px" />
+        <div
+          v-else-if="loadingCandles && !candles.length"
+          class="skeleton"
+          :style="{ height: `${candleHeight}px` }"
+        />
         <p v-else-if="candleError || !candles.length" class="empty">{{ t('market.noCandles') }}</p>
-        <CandleChart v-else :candles="candles" :height="280" :formatters="formatters" />
+        <CandleChart v-else :candles="candles" :height="candleHeight" :formatters="formatters" />
         <div v-if="candleMeta" class="row row--wrap small muted" style="margin-top: 8px">
           <span>{{ candleMeta.strategy }}</span>
           <span v-if="candleMeta.buy_signals !== undefined">
@@ -401,7 +407,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 420px;
+  max-height: min(420px, 50vh);
   overflow-y: auto;
 }
 

@@ -308,13 +308,12 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
 }
 
 .system__tape {
-  height: 380px;
-  min-height: 280px;
+  height: clamp(240px, 42vh, 460px);
 }
 
 .cores {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
   gap: var(--sp-3);
 }
 

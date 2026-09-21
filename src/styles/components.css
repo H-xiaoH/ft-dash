@@ -13,6 +13,8 @@
   display: flex;
   align-items: center;
   gap: var(--sp-3);
+  flex-wrap: wrap;
+  row-gap: var(--sp-2);
   padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--line);
   min-height: 44px;
@@ -22,6 +24,8 @@
   font-size: var(--fs-md);
   font-weight: 500;
   letter-spacing: -0.005em;
+  /* Never break a section title mid-word when the header wraps. */
+  white-space: nowrap;
 }
 
 .panel__meta {
@@ -698,8 +702,24 @@
 
 .grid-2 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  /* min(...) keeps a single column from overflowing very narrow screens. */
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: var(--sp-4);
+}
+
+@media (max-width: 720px) {
+  .table th,
+  .table td {
+    padding: 6px var(--sp-2);
+  }
+
+  .panel__body {
+    padding: var(--sp-3);
+  }
+
+  .panel__head {
+    padding: var(--sp-2) var(--sp-3);
+  }
 }
 
 .dl {

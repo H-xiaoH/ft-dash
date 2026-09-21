@@ -6,6 +6,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
 import type { BarItem } from '@/components/charts'
 import { useFormat } from '@/composables/useFormat'
+import { useChartHeight } from '@/composables/useChartHeight'
 import { useBotStore } from '@/stores/bot'
 
 type Period = 'daily' | 'weekly' | 'monthly'
@@ -26,6 +27,7 @@ const period = ref<Period>('daily')
 const search = ref('')
 const sortKey = ref<SortKey>('profitAbs')
 const sortDir = ref<'asc' | 'desc'>('desc')
+const periodChartHeight = useChartHeight(140, 0.19, 220)
 
 const stake = computed(() => bot.stakeCurrency)
 
@@ -296,7 +298,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
         <BarChart
           v-if="periodBars.length"
           :items="periodBars"
-          :height="170"
+          :height="periodChartHeight"
           :axis-format="(value: number) => format.money(value, '', 2)"
         />
         <p v-else class="empty">{{ t('stats.noData') }}</p>

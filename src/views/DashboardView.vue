@@ -10,6 +10,7 @@ import SideBadge from '@/components/SideBadge.vue'
 import Sparkline from '@/components/Sparkline.vue'
 import { useFormat } from '@/composables/useFormat'
 import { pushToast } from '@/composables/useToast'
+import { useChartHeight } from '@/composables/useChartHeight'
 import { toIsoDate } from '@/lib/format'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
@@ -22,6 +23,7 @@ const settings = useSettingsStore()
 const router = useRouter()
 
 const exitTarget = ref<Trade | null>(null)
+const pnlChartHeight = useChartHeight(150, 0.2, 230)
 
 const stake = computed(() => bot.stakeCurrency)
 
@@ -153,7 +155,7 @@ async function confirmExit() {
             <BarChart
               v-if="bars.length"
               :items="bars"
-              :height="180"
+              :height="pnlChartHeight"
               :axis-format="(value: number) => format.money(value, '', 2)"
             />
             <p v-else class="empty">{{ t('stats.noData') }}</p>
@@ -375,7 +377,7 @@ async function confirmExit() {
 <style scoped>
 .dash__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 2.6fr) minmax(min(240px, 100%), 1fr);
   gap: var(--sp-4);
   align-items: start;
 }
