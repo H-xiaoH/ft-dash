@@ -27,21 +27,14 @@ const bot = useBotStore()
 
 const period = ref<Period>('daily')
 const search = ref('')
-const kindFilter = ref<string>('all')
+/** One grouping at a time; the kind is chosen from the first column header. */
+const kindFilter = ref<string>('pair')
 const sortKey = ref<SortKey>('profitAbs')
 const sortDir = ref<'asc' | 'desc'>('desc')
 
 const stake = computed(() => bot.stakeCurrency)
 
-const KIND_LABELS: Record<Kind, string> = {
-  pair: 'stats.byPair',
-  entry: 'stats.byEnterTag',
-  exit: 'stats.byExitReason',
-  mix: 'stats.byMixTag',
-}
-
 const kindOptions = computed<FilterOption[]>(() => [
-  { value: 'all', label: t('common.all') },
   { value: 'pair', label: t('stats.byPair') },
   { value: 'entry', label: t('stats.byEnterTag') },
   { value: 'exit', label: t('stats.byExitReason') },
@@ -83,7 +76,7 @@ const allRows = computed<Row[]>(() => [
 const rows = computed<Row[]>(() => {
   const query = search.value.trim().toLowerCase()
   const filtered = allRows.value.filter((row) => {
-    if (kindFilter.value !== 'all' && row.kind !== kindFilter.value) return false
+    if (row.kind !== kindFilter.value) return false
     if (query && !row.name.toLowerCase().includes(query)) return false
     return true
   })
@@ -251,12 +244,6 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
         <span class="panel__title">{{ t('stats.title') }}</span>
         <span class="panel__meta num">{{ rows.length }} / {{ allRows.length }}</span>
         <div class="panel__actions row">
-          <FilterMenu
-            v-model="kindFilter"
-            :options="kindOptions"
-            :prefix="t('stats.kind')"
-            :label="t('stats.kind')"
-          />
           <SearchToggle v-model="search" :placeholder="t('stats.group')" />
         </div>
       </div>
@@ -267,24 +254,13 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
             <thead>
               <tr>
                 <th>
-                  <button type="button" class="sort" @click="toggleSort('kind')">
-                    {{ t('stats.kind') }}
-                    <AppIcon
-                      v-if="sortKey === 'kind'"
-                      :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
-                      :size="12"
-                    />
-                  </button>
-                </th>
-                <th>
-                  <button type="button" class="sort" @click="toggleSort('name')">
-                    {{ t('stats.group') }}
-                    <AppIcon
-                      v-if="sortKey === 'name'"
-                      :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
-                      :size="12"
-                    />
-                  </button>
+                  <!-- The header names the grouping and switches it; the arrow hints that. -->
+                  <FilterMenu
+                    v-model="kindFilter"
+                    variant="text"
+                    :options="kindOptions"
+                    :label="t('stats.kind')"
+                  />
                 </th>
                 <th>
                   <button type="button" class="sort" @click="toggleSort('count')">
@@ -311,7 +287,6 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
             </thead>
             <tbody>
               <tr v-for="row in rows" :key="`${row.kind}-${row.name}`">
-                <td class="table__muted small">{{ t(KIND_LABELS[row.kind]) }}</td>
                 <td>{{ row.name }}</td>
                 <td>{{ row.count }}</td>
                 <td class="num" :class="format.toneClass(row.profitAbs)">

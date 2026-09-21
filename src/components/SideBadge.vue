@@ -36,7 +36,7 @@ const label = computed(() => (props.isShort ? t('trades.short') : t('trades.long
   align-items: center;
   gap: 3px;
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--r-1);
   font-size: var(--fs-sm);
   line-height: 1.5;
   white-space: nowrap;
@@ -45,13 +45,11 @@ const label = computed(() => (props.isShort ? t('trades.short') : t('trades.long
 
 .side--long {
   color: var(--long);
-  background: color-mix(in srgb, var(--long) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--long) 38%, transparent);
+  border: 1px solid color-mix(in srgb, var(--long) 32%, transparent);
 }
 
 .side--short {
   color: var(--short);
-  background: color-mix(in srgb, var(--short) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--short) 38%, transparent);
+  border: 1px solid color-mix(in srgb, var(--short) 32%, transparent);
 }
 </style>

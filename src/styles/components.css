@@ -121,38 +121,35 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 8px;
-  border-radius: 999px;
+  padding: 1px 6px;
+  border-radius: var(--r-1);
   font-size: var(--fs-sm);
   line-height: 1.6;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line);
   color: var(--text-2);
-  background: var(--ink-800);
+  background: transparent;
   white-space: nowrap;
 }
 
 .chip--good {
   color: var(--long);
-  border-color: color-mix(in srgb, var(--long) 40%, var(--line));
-  background: color-mix(in srgb, var(--long) 12%, var(--ink-850));
+  border-color: color-mix(in srgb, var(--long) 35%, transparent);
 }
 
 .chip--bad {
   color: var(--short);
-  border-color: color-mix(in srgb, var(--short) 40%, var(--line));
-  background: color-mix(in srgb, var(--short) 12%, var(--ink-850));
+  border-color: color-mix(in srgb, var(--short) 35%, transparent);
 }
 
 .chip--warn {
   color: var(--warn);
-  border-color: color-mix(in srgb, var(--warn) 40%, var(--line));
-  background: color-mix(in srgb, var(--warn) 12%, var(--ink-850));
+  border-color: color-mix(in srgb, var(--warn) 35%, transparent);
 }
 
 .chip--accent {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  background: color-mix(in srgb, var(--accent) 12%, var(--ink-850));
+  color: var(--text);
+  border-color: var(--line-strong);
+  background: var(--ink-750);
 }
 
 .dot {
@@ -201,7 +198,7 @@
   padding: 7px 12px;
   border-radius: var(--r-1);
   border: 1px solid var(--line-strong);
-  background: var(--ink-800);
+  background: var(--ink-750);
   color: var(--text);
   font-size: var(--fs-base);
   cursor: pointer;
@@ -214,7 +211,7 @@
 
 .btn:hover:not(:disabled) {
   background: var(--ink-700);
-  border-color: var(--text-3);
+  border-color: var(--line-strong);
 }
 
 .btn:disabled {
@@ -223,15 +220,15 @@
 }
 
 .btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: #ffffff;
+  border-color: #ffffff;
   color: var(--accent-text);
   font-weight: 500;
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 88%, white);
-  border-color: color-mix(in srgb, var(--accent) 88%, white);
+  background: #d9dade;
+  border-color: #d9dade;
 }
 
 .btn--danger {
@@ -272,7 +269,7 @@
   display: inline-flex;
   padding: 2px;
   gap: 2px;
-  background: var(--ink-800);
+  background: var(--ink-850);
   border: 1px solid var(--line);
   border-radius: var(--r-1);
   overflow-x: auto;
@@ -539,7 +536,7 @@
 .meter {
   height: 6px;
   border-radius: 999px;
-  background: var(--ink-750);
+  background: var(--ink-700);
   overflow: hidden;
   width: 100%;
 }
@@ -583,7 +580,7 @@
   width: min(520px, 100%);
   max-height: 88vh;
   overflow: auto;
-  box-shadow: 0 24px 60px rgb(0 0 0 / 55%);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 70%);
 }
 
 .dialog__head {

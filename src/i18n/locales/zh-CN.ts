@@ -257,7 +257,7 @@ export default {
     winRate: '胜率',
     period: '周期',
     daily: '每日',
-    weekly: '每周期',
+    weekly: '每周',
     monthly: '每月',
     profitAbs: '盈亏额',
     relProfit: '收益率',

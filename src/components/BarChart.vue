@@ -348,7 +348,7 @@ function onKeydown(event: KeyboardEvent) {
   top: 0;
   bottom: 0;
   width: 1px;
-  background: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--text-3) 85%, transparent);
   pointer-events: none;
 }
 

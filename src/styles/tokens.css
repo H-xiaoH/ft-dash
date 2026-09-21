@@ -1,42 +1,42 @@
 /*
  * ft-dash design tokens.
  *
- * Direction: an instrument panel for a machine that trades money. The palette
- * is a deep steel ink, not pure black; green and red are reserved strictly for
- * P&L semantics, and amber marks anything the operator can act on. Numbers are
- * set in IBM Plex Mono so columns of digits line up the way a ledger does.
+ * Direction: OKX-like. Pure black canvas, flat surfaces separated by hairlines,
+ * monochrome chrome — interactive states are white on near-black, never tinted —
+ * and colour reserved for values that carry meaning (up/down, warnings). Radii
+ * stay small and numbers are set in IBM Plex Mono so digits line up in columns.
  */
 
 :root {
   /* surfaces */
-  --ink-900: #0e141d;
-  --ink-850: #121a24;
-  --ink-800: #16202c;
-  --ink-750: #1b2634;
-  --ink-700: #202d3d;
+  --ink-900: #000000;
+  --ink-850: #0f0f0f;
+  --ink-800: #151515;
+  --ink-750: #1c1c1c;
+  --ink-700: #262626;
 
   /* lines */
-  --line: #23303f;
-  --line-strong: #32445a;
+  --line: #1f1f1f;
+  --line-strong: #2f2f2f;
 
   /* text */
-  --text: #e7eef6;
-  --text-2: #9fb0c2;
-  --text-3: #6e8091;
+  --text: #ffffff;
+  --text-2: #b5bac1;
+  --text-3: #7e838a;
 
-  /* semantics — P&L only */
-  --long: #2fc08d;
-  --long-dim: #1d5c46;
-  --short: #e5656f;
-  --short-dim: #61282e;
+  /* semantics — values only */
+  --long: #24c98a;
+  --long-dim: #10402f;
+  --short: #ff5b5b;
+  --short-dim: #401d1d;
 
   /* interaction */
-  --accent: #e9a13c;
-  --accent-dim: #4a3418;
-  --accent-text: #1a1206;
+  --accent: #e8eaed;
+  --accent-dim: #262626;
+  --accent-text: #000000;
 
-  --warn: #e9a13c;
-  --info: #6fa8dc;
+  --warn: #ffa53b;
+  --info: #8ba0b8;
 
   /* type */
   --font-ui: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
@@ -62,10 +62,10 @@
   --sp-8: 32px;
 
   /* shape */
-  --r-1: 6px;
-  --r-2: 10px;
-  --r-3: 14px;
-  --ring: 0 0 0 2px var(--ink-900), 0 0 0 4px color-mix(in srgb, var(--accent) 70%, transparent);
+  --r-1: 4px;
+  --r-2: 6px;
+  --r-3: 8px;
+  --ring: 0 0 0 2px var(--ink-900), 0 0 0 4px rgb(255 255 255 / 45%);
 
   --rail-w: 60px;
   --topbar-h: 56px;

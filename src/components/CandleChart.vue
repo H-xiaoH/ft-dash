@@ -269,7 +269,7 @@ function onKeydown(event: KeyboardEvent) {
           :x2="width - padding.right"
           :y1="markerY"
           :y2="markerY"
-          stroke="var(--accent)"
+          stroke="var(--text-3)"
           stroke-width="1"
           stroke-dasharray="4 3"
         />
@@ -374,9 +374,9 @@ function onKeydown(event: KeyboardEvent) {
 
 .candles__badge {
   padding: 0 5px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  color: var(--accent);
+  border-radius: var(--r-1);
+  border: 1px solid var(--line-strong);
+  color: var(--text-2);
   font-size: 10px;
 }
 

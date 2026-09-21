@@ -28,8 +28,8 @@ export default defineConfig(({ mode }) => {
           scope: base,
           display: 'standalone',
           orientation: 'any',
-          background_color: '#0e141d',
-          theme_color: '#0e141d',
+          background_color: '#000000',
+          theme_color: '#000000',
           categories: ['finance', 'productivity'],
           icons: [
             { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },

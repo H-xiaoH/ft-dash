@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from './AppIcon.vue'
 
@@ -16,13 +16,17 @@ const props = withDefaults(
     /** Shown before the value, e.g. "Level". */
     prefix?: string
     align?: 'start' | 'end'
+    /** `text` renders as a bare header label with a hint arrow instead of a button. */
+    variant?: 'button' | 'text'
   }>(),
-  { label: '', prefix: '', align: 'end' },
+  { label: '', prefix: '', align: 'end', variant: 'button' },
 )
 
 const model = defineModel<string>({ default: '' })
 const { t } = useI18n()
 const open = ref(false)
+const trigger = ref<HTMLElement | null>(null)
+const anchor = ref<{ top: number; left?: number; right?: number }>({ top: 0, right: 0 })
 
 const current = computed(
   () => props.options.find((option) => option.value === model.value)?.label ?? props.options[0]?.label,
@@ -32,40 +36,69 @@ function choose(value: string) {
   model.value = value
   open.value = false
 }
+
+/**
+ * The popup is teleported, because a scrollable table wrapper would clip it.
+ * Positioning is measured from the trigger on open.
+ */
+async function toggle() {
+  open.value = !open.value
+  if (!open.value) return
+  await nextTick()
+  const rect = trigger.value?.getBoundingClientRect()
+  if (!rect || typeof window === 'undefined') return
+  const estimated = 260
+  const flip = rect.bottom + estimated > window.innerHeight
+  anchor.value = {
+    top: flip ? rect.top - estimated : rect.bottom + 4,
+    ...(props.align === 'end'
+      ? { right: window.innerWidth - rect.right }
+      : { left: rect.left }),
+  }
+}
+
+const listStyle = computed(() => ({
+  top: `${anchor.value.top}px`,
+  left: anchor.value.left === undefined ? 'auto' : `${anchor.value.left}px`,
+  right: anchor.value.right === undefined ? 'auto' : `${anchor.value.right}px`,
+}))
 </script>
 
 <template>
   <div class="filter-menu">
     <button
+      ref="trigger"
       type="button"
-      class="btn btn--sm filter-menu__button"
+      :class="variant === 'text' ? 'filter-menu__text' : 'btn btn--sm filter-menu__button'"
       :aria-expanded="open"
       :aria-label="prefix ? `${prefix}: ${current}` : current"
-      @click="open = !open"
+      @click="toggle"
     >
       <span v-if="prefix" class="filter-menu__prefix">{{ prefix }}</span>
       <span>{{ current }}</span>
       <AppIcon :name="open ? 'chevronUp' : 'chevronDown'" :size="12" />
     </button>
 
-    <template v-if="open">
-      <div class="filter-menu__backdrop" @click="open = false" />
-      <div class="filter-menu__list" :class="`filter-menu__list--${align}`" role="listbox">
-        <span class="filter-menu__title">{{ label || t('common.filter') }}</span>
-        <button
-          v-for="option in options"
-          :key="option.value"
-          type="button"
-          class="filter-menu__item"
-          role="option"
-          :aria-selected="option.value === model"
-          :class="{ 'is-active': option.value === model }"
-          @click="choose(option.value)"
-        >
-          {{ option.label }}
-        </button>
-      </div>
-    </template>
+    <Teleport to="body">
+      <template v-if="open">
+        <div class="filter-menu__backdrop" @click="open = false" />
+        <div class="filter-menu__list" :style="listStyle" role="listbox">
+          <span class="filter-menu__title">{{ label || t('common.filter') }}</span>
+          <button
+            v-for="option in options"
+            :key="option.value"
+            type="button"
+            class="filter-menu__item"
+            role="option"
+            :aria-selected="option.value === model"
+            :class="{ 'is-active': option.value === model }"
+            @click="choose(option.value)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+      </template>
+    </Teleport>
   </div>
 </template>
 
@@ -84,6 +117,22 @@ function choose(value: string) {
   color: var(--text-3);
 }
 
+.filter-menu__text {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.filter-menu__text:hover {
+  color: var(--text);
+}
+
 .filter-menu__backdrop {
   position: fixed;
   inset: 0;
@@ -91,28 +140,19 @@ function choose(value: string) {
 }
 
 .filter-menu__list {
-  position: absolute;
-  top: calc(100% + 4px);
+  position: fixed;
   z-index: 31;
-  min-width: 160px;
+  min-width: 150px;
   max-height: 320px;
   overflow-y: auto;
   padding: 4px;
   border: 1px solid var(--line-strong);
   border-radius: var(--r-2);
   background: var(--ink-800);
-  box-shadow: 0 12px 28px rgb(0 0 0 / 45%);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 65%);
   display: flex;
   flex-direction: column;
   gap: 1px;
-}
-
-.filter-menu__list--start {
-  left: 0;
-}
-
-.filter-menu__list--end {
-  right: 0;
 }
 
 .filter-menu__title {

@@ -1,10 +1,20 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { nextTick } from 'vue'
+import { afterEach, describe, expect, it } from 'vitest'
 import FilterMenu from '@/components/FilterMenu.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
 import { i18n } from '@/i18n'
 
 const global = { plugins: [i18n] }
+
+/** The filter popup is teleported to <body>, so it is queried from the document. */
+function popupItems(): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>('.filter-menu__item')]
+}
+
+afterEach(() => {
+  document.body.innerHTML = ''
+})
 
 describe('SearchToggle', () => {
   it('stays collapsed until the icon is clicked', async () => {
@@ -49,10 +59,10 @@ describe('FilterMenu', () => {
   it('shows the active option on the button and only lists values when opened', async () => {
     const wrapper = mount(FilterMenu, { props: { options, prefix: 'P&L' }, global })
     expect(wrapper.find('.filter-menu__button').text()).toContain('All')
-    expect(wrapper.findAll('.filter-menu__item')).toHaveLength(0)
+    expect(popupItems()).toHaveLength(0)
 
     await wrapper.find('.filter-menu__button').trigger('click')
-    expect(wrapper.findAll('.filter-menu__item').map((item) => item.text())).toEqual([
+    expect(popupItems().map((item) => item.textContent)).toEqual([
       'All',
       'Wins',
       'Losses',
@@ -66,17 +76,30 @@ describe('FilterMenu', () => {
       'onUpdate:modelValue': (value: string) => wrapper.setProps({ modelValue: value }),
     })
     await wrapper.find('.filter-menu__button').trigger('click')
-    await wrapper.findAll('.filter-menu__item')[1].trigger('click')
+    popupItems()[1].click()
+    await nextTick()
 
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['win'])
-    expect(wrapper.findAll('.filter-menu__item')).toHaveLength(0)
+    expect(popupItems()).toHaveLength(0)
   })
 
   it('closes when the backdrop is clicked', async () => {
     const wrapper = mount(FilterMenu, { props: { options }, global })
     await wrapper.find('.filter-menu__button').trigger('click')
-    expect(wrapper.find('.filter-menu__list').exists()).toBe(true)
-    await wrapper.find('.filter-menu__backdrop').trigger('click')
-    expect(wrapper.find('.filter-menu__list').exists()).toBe(false)
+    expect(document.querySelector('.filter-menu__list')).not.toBeNull()
+    ;(document.querySelector('.filter-menu__backdrop') as HTMLElement).click()
+    await nextTick()
+    expect(document.querySelector('.filter-menu__list')).toBeNull()
+  })
+
+  it('renders a bare header variant with a hint arrow', () => {
+    const wrapper = mount(FilterMenu, {
+      props: { options, variant: 'text', modelValue: 'pair' },
+      global,
+    })
+    const trigger = wrapper.find('.filter-menu__text')
+    expect(trigger.exists()).toBe(true)
+    expect(trigger.text()).toContain('All')
+    expect(wrapper.find('.btn').exists()).toBe(false)
   })
 })

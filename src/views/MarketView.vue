@@ -391,7 +391,7 @@ onMounted(() => {
 }
 
 .is-selected {
-  background: color-mix(in srgb, var(--accent) 12%, var(--ink-850));
+  background: var(--ink-750);
 }
 
 .blist {
