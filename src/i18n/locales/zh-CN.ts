@@ -238,7 +238,6 @@ export default {
     title: '统计',
     byPair: '交易对',
     group: '分组',
-    exitReasons: '平仓原因分布',
     durations: '持仓时长',
     wins: '盈利',
     losses: '亏损',

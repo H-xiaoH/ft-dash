@@ -239,7 +239,6 @@ export default {
     title: 'Statistics',
     byPair: 'Pair',
     group: 'Group',
-    exitReasons: 'Exit reason breakdown',
     durations: 'Durations',
     wins: 'Wins',
     losses: 'Losses',

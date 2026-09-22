@@ -147,18 +147,6 @@ const periodBars = computed<BarItem[]>(() =>
     })),
 )
 
-const exitReasonRows = computed(() =>
-  Object.entries(bot.tradeStats?.exit_reasons ?? {})
-    .map(([reason, stats]) => ({
-      reason,
-      wins: stats.wins ?? 0,
-      losses: stats.losses ?? 0,
-      draws: stats.draws ?? 0,
-      total: (stats.wins ?? 0) + (stats.losses ?? 0) + (stats.draws ?? 0),
-    }))
-    .sort((a, b) => b.total - a.total),
-)
-
 const summary = computed(() => bot.profit)
 const openCount = computed(() => bot.count?.current ?? bot.openTrades.length)
 const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades ?? 0)
@@ -418,56 +406,25 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
       </div>
     </section>
 
-    <div class="grid-2">
-      <section class="panel">
-        <div class="panel__head">
-          <span class="panel__title">{{ t('stats.exitReasons') }}</span>
-        </div>
-        <div class="panel__body panel__body--flush">
-          <div v-if="!exitReasonRows.length" class="empty">{{ t('stats.noData') }}</div>
-          <div v-else class="table-wrap">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th>{{ t('trades.exitReason') }}</th>
-                  <th class="num">{{ t('stats.wins') }}</th>
-                  <th class="num">{{ t('stats.losses') }}</th>
-                  <th class="num">{{ t('stats.draws') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="row in exitReasonRows" :key="row.reason">
-                  <td>{{ row.reason }}</td>
-                  <td class="num u-pos">{{ row.wins }}</td>
-                  <td class="num u-neg">{{ row.losses }}</td>
-                  <td class="num u-flat">{{ row.draws }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel__head">
-          <span class="panel__title">{{ t('stats.durations') }}</span>
-        </div>
-        <div class="panel__body">
-          <dl class="dl">
-            <dt>{{ t('stats.avgWinDuration') }}</dt>
-            <dd>{{ format.duration(bot.tradeStats?.durations?.wins ?? null) }}</dd>
-            <dt>{{ t('stats.avgLossDuration') }}</dt>
-            <dd>{{ format.duration(bot.tradeStats?.durations?.losses ?? null) }}</dd>
-            <dt>{{ t('stats.draws') }}</dt>
-            <dd>{{ format.duration(bot.tradeStats?.durations?.draws ?? null) }}</dd>
-            <dt>{{ t('stats.firstTrade') }}</dt>
-            <dd>{{ format.dateTime(summary?.first_trade_timestamp ?? null) }}</dd>
-            <dt>{{ t('stats.lastTrade') }}</dt>
-            <dd>{{ format.dateTime(summary?.latest_trade_timestamp ?? null) }}</dd>
-          </dl>
-        </div>
-      </section>
-    </div>
+    <section class="panel">
+      <div class="panel__head">
+        <span class="panel__title">{{ t('stats.durations') }}</span>
+      </div>
+      <div class="panel__body">
+        <dl class="dl">
+          <dt>{{ t('stats.avgWinDuration') }}</dt>
+          <dd>{{ format.duration(bot.tradeStats?.durations?.wins ?? null) }}</dd>
+          <dt>{{ t('stats.avgLossDuration') }}</dt>
+          <dd>{{ format.duration(bot.tradeStats?.durations?.losses ?? null) }}</dd>
+          <dt>{{ t('stats.draws') }}</dt>
+          <dd>{{ format.duration(bot.tradeStats?.durations?.draws ?? null) }}</dd>
+          <dt>{{ t('stats.firstTrade') }}</dt>
+          <dd>{{ format.dateTime(summary?.first_trade_timestamp ?? null) }}</dd>
+          <dt>{{ t('stats.lastTrade') }}</dt>
+          <dd>{{ format.dateTime(summary?.latest_trade_timestamp ?? null) }}</dd>
+        </dl>
+      </div>
+    </section>
   </div>
 </template>
 
