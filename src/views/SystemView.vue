@@ -6,7 +6,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EventTape from '@/components/EventTape.vue'
 import { useFormat } from '@/composables/useFormat'
 import { pushToast } from '@/composables/useToast'
-import { useBotStore } from '@/stores/bot'
+import { HEARTBEAT_STALE_MS, useBotStore } from '@/stores/bot'
 import { useEventsStore } from '@/stores/events'
 import { useSettingsStore } from '@/stores/settings'
 
@@ -25,7 +25,8 @@ function meterTone(value: number | null): string {
   return 'meter__fill--good'
 }
 
-const heartbeatLate = computed(() => (bot.heartbeatAgeMs ?? 0) > 5 * 60 * 1000)
+// Same threshold that triggers the alert notification.
+const heartbeatLate = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STALE_MS)
 /** Process uptime; `bot_start` is the first ever start, which operators do not want here. */
 const uptime = computed(() =>
   bot.health ? Date.now() - (format.timestamp(bot.health.bot_startup_ts) ?? Date.now()) : null,

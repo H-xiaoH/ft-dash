@@ -32,25 +32,26 @@ export function removeKey(key: string, storage: Storage | null = safeStorage()) 
   }
 }
 
-/** localStorage access throws in some sandboxed/private contexts. */
-export function safeStorage(): Storage | null {
+/**
+ * Storage access throws in some sandboxed or private contexts, so probe first and
+ * fall back to "no persistence" — the app still works, settings just don't stick.
+ */
+function probe(kind: 'local' | 'session'): Storage | null {
   try {
-    const probe = '__ftdash_probe__'
-    window.localStorage.setItem(probe, '1')
-    window.localStorage.removeItem(probe)
-    return window.localStorage
+    const store = kind === 'local' ? window.localStorage : window.sessionStorage
+    const key = '__ftdash_probe__'
+    store.setItem(key, '1')
+    store.removeItem(key)
+    return store
   } catch {
     return null
   }
 }
 
+export function safeStorage(): Storage | null {
+  return probe('local')
+}
+
 export function safeSessionStorage(): Storage | null {
-  try {
-    const probe = '__ftdash_probe__'
-    window.sessionStorage.setItem(probe, '1')
-    window.sessionStorage.removeItem(probe)
-    return window.sessionStorage
-  } catch {
-    return null
-  }
+  return probe('session')
 }

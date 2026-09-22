@@ -280,7 +280,7 @@ export default {
     wsTokenPlaceholder: 'Empty = use auto login',
     retryStream: 'Retry live stream',
     notifTitle: 'Notifications',
-    notifHint: 'Send a system notification on fills and exceptions.',
+    notifHint: 'Notify on fills, exceptions and a heartbeat silent for a minute.',
     notifPermission: 'Needs browser permission and the site running in the background.',
     dataTitle: 'On-device data',
     dataHint:
@@ -295,7 +295,7 @@ export default {
     installed: 'Installed',
     installManual:
       'This browser offers no install prompt — use its menu to install or add to home screen.',
-    installHint: 'Installed, the console runs full screen and opens offline.',
+    installHint: 'Installed, it launches full screen like a native app.',
     updateAvailable: 'New version available',
     update: 'Update now',
     offlineReady: 'Offline ready',
@@ -352,6 +352,12 @@ export default {
     volume: 'Vol',
     change: 'Chg',
     latest: 'Latest',
+  },
+  notify: {
+    heartbeatTitle: 'Bot heartbeat is late',
+    heartbeatBody: 'No processing update for {age} — the trading loop may be stuck.',
+    stoppedTitle: 'Bot stopped',
+    stoppedBody: 'A shutdown event was received — check the bot.',
   },
   duration: {
     day: 'd',

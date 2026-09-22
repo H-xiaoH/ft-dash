@@ -34,12 +34,18 @@ import type {
 } from '@/lib/types'
 import { useEventsStore } from './events'
 import { useSettingsStore } from './settings'
+import { i18n } from '@/i18n'
 
 export type ConnectionState = 'idle' | 'connecting' | 'online' | 'unauthorized' | 'unreachable'
 
 const TRADES_PAGE_SIZE = 300
 /** Poll cadence. Cheap slices run every tick, heavier ones every few ticks. */
 const POLL_INTERVAL_SECONDS = 2
+/**
+ * The bot processes every few seconds, so a minute of silence means it is stuck.
+ * Also drives the lagging banner on the system page.
+ */
+export const HEARTBEAT_STALE_MS = 60_000
 
 export const useBotStore = defineStore('bot', () => {
   const settings = useSettingsStore()
@@ -270,17 +276,72 @@ export const useBotStore = defineStore('bot', () => {
 
   /** Cheap slices refreshed on every poll tick. */
   async function pollTick() {
-    if (document.visibilityState === 'hidden') return
     // A slow round trip must not stack requests on the next tick.
     if (pollInFlight) return
     pollInFlight = true
     try {
+      if (document.visibilityState === 'hidden') {
+        /*
+         * Background tabs otherwise stop polling to save battery — but the point of
+         * the alert is catching a stuck bot while you are elsewhere, so keep one
+         * cheap request alive when notifications are enabled.
+         * ponytail: browsers throttle background timers to ~1/min, so a stale
+         * heartbeat surfaces within ~90s. Faster would need a push server, which
+         * this front-end-only app deliberately does not have.
+         */
+        if (settings.notifications) await checkHeartbeat()
+        return
+      }
       tick += 1
       await refreshCore()
+      evaluateHeartbeatAlert()
       if (tick % 4 === 0) await Promise.all([refreshTrades(), refreshMarket()])
       if (tick % 12 === 0) await Promise.all([refreshAnalytics(), refreshSystem()])
     } finally {
       pollInFlight = false
+    }
+  }
+
+  /** Health-only refresh, used as the background watchdog. */
+  async function checkHeartbeat() {
+    const api = ensureClient()
+    const result = await track(() => api.health())
+    if (result) health.value = result
+    evaluateHeartbeatAlert()
+  }
+
+  let heartbeatAlerted = false
+
+  function evaluateHeartbeatAlert() {
+    const age = heartbeatAgeMs.value
+    if (age === null) return
+    if (age > HEARTBEAT_STALE_MS) {
+      if (heartbeatAlerted) return
+      heartbeatAlerted = true
+      notify(
+        i18n.global.t('notify.heartbeatTitle'),
+        i18n.global.t('notify.heartbeatBody', { age: formatShortDuration(age) }),
+      )
+      return
+    }
+    // Back to normal: re-arm so the next outage alerts again.
+    heartbeatAlerted = false
+  }
+
+  function formatShortDuration(ms: number): string {
+    const minutes = Math.floor(ms / 60_000)
+    const seconds = Math.round((ms % 60_000) / 1000)
+    return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`
+  }
+
+  /** Single gate for every system notification. */
+  function notify(title: string, body: string, tag?: string) {
+    if (!settings.notifications) return
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    try {
+      new Notification(title, { body, tag })
+    } catch {
+      /* notification failures are not worth surfacing */
     }
   }
 
@@ -522,19 +583,17 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   function maybeNotify(message: WsMessage) {
-    if (!settings.notifications) return
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    if (message.type === 'shutdown') {
+      notify(i18n.global.t('notify.stoppedTitle'), i18n.global.t('notify.stoppedBody'), 'shutdown')
+      return
+    }
     const interesting = ['entry_fill', 'exit_fill', 'warning', 'exception', 'protection_trigger']
     if (!interesting.includes(message.type)) return
     const data = (message.data ?? {}) as Record<string, unknown>
     const pair = typeof data.pair === 'string' ? data.pair : ''
     const ratio = typeof data.profit_ratio === 'number' ? data.profit_ratio * 100 : null
     const body = [pair, ratio === null ? '' : `${ratio.toFixed(2)}%`].filter(Boolean).join(' · ')
-    try {
-      new Notification(`ft-dash · ${message.type}`, { body, tag: message.type })
-    } catch {
-      /* notification failures are not worth surfacing */
-    }
+    notify(`FT Dash · ${message.type}`, body, message.type)
   }
 
   function scheduleReconnect() {

@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useFormat } from '@/composables/useFormat'
-import { useBotStore } from '@/stores/bot'
+import { HEARTBEAT_STALE_MS, useBotStore } from '@/stores/bot'
 import { useEventsStore } from '@/stores/events'
 import AppIcon from './AppIcon.vue'
 
@@ -41,7 +41,7 @@ const heartbeat = computed(() => {
   if (age === null) return '—'
   return format.duration(Math.max(0, age))
 })
-const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > 5 * 60 * 1000)
+const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STALE_MS)
 
 const streamLabel = computed(() => {
   switch (events.status) {

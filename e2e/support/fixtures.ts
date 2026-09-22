@@ -329,10 +329,22 @@ function bodyFor(url: URL, method: string): unknown | undefined {
 /** Answers every API call from the fixtures and stubs the websocket handshake. */
 export async function mockApi(
   page: Page,
-  options: { rejectAuth?: boolean; tradeCount?: number } = {},
+  options: { rejectAuth?: boolean; tradeCount?: number; staleHeartbeat?: boolean } = {},
 ) {
   const calls: string[] = []
   const { tradeCount } = options
+  /**
+   * Health is answered relative to the moment of the request: the heartbeat alert
+   * compares against the real clock, so a frozen timestamp would look days stale.
+   */
+  const healthPayload = () => {
+    const ts = Date.now() - (options.staleHeartbeat ? 5 * 60_000 : 0)
+    return {
+      ...(RESPONSES.health as Record<string, unknown>),
+      last_process: new Date(ts).toISOString(),
+      last_process_ts: ts,
+    }
+  }
   const tradesPayload = tradeCount
     ? {
         trades: Array.from({ length: tradeCount }, (_, index) =>
@@ -363,7 +375,11 @@ export async function mockApi(
 
     // `tradeCount` lets a test page through a longer history than the default fixture.
     const body =
-      tradeCount && path.startsWith('trades') ? tradesPayload : bodyFor(url, request.method())
+      tradeCount && path.startsWith('trades')
+        ? tradesPayload
+        : path === 'health'
+          ? healthPayload()
+          : bodyFor(url, request.method())
     if (body === undefined) {
       await route.fulfill({
         status: 404,

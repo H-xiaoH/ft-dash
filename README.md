@@ -4,7 +4,7 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-A mobile-first, offline-capable web console for [Freqtrade](https://www.freqtrade.io/) bots.
+A mobile-first, installable web console for [Freqtrade](https://www.freqtrade.io/) bots.
 It is a static Vue PWA: your browser talks straight to your bot's REST API, so there is no
 backend to host and nothing to trust in the middle.
 
@@ -29,6 +29,10 @@ backend to host and nothing to trust in the middle.
   follow toggle.
 - **System** — CPU/RAM/load, heartbeat lag warning, process uptime, the effective config
   (strategy, exchange, trading mode, stake mode) and the live event tape.
+- **Alerts** — optional system notifications for fills, warnings, exceptions, a shutdown
+  event and a heartbeat that has been silent for a minute. They fire while the page or the
+  installed app is open (background tabs included); a closed app cannot be reached without a
+  push server, which this front-end-only design does not have.
 - **Live events** — a real-time tape fed by the Freqtrade websocket (entries, fills,
   cancellations, protection triggers, warnings, exceptions), shown on the System page.
 - **Bot controls** — pause/resume entries, stop, reload config, close a position, edit the
