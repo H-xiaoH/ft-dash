@@ -40,7 +40,7 @@ export type ConnectionState = 'idle' | 'connecting' | 'online' | 'unauthorized' 
 
 const TRADES_PAGE_SIZE = 300
 /** Poll cadence. Cheap slices run every tick, heavier ones every few ticks. */
-const POLL_INTERVAL_SECONDS = 2
+const POLL_INTERVAL_SECONDS = 1
 /**
  * The bot processes every few seconds, so a minute of silence means it is stuck.
  * Also drives the lagging banner on the system page.
@@ -167,10 +167,8 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   async function track<T>(task: () => Promise<T>): Promise<T | null> {
-    const started = performance.now()
     try {
       const result = await task()
-      latencyMs.value = Math.round(performance.now() - started)
       lastFetchAt.value = Date.now()
       errorKey.value = null
       if (connection.value !== 'online') connection.value = 'online'
@@ -183,7 +181,14 @@ export const useBotStore = defineStore('bot', () => {
 
   // --- data loading --------------------------------------------------------
 
+  /**
+   * Core figures, refreshed on every tick. The latency readout is published once for
+   * the whole pass: when every request published its own sample the number rattled
+   * through half a dozen values within 100 ms, because the calls run in parallel and
+   * land a few milliseconds apart.
+   */
   async function refreshCore() {
+    const started = performance.now()
     const api = ensureClient()
     const results = await Promise.all([
       track(() => api.status()),
@@ -199,6 +204,7 @@ export const useBotStore = defineStore('bot', () => {
     if (results[3]) profit.value = results[3]
     if (results[4]) health.value = results[4]
     if (results[5]) sysinfo.value = results[5]
+    latencyMs.value = Math.round(performance.now() - started)
   }
 
   async function refreshTrades() {

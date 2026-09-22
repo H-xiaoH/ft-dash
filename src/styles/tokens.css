@@ -147,6 +147,10 @@ a {
   color: var(--short);
 }
 
+.u-warn {
+  color: var(--warn);
+}
+
 .u-flat {
   color: var(--text-2);
 }

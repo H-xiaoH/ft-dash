@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test'
-import { connect, mockApi } from './support/fixtures'
+import { expect, test, type Page } from '@playwright/test'
+import { RESPONSES, connect, mockApi } from './support/fixtures'
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
@@ -58,4 +58,44 @@ test('column headers sort in both directions', async ({ page }) => {
 
   await total.click()
   await expect(table.locator('tbody tr').first()).toContainText('AAA/USDT')
+})
+
+/** Scopes a colour assertion to the tile carrying a given label. */
+const tile = (page: Page, label: string) =>
+  page.locator('.metric').filter({ has: page.locator('.metric__label', { hasText: label }) })
+
+test('win/loss counts and risk ratios are colour-coded', async ({ page }) => {
+  await expect(tile(page, '盈利 / 亏损').locator('.u-pos')).toHaveText('3')
+  await expect(tile(page, '盈利 / 亏损').locator('.u-neg')).toHaveText('1')
+  // 3 wins out of 4 decided trades, Sharpe 1.5 and Sortino 2.2: all above their lines.
+  await expect(tile(page, '胜率').locator('.metric__value')).toHaveClass(/u-pos/)
+  await expect(tile(page, '夏普').locator('.metric__value')).toHaveClass(/u-pos/)
+  await expect(tile(page, '索提诺').locator('.metric__value')).toHaveClass(/u-pos/)
+  // The per-pair row follows the same rule: AAA is one win and one loss.
+  const table = page
+    .locator('.panel', { has: page.locator('.panel__title', { hasText: '交易对' }) })
+    .first()
+  const winCell = table.locator('tbody tr').first().locator('td').nth(2)
+  // Exactly 50% still counts as an edge.
+  await expect(winCell).toHaveClass(/u-pos/)
+  await expect(winCell.locator('span.u-pos')).toHaveText('1')
+  await expect(winCell.locator('span.u-neg')).toHaveText('1')
+})
+
+test('a losing edge turns the win rate red and a weak ratio amber', async ({ page }) => {
+  await page.route('**/api/v1/profit', (route) =>
+    route.fulfill({
+      json: {
+        ...(RESPONSES.profit as Record<string, unknown>),
+        winning_trades: 1,
+        losing_trades: 3,
+        sharpe: 0.4,
+        sortino: -0.2,
+      },
+    }),
+  )
+
+  await expect(tile(page, '胜率').locator('.metric__value')).toHaveClass(/u-neg/)
+  await expect(tile(page, '夏普').locator('.metric__value')).toHaveClass(/u-warn/)
+  await expect(tile(page, '索提诺').locator('.metric__value')).toHaveClass(/u-neg/)
 })

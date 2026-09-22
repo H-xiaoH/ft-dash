@@ -41,7 +41,7 @@ backend to host and nothing to trust in the middle.
 
 Interface languages: **简体中文** and **English** (follows the browser by default).
 
-Data refreshes on a fixed 2-second cadence while the tab is visible (balance, positions,
+Data refreshes on a fixed 1-second cadence while the tab is visible (balance, positions,
 P&L, CPU/RAM), with heavier slices spread over longer intervals — trades and pair lists every
 8 seconds, analytics, logs and config every 24 seconds. Polling stops entirely when the tab is
 hidden, and overlapping rounds are skipped rather than queued.

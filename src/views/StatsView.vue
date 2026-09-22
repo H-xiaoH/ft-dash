@@ -7,6 +7,7 @@ import SortHeader from '@/components/SortHeader.vue'
 import type { BarItem } from '@/components/charts'
 import { useFormat } from '@/composables/useFormat'
 import { useChartHeight } from '@/composables/useChartHeight'
+import { toNumber, type Numberish } from '@/lib/format'
 import { buildPairStats, type PairStats } from '@/lib/stats'
 import { useBotStore } from '@/stores/bot'
 
@@ -91,6 +92,27 @@ const periodBars = computed<BarItem[]>(() =>
 const summary = computed(() => bot.profit)
 const openCount = computed(() => bot.count?.current ?? bot.openTrades.length)
 const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades ?? 0)
+
+/**
+ * Win rate is read against the coin-flip line: at or above 50% the strategy wins more
+ * often than it loses, below it the edge is negative.
+ */
+function winRateTone(value: Numberish) {
+  const rate = toNumber(value)
+  if (rate === null) return ''
+  return rate >= 50 ? 'u-pos' : 'u-neg'
+}
+
+/**
+ * Sharpe and Sortino share the usual reading: below 1 the return does not pay for the
+ * risk taken, 1–2 is acceptable, 2 and up is strong. A negative ratio is outright bad.
+ */
+function riskRatioTone(value: Numberish) {
+  const ratio = toNumber(value)
+  if (ratio === null) return ''
+  if (ratio < 0) return 'u-neg'
+  return ratio < 1 ? 'u-warn' : 'u-pos'
+}
 </script>
 
 <template>
@@ -125,13 +147,17 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
       <div class="metric">
         <span class="metric__label">{{ t('stats.wins') }} / {{ t('stats.losses') }}</span>
         <span class="metric__value">
-          {{ summary?.winning_trades ?? 0 }} / {{ summary?.losing_trades ?? 0 }}
+          <span class="u-pos">{{ summary?.winning_trades ?? 0 }}</span>
+          <span class="muted">/</span>
+          <span class="u-neg">{{ summary?.losing_trades ?? 0 }}</span>
         </span>
         <span class="metric__sub">{{ t('kpi.trades') }} {{ summary?.trade_count ?? 0 }}</span>
       </div>
       <div class="metric">
         <span class="metric__label">{{ t('kpi.winRate') }}</span>
-        <span class="metric__value">{{ format.percent(bot.winRate) }}</span>
+        <span class="metric__value" :class="winRateTone(bot.winRate)">
+          {{ format.percent(bot.winRate) }}
+        </span>
         <span class="metric__sub">
           {{ t('kpi.expectancy') }} {{ format.number(summary?.expectancy ?? null, 3) }}
         </span>
@@ -142,14 +168,18 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
       </div>
       <div class="metric">
         <span class="metric__label">{{ t('kpi.sharpe') }}</span>
-        <span class="metric__value">{{ format.number(summary?.sharpe ?? null) }}</span>
+        <span class="metric__value" :class="riskRatioTone(summary?.sharpe)">
+          {{ format.number(summary?.sharpe ?? null) }}
+        </span>
         <span class="metric__sub">
           {{ t('kpi.sqn') }} {{ format.number(summary?.sqn ?? null) }}
         </span>
       </div>
       <div class="metric">
         <span class="metric__label">{{ t('kpi.sortino') }}</span>
-        <span class="metric__value">{{ format.number(summary?.sortino ?? null) }}</span>
+        <span class="metric__value" :class="riskRatioTone(summary?.sortino)">
+          {{ format.number(summary?.sortino ?? null) }}
+        </span>
         <span class="metric__sub">
           {{ t('kpi.calmar') }} {{ format.number(summary?.calmar ?? null) }}
         </span>
@@ -267,9 +297,12 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
               <tr v-for="row in rows" :key="row.pair">
                 <td>{{ row.pair }}</td>
                 <td>{{ row.count }}</td>
-                <td class="num">
+                <td class="num" :class="winRateTone(row.winRate)">
                   {{ format.percent(row.winRate) }}
-                  <div class="small muted">{{ row.wins }} / {{ row.losses }}</div>
+                  <div class="small muted">
+                    <span class="u-pos">{{ row.wins }}</span> /
+                    <span class="u-neg">{{ row.losses }}</span>
+                  </div>
                 </td>
                 <td class="num" :class="format.toneClass(row.profitAbs)">
                   {{ format.signedMoney(row.profitAbs, stake) }}
