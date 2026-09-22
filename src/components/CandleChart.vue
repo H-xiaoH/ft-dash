@@ -198,7 +198,8 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div ref="host" class="candles">
+  <!-- `data-scrub` tells the shell this region owns sideways drags. -->
+  <div ref="host" class="candles" data-scrub>
     <svg
       :viewBox="`0 0 ${width} ${height}`"
       :style="{ height: `${height}px` }"

@@ -135,10 +135,6 @@ async function confirmExit() {
       <section class="panel">
         <div class="panel__head">
           <span class="panel__title">{{ t('dashboard.dailyPnl') }}</span>
-          <span class="panel__meta num">
-            {{ format.money(bot.balance?.starting_capital ?? null, stake) }} →
-            {{ format.money(bot.balance?.total ?? null, stake) }}
-          </span>
           <div class="panel__actions">
             <button type="button" class="link-btn small" @click="router.push('/stats')">
               {{ t('dashboard.viewAll') }}

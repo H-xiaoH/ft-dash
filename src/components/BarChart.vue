@@ -176,7 +176,8 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="chart" :style="{ '--chart-height': `${height}px` }">
+  <!-- `data-scrub` tells the shell this region owns sideways drags. -->
+  <div class="chart" data-scrub :style="{ '--chart-height': `${height}px` }">
     <div
       class="chart__plot"
       tabindex="0"

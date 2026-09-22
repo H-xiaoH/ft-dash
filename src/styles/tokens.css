@@ -87,6 +87,8 @@ body {
 html {
   background: var(--ink-900);
   -webkit-text-size-adjust: 100%;
+  /* Mobile browsers flash a translucent blue plate over whatever you tap. */
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {

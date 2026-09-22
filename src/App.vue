@@ -61,13 +61,82 @@ function openTape() {
   if (route.name !== 'system') void router.push('/system')
 }
 
+/** Steps one page along the rail, clamped at both ends. */
+function stepPage(delta: number) {
+  const next = NAV_ROUTES[navIndex.value + delta]
+  if (next) void router.push(next.path)
+}
+
+/**
+ * Does anything under the pointer still have room to scroll that way? Used so a wheel
+ * gesture scrolls while content is left, and only switches pages at the ends.
+ */
+function canScrollFurther(target: EventTarget | null, delta: number) {
+  for (let node = target instanceof Element ? target : null; node; node = node.parentElement) {
+    const style = getComputedStyle(node)
+    if (style.overflowY !== 'auto' && style.overflowY !== 'scroll') continue
+    if (node.scrollHeight - node.clientHeight < 2) continue
+    if (delta > 0 ? node.scrollTop + node.clientHeight < node.scrollHeight - 1 : node.scrollTop > 0)
+      return true
+  }
+  const doc = document.documentElement
+  return delta > 0 ? window.scrollY + window.innerHeight < doc.scrollHeight - 1 : window.scrollY > 0
+}
+
+/** A gesture that belongs to a dialog, or to a component that owns horizontal drags. */
+function gestureIsTaken(target: EventTarget | null) {
+  if (showConnect.value || document.querySelector('[role="dialog"]')) return true
+  return target instanceof Element && target.closest('[data-scrub]') !== null
+}
+
+// The wheel locks briefly after a switch so the inertia of one flick is a single step.
+let wheelLockedUntil = 0
+
+function onWheel(event: WheelEvent) {
+  if (event.ctrlKey || Math.abs(event.deltaY) < 4) return
+  // Horizontal pans are not a request to change page.
+  if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return
+  if (Date.now() < wheelLockedUntil || gestureIsTaken(event.target)) return
+  if (canScrollFurther(event.target, event.deltaY)) return
+  wheelLockedUntil = Date.now() + 600
+  stepPage(event.deltaY > 0 ? 1 : -1)
+}
+
+const SWIPE_MIN_PX = 60
+let swipeStart: { x: number; y: number } | null = null
+
+function onTouchStart(event: TouchEvent) {
+  swipeStart = null
+  if (event.touches.length !== 1 || gestureIsTaken(event.target)) return
+  const touch = event.touches[0]
+  swipeStart = { x: touch.clientX, y: touch.clientY }
+}
+
+function onTouchEnd(event: TouchEvent) {
+  const start = swipeStart
+  swipeStart = null
+  if (!start) return
+  const touch = event.changedTouches[0]
+  const dx = touch.clientX - start.x
+  const dy = touch.clientY - start.y
+  // A deliberate sideways flick, not a vertical scroll that drifted.
+  if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * 2) return
+  stepPage(dx < 0 ? 1 : -1)
+}
+
 onMounted(async () => {
   locale.value = settings.locale
   document.documentElement.lang = settings.locale
+  window.addEventListener('wheel', onWheel, { passive: true })
+  window.addEventListener('touchstart', onTouchStart, { passive: true })
+  window.addEventListener('touchend', onTouchEnd, { passive: true })
   await bot.autoConnect()
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('wheel', onWheel)
+  window.removeEventListener('touchstart', onTouchStart)
+  window.removeEventListener('touchend', onTouchEnd)
   bot.cleanup()
 })
 
@@ -260,8 +329,8 @@ watch(
   pointer-events: none;
 }
 
+/* No hover plate: it painted over the sliding indicator. The label just brightens. */
 .rail__item:hover {
-  background: var(--ink-800);
   color: var(--text);
 }
 
@@ -310,27 +379,29 @@ watch(
 }
 
 /*
- * Page transition: phones slide sideways in the direction you navigated, wide screens
- * cross-fade. One transition name, the direction comes from a CSS variable.
+ * Page transition: phones slide sideways in the direction you navigated. Only the slide
+ * is animated — the cross-fade that used to ride along read as a flash.
  */
 .page-enter-active,
 .page-leave-active {
-  transition:
-    opacity 160ms ease,
-    transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition: transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .page-enter-from {
-  opacity: 0;
   transform: translateX(var(--page-enter, 0));
 }
 
 .page-leave-to {
-  opacity: 0;
   transform: translateX(var(--page-leave, 0));
 }
 
 @media (min-width: 901px) {
+  /* Wide screens have no slide, so the page swaps straight away. */
+  .page-enter-active,
+  .page-leave-active {
+    transition: none;
+  }
+
   .page-enter-from,
   .page-leave-to {
     transform: none;
