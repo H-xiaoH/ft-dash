@@ -56,17 +56,6 @@ const bars = computed<BarItem[]>(() =>
   })),
 )
 
-const performanceSorted = computed(() =>
-  [...bot.performance].sort((a, b) => b.profit_abs - a.profit_abs),
-)
-const topPairs = computed(() => performanceSorted.value.slice(0, 5))
-const worstPairs = computed(() =>
-  performanceSorted.value
-    .filter((entry) => entry.profit_abs < 0)
-    .slice(-5)
-    .reverse(),
-)
-
 function durationOf(trade: Trade): number | null {
   const open = format.timestamp(trade.open_timestamp)
   const close = format.timestamp(trade.close_timestamp) ?? Date.now()
@@ -254,7 +243,6 @@ async function confirmExit() {
                     <th class="u-hide-sm side-col">{{ t('trades.side') }}</th>
                     <th class="num">{{ t('trades.profit') }}</th>
                     <th class="num u-hide-sm">{{ t('trades.exitPrice') }}</th>
-                    <th class="u-hide-sm">{{ t('trades.exitReason') }}</th>
                     <th class="num">{{ t('trades.duration') }}</th>
                   </tr>
                 </thead>
@@ -276,7 +264,6 @@ async function confirmExit() {
                       <div class="small muted">{{ format.ratio(trade.profit_ratio) }}</div>
                     </td>
                     <td class="num u-hide-sm">{{ format.price(trade.close_rate ?? null) }}</td>
-                    <td class="table__muted u-hide-sm">{{ trade.exit_reason ?? '—' }}</td>
                     <td class="num">{{ format.duration(durationOf(trade)) }}</td>
                   </tr>
                 </tbody>
@@ -287,38 +274,6 @@ async function confirmExit() {
       </div>
 
       <aside class="dash__aside stack">
-        <section class="panel">
-          <div class="panel__head">
-            <span class="panel__title">{{ t('dashboard.topPairs') }}</span>
-          </div>
-          <div class="panel__body stack--tight">
-            <div v-if="!topPairs.length" class="empty">{{ t('stats.noData') }}</div>
-            <div v-for="pair in topPairs" :key="pair.pair" class="pairs__row">
-              <span class="num pairs__name">{{ pair.pair }}</span>
-              <span class="num" :class="format.toneClass(pair.profit_abs)">
-                {{ format.signedMoney(pair.profit_abs, stake) }}
-              </span>
-              <span class="num small muted">{{ format.ratio(pair.profit_ratio) }}</span>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel__head">
-            <span class="panel__title">{{ t('dashboard.worstPairs') }}</span>
-          </div>
-          <div class="panel__body stack--tight">
-            <div v-if="!worstPairs.length" class="empty">{{ t('dashboard.noLosers') }}</div>
-            <div v-for="pair in worstPairs" :key="pair.pair" class="pairs__row">
-              <span class="num pairs__name">{{ pair.pair }}</span>
-              <span class="num" :class="format.toneClass(pair.profit_abs)">
-                {{ format.signedMoney(pair.profit_abs, stake) }}
-              </span>
-              <span class="num small muted">{{ format.ratio(pair.profit_ratio) }}</span>
-            </div>
-          </div>
-        </section>
-
         <section class="panel">
           <div class="panel__head">
             <span class="panel__title">{{ t('system.health') }}</span>
@@ -385,19 +340,6 @@ async function confirmExit() {
 .dash__main,
 .dash__aside {
   min-width: 0;
-}
-
-.pairs__row {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: var(--sp-3);
-  align-items: baseline;
-  padding: 4px 0;
-}
-
-.pairs__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 @media (max-width: 1080px) {

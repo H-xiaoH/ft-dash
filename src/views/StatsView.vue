@@ -15,7 +15,6 @@ type SortKey =
   | 'count'
   | 'winRate'
   | 'profitAbs'
-  | 'profitRatio'
   | 'avgDuration'
   | 'fees'
   | 'volume'
@@ -107,8 +106,6 @@ const rows = computed<Row[]>(() => {
         return (a.count - b.count) * direction
       case 'winRate':
         return ((a.winRate ?? -1) - (b.winRate ?? -1)) * direction
-      case 'profitRatio':
-        return (a.profitRatio - b.profitRatio) * direction
       case 'avgDuration':
         return ((a.avgDuration ?? 0) - (b.avgDuration ?? 0)) * direction
       case 'fees':
@@ -131,10 +128,6 @@ function toggleSort(key: SortKey) {
   sortKey.value = key
   sortDir.value = key === 'name' ? 'asc' : 'desc'
 }
-
-const maxAbsProfitRatio = computed(() =>
-  Math.max(0.0001, ...rows.value.map((row) => Math.abs(row.profitRatio))),
-)
 
 const periodData = computed(() => {
   const source = period.value === 'daily' ? bot.daily : period.value === 'weekly' ? bot.weekly : bot.monthly
@@ -317,14 +310,6 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
                 </th>
                 <th class="num">
                   <SortHeader
-                    :label="t('stats.avgProfit')"
-                    :active="sortKey === 'profitRatio'"
-                    :dir="sortDir"
-                    @toggle="toggleSort('profitRatio')"
-                  />
-                </th>
-                <th class="num">
-                  <SortHeader
                     :label="t('kpi.avgDuration')"
                     :active="sortKey === 'avgDuration'"
                     :dir="sortDir"
@@ -367,16 +352,6 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
                 </td>
                 <td class="num" :class="format.toneClass(row.profitAbs)">
                   {{ format.signedMoney(row.profitAbs, stake) }}
-                </td>
-                <td class="num stats__ratio" :class="format.toneClass(row.profitAbs)">
-                  <span>{{ format.ratio(row.count ? row.profitRatio : null) }}</span>
-                  <div class="meter">
-                    <div
-                      class="meter__fill"
-                      :class="row.profitAbs >= 0 ? 'meter__fill--good' : 'meter__fill--bad'"
-                      :style="{ width: `${(Math.abs(row.profitRatio) / maxAbsProfitRatio) * 100}%` }"
-                    />
-                  </div>
                 </td>
                 <td class="num">{{ format.duration(row.avgDuration) }}</td>
                 <td class="num">{{ format.money(row.fees, stake, 4) }}</td>
@@ -497,12 +472,4 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
 </template>
 
 <style scoped>
-.stats__ratio {
-  min-width: 120px;
-}
-
-.stats__ratio .meter {
-  margin-top: 3px;
-}
-
 </style>

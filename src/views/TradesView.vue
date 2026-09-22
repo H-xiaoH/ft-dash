@@ -300,7 +300,6 @@ onMounted(() => {
                     />
                   </button>
                 </th>
-                <th>{{ t('trades.exitReason') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -330,7 +329,6 @@ onMounted(() => {
                 </td>
                 <td class="num">{{ format.duration(durationOf(trade)) }}</td>
                 <td class="num">{{ format.dateTime(trade.open_timestamp) }}</td>
-                <td class="table__muted">{{ trade.exit_reason ?? '—' }}</td>
               </tr>
             </tbody>
           </table>
@@ -364,9 +362,6 @@ onMounted(() => {
             </span>
             <span class="spacer" />
             <span class="num">{{ format.duration(durationOf(trade)) }}</span>
-          </div>
-          <div v-if="!trade.is_open && trade.exit_reason" class="card__row small muted">
-            <span class="card__reason">{{ trade.exit_reason }}</span>
           </div>
         </li>
       </ul>
@@ -464,9 +459,6 @@ onMounted(() => {
   margin-left: 4px;
 }
 
-.card__reason {
-  overflow-wrap: anywhere;
-}
 
 @media (max-width: 900px) {
   .panel__head {
