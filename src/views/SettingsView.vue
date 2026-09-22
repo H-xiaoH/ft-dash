@@ -243,172 +243,193 @@ async function install() {
       </div>
     </section>
 
-    <section class="panel">
-      <div class="panel__head">
-        <span class="panel__title">{{ t('settings.language') }}</span>
-      </div>
-      <div class="panel__body">
-        <div class="field">
-          <div class="seg">
-            <button
-              v-for="code in SUPPORTED_LOCALES"
-              :key="code"
-              type="button"
-              class="seg__item"
-              :aria-pressed="settings.locale === code"
-              @click="settings.locale = code"
-            >
-              {{ LOCALE_LABELS[code] }}
-            </button>
+    <div class="settings__columns">
+      <div class="settings__col">
+        <section class="panel">
+          <div class="panel__head">
+            <span class="panel__title">{{ t('settings.language') }}</span>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="panel">
-      <div class="panel__head">
-        <span class="panel__title">{{ t('settings.push') }}</span>
-      </div>
-      <div class="panel__body stack">
-        <label class="switch">
-          <input v-model="settings.websocket" type="checkbox" />
-          <span class="switch__track" />
-          <span class="switch__text">
-            <span class="switch__title">{{ t('settings.websocket') }}</span>
-            <span class="switch__hint">{{ t('settings.websocketHint') }}</span>
-          </span>
-        </label>
-
-        <div class="stream-auth" :class="{ 'stream-auth--disabled': !settings.websocket }">
-          <div class="row row--wrap">
-            <span class="chip" :class="streamAuthTone">{{ streamAuthLabel }}</span>
-            <button
-              v-if="settings.websocket"
-              type="button"
-              class="btn btn--sm"
-              @click="bot.retryStream()"
-            >
-              <AppIcon name="refresh" />
-              {{ t('settings.retryStream') }}
-            </button>
-          </div>
-          <p class="small muted">{{ t('settings.streamAuthHint') }}</p>
-          <p v-if="bot.streamReasonKey" class="banner banner--warn small">
-            {{ t(bot.streamReasonKey) }}
-          </p>
-          <div class="settings__grid">
+          <div class="panel__body">
             <div class="field">
-              <span class="field__label">{{ t('settings.streamAuth') }}</span>
               <div class="seg">
                 <button
-                  v-for="choice in STREAM_AUTH_CHOICES"
-                  :key="choice.value"
+                  v-for="code in SUPPORTED_LOCALES"
+                  :key="code"
                   type="button"
                   class="seg__item"
-                  :aria-pressed="settings.streamAuth === choice.value"
-                  @click="settings.streamAuth = choice.value"
+                  :aria-pressed="settings.locale === code"
+                  @click="settings.locale = code"
                 >
-                  {{ t(choice.label) }}
+                  {{ LOCALE_LABELS[code] }}
                 </button>
               </div>
             </div>
-            <label v-if="settings.streamAuth === 'ws_token'" class="field">
-              <span class="field__label">{{ t('settings.wsToken') }}</span>
-              <input
-                v-model="settings.wsToken"
-                class="input num"
-                type="password"
-                autocomplete="off"
-                spellcheck="false"
-                :placeholder="t('settings.wsTokenPlaceholder')"
-              />
-              <span class="field__hint">{{ t('settings.wsTokenHint') }}</span>
-            </label>
           </div>
-        </div>
+        </section>
 
-        <div class="row row--wrap">
-          <label class="switch">
-            <input
-              v-model="settings.notifications"
-              type="checkbox"
-              :disabled="notifState !== 'granted'"
-            />
-            <span class="switch__track" />
-            <span class="switch__text">
-              <span class="switch__title">{{ t('settings.notifTitle') }}</span>
-              <span class="switch__hint">{{ t('settings.notifHint') }}</span>
-            </span>
-          </label>
-          <button
-            v-if="notifState !== 'granted'"
-            type="button"
-            class="btn btn--sm"
-            :disabled="notifState === 'unsupported'"
-            @click="enableNotifications"
-          >
-            <AppIcon name="bell" />
-            {{ t('settings.notifTitle') }}
-          </button>
-        </div>
-        <p v-if="notifState === 'unsupported'" class="small muted">
-          {{ t('settings.notifPermission') }}
-        </p>
-      </div>
-    </section>
+        <section class="panel">
+          <div class="panel__head">
+            <span class="panel__title">{{ t('settings.push') }}</span>
+          </div>
+          <div class="panel__body stack">
+            <label class="switch">
+              <input v-model="settings.websocket" type="checkbox" />
+              <span class="switch__track" />
+              <span class="switch__text">
+                <span class="switch__title">{{ t('settings.websocket') }}</span>
+                <span class="switch__hint">{{ t('settings.websocketHint') }}</span>
+              </span>
+            </label>
 
-    <section class="panel settings__danger">
-      <div class="panel__head">
-        <span class="panel__title">{{ t('actions.title') }}</span>
-        <div class="panel__actions">
-          <span class="chip" :class="settings.writesEnabled ? 'chip--warn' : ''">
-            {{ settings.writesEnabled ? t('common.enabled') : t('common.disabled') }}
-          </span>
-        </div>
-      </div>
-      <div class="panel__body stack">
-        <p class="small">{{ t('actions.controlsDisabledHint') }}</p>
-        <ul class="settings__list">
-          <li>{{ t('actions.pauseHint') }}</li>
-          <li>{{ t('actions.stopHint') }}</li>
-          <li>{{ t('actions.forceExitHint') }}</li>
-          <li>{{ t('actions.blacklistAddHint') }}</li>
-        </ul>
-        <div class="row row--wrap">
-          <button type="button" class="btn btn--danger" @click="enableControls">
-            <AppIcon name="alert" />
-            {{ t('actions.enableControls') }}
-          </button>
-          <button v-if="settings.writesEnabled" type="button" class="btn" @click="disableControls">
-            {{ t('actions.disableControls') }}
-          </button>
-        </div>
-      </div>
-    </section>
+            <div class="stream-auth" :class="{ 'stream-auth--disabled': !settings.websocket }">
+              <div class="row row--wrap">
+                <span class="chip" :class="streamAuthTone">{{ streamAuthLabel }}</span>
+                <button
+                  v-if="settings.websocket"
+                  type="button"
+                  class="btn btn--sm"
+                  @click="bot.retryStream()"
+                >
+                  <AppIcon name="refresh" />
+                  {{ t('settings.retryStream') }}
+                </button>
+              </div>
+              <p class="small muted">{{ t('settings.streamAuthHint') }}</p>
+              <p v-if="bot.streamReasonKey" class="banner banner--warn small">
+                {{ t(bot.streamReasonKey) }}
+              </p>
+              <div class="settings__grid">
+                <div class="field">
+                  <span class="field__label">{{ t('settings.streamAuth') }}</span>
+                  <div class="seg">
+                    <button
+                      v-for="choice in STREAM_AUTH_CHOICES"
+                      :key="choice.value"
+                      type="button"
+                      class="seg__item"
+                      :aria-pressed="settings.streamAuth === choice.value"
+                      @click="settings.streamAuth = choice.value"
+                    >
+                      {{ t(choice.label) }}
+                    </button>
+                  </div>
+                </div>
+                <label v-if="settings.streamAuth === 'ws_token'" class="field">
+                  <span class="field__label">{{ t('settings.wsToken') }}</span>
+                  <input
+                    v-model="settings.wsToken"
+                    class="input num"
+                    type="password"
+                    autocomplete="off"
+                    spellcheck="false"
+                    :placeholder="t('settings.wsTokenPlaceholder')"
+                  />
+                  <span class="field__hint">{{ t('settings.wsTokenHint') }}</span>
+                </label>
+              </div>
+            </div>
 
-    <section class="panel">
-      <div class="panel__head">
-        <span class="panel__title">{{ t('settings.pwaTitle') }}</span>
-        <div class="panel__actions">
-          <span v-if="offlineReady" class="chip chip--good">{{ t('settings.offlineReady') }}</span>
-          <span v-if="needRefresh" class="chip chip--warn">{{
-            t('settings.updateAvailable')
-          }}</span>
-        </div>
+            <div class="row row--wrap">
+              <label class="switch">
+                <input
+                  v-model="settings.notifications"
+                  type="checkbox"
+                  :disabled="notifState !== 'granted'"
+                />
+                <span class="switch__track" />
+                <span class="switch__text">
+                  <span class="switch__title">{{ t('settings.notifTitle') }}</span>
+                  <span class="switch__hint">{{ t('settings.notifHint') }}</span>
+                </span>
+              </label>
+              <button
+                v-if="notifState !== 'granted'"
+                type="button"
+                class="btn btn--sm"
+                :disabled="notifState === 'unsupported'"
+                @click="enableNotifications"
+              >
+                <AppIcon name="bell" />
+                {{ t('settings.notifTitle') }}
+              </button>
+            </div>
+            <p v-if="notifState === 'unsupported'" class="small muted">
+              {{ t('settings.notifPermission') }}
+            </p>
+          </div>
+        </section>
       </div>
-      <div class="panel__body row row--wrap">
-        <button v-if="canInstall" type="button" class="btn btn--primary" @click="install">
-          <AppIcon name="install" />
-          {{ t('settings.install') }}
-        </button>
-        <span v-else-if="isStandalone" class="chip chip--good">{{ t('settings.installed') }}</span>
-        <p v-else class="small muted">{{ t('settings.installManual') }}</p>
-        <button v-if="needRefresh" type="button" class="btn btn--primary" @click="applyUpdate">
-          {{ t('settings.update') }}
-        </button>
-        <p class="small muted settings__hint">{{ t('settings.installHint') }}</p>
+
+      <div class="settings__col">
+        <section class="panel settings__danger">
+          <div class="panel__head">
+            <span class="panel__title">{{ t('actions.title') }}</span>
+            <div class="panel__actions">
+              <span class="chip" :class="settings.writesEnabled ? 'chip--warn' : ''">
+                {{ settings.writesEnabled ? t('common.enabled') : t('common.disabled') }}
+              </span>
+            </div>
+          </div>
+          <div class="panel__body stack">
+            <p class="small">{{ t('actions.controlsDisabledHint') }}</p>
+            <ul class="settings__list">
+              <li>{{ t('actions.pauseHint') }}</li>
+              <li>{{ t('actions.stopHint') }}</li>
+              <li>{{ t('actions.forceExitHint') }}</li>
+              <li>{{ t('actions.blacklistAddHint') }}</li>
+            </ul>
+            <div class="row row--wrap">
+              <!-- Once writes are on, the acknowledgement button has nothing left to do. -->
+              <button
+                v-if="!settings.writesEnabled"
+                type="button"
+                class="btn btn--danger"
+                @click="enableControls"
+              >
+                <AppIcon name="alert" />
+                {{ t('actions.enableControls') }}
+              </button>
+              <button
+                v-if="settings.writesEnabled"
+                type="button"
+                class="btn"
+                @click="disableControls"
+              >
+                {{ t('actions.disableControls') }}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__head">
+            <span class="panel__title">{{ t('settings.pwaTitle') }}</span>
+            <div class="panel__actions">
+              <span v-if="offlineReady" class="chip chip--good">{{
+                t('settings.offlineReady')
+              }}</span>
+              <span v-if="needRefresh" class="chip chip--warn">{{
+                t('settings.updateAvailable')
+              }}</span>
+            </div>
+          </div>
+          <div class="panel__body row row--wrap">
+            <button v-if="canInstall" type="button" class="btn btn--primary" @click="install">
+              <AppIcon name="install" />
+              {{ t('settings.install') }}
+            </button>
+            <span v-else-if="isStandalone" class="chip chip--good">{{
+              t('settings.installed')
+            }}</span>
+            <p v-else class="small muted">{{ t('settings.installManual') }}</p>
+            <button v-if="needRefresh" type="button" class="btn btn--primary" @click="applyUpdate">
+              {{ t('settings.update') }}
+            </button>
+            <p class="small muted settings__hint">{{ t('settings.installHint') }}</p>
+          </div>
+        </section>
       </div>
-    </section>
+    </div>
 
     <section class="panel">
       <div class="panel__head">
@@ -449,29 +470,35 @@ async function install() {
 .settings {
   /*
    * Column flow rather than a grid: a grid row is as tall as its tallest card, which
-   * left a hole under the short language card. Columns pack the cards by height.
-   * `display` is reset because the `.stack` helper makes the root a flex column, and
-   * multi-column layout is ignored on flex containers.
+   * left a hole under the short language card. `display` is restated because the
+   * `.stack` helper already made the root a flex column.
    */
-  display: block;
-  columns: 2;
-  column-gap: var(--sp-4);
+  display: flex;
+  flex-direction: column;
 }
 
-.settings > .panel {
-  break-inside: avoid;
-  margin-bottom: var(--sp-4);
+/*
+ * Two explicit stacks instead of CSS columns or a grid: the cards keep their order, both
+ * columns start at the same line, and every gap is the same — balancing a multi-column box
+ * moved the right-hand stack down and closed the gap before the full-width card.
+ */
+.settings__columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+  align-items: start;
 }
 
-/* The connection form and the local-data card stay full width; only the middle flows. */
-.settings > .panel:first-child,
-.settings > .panel:last-child {
-  column-span: all;
+.settings__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
 }
 
 @media (max-width: 1100px) {
-  .settings {
-    columns: 1;
+  .settings__columns {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

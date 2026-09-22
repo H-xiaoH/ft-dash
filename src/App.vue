@@ -67,39 +67,10 @@ function stepPage(delta: number) {
   if (next) void router.push(next.path)
 }
 
-/**
- * Does anything under the pointer still have room to scroll that way? Used so a wheel
- * gesture scrolls while content is left, and only switches pages at the ends.
- */
-function canScrollFurther(target: EventTarget | null, delta: number) {
-  for (let node = target instanceof Element ? target : null; node; node = node.parentElement) {
-    const style = getComputedStyle(node)
-    if (style.overflowY !== 'auto' && style.overflowY !== 'scroll') continue
-    if (node.scrollHeight - node.clientHeight < 2) continue
-    if (delta > 0 ? node.scrollTop + node.clientHeight < node.scrollHeight - 1 : node.scrollTop > 0)
-      return true
-  }
-  const doc = document.documentElement
-  return delta > 0 ? window.scrollY + window.innerHeight < doc.scrollHeight - 1 : window.scrollY > 0
-}
-
 /** A gesture that belongs to a dialog, or to a component that owns horizontal drags. */
 function gestureIsTaken(target: EventTarget | null) {
   if (showConnect.value || document.querySelector('[role="dialog"]')) return true
   return target instanceof Element && target.closest('[data-scrub]') !== null
-}
-
-// The wheel locks briefly after a switch so the inertia of one flick is a single step.
-let wheelLockedUntil = 0
-
-function onWheel(event: WheelEvent) {
-  if (event.ctrlKey || Math.abs(event.deltaY) < 4) return
-  // Horizontal pans are not a request to change page.
-  if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return
-  if (Date.now() < wheelLockedUntil || gestureIsTaken(event.target)) return
-  if (canScrollFurther(event.target, event.deltaY)) return
-  wheelLockedUntil = Date.now() + 600
-  stepPage(event.deltaY > 0 ? 1 : -1)
 }
 
 const SWIPE_MIN_PX = 60
@@ -127,14 +98,12 @@ function onTouchEnd(event: TouchEvent) {
 onMounted(async () => {
   locale.value = settings.locale
   document.documentElement.lang = settings.locale
-  window.addEventListener('wheel', onWheel, { passive: true })
   window.addEventListener('touchstart', onTouchStart, { passive: true })
   window.addEventListener('touchend', onTouchEnd, { passive: true })
   await bot.autoConnect()
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('wheel', onWheel)
   window.removeEventListener('touchstart', onTouchStart)
   window.removeEventListener('touchend', onTouchEnd)
   bot.cleanup()

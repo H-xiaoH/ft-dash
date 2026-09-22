@@ -10,38 +10,28 @@ test.beforeEach(async ({ page }) => {
 
 const hash = (page: Page) => new URL(page.url()).hash
 
-test('the wheel steps pages at the ends of the scroll and scrolls in between', async ({ page }) => {
-  /*
-   * A short viewport makes the page scrollable, and navigating in-app (rather than
-   * reloading) leaves the lazy chunks settled — a mid-test chunk swap resizes the
-   * document and clamps the scroll, which looks like the wheel failing.
-   */
+test('the wheel scrolls the page and never switches pages', async ({ page }) => {
+  // The wheel is the page's, not the router's: it must never switch pages, whether the
+  // page still has room to scroll or is already pinned to an end.
   await page.setViewportSize({ width: 1200, height: 320 })
   await page.locator('.rail__item').nth(5).click()
   await expect(page.locator('.panel__title').first()).toBeVisible()
-  await expect
-    .poll(() => page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight))
-    .toBeGreaterThan(200)
   await page.mouse.move(600, 300)
 
-  // Mid-page: the wheel belongs to the page.
   await page.evaluate(() => window.scrollTo(0, 150))
   await page.mouse.wheel(0, 240)
   await page.waitForTimeout(300)
-  // There was room to scroll, so the wheel must not have been spent on navigation.
-  // (Whether the smooth scroll has finished rendering is up to the browser.)
   expect(hash(page)).toBe('#/system')
 
-  // Pinned to the bottom: the next flick steps forward.
   await page.evaluate(() => window.scrollTo(0, 99_999))
-  await page.waitForTimeout(700)
   await page.mouse.wheel(0, 240)
-  await expect.poll(() => hash(page)).toBe('#/settings')
+  await page.waitForTimeout(300)
+  expect(hash(page)).toBe('#/system')
 
-  // A fresh page starts at the top, so flicking up steps back.
-  await page.waitForTimeout(700)
+  await page.evaluate(() => window.scrollTo(0, 0))
   await page.mouse.wheel(0, -240)
-  await expect.poll(() => hash(page)).toBe('#/system')
+  await page.waitForTimeout(300)
+  expect(hash(page)).toBe('#/system')
 })
 
 test('a sideways flick switches pages, except on a scrubbable chart', async ({ page }) => {
