@@ -178,7 +178,7 @@ onMounted(() => {
         <div
           v-else-if="loadingCandles && !candles.length"
           class="skeleton"
-          :style="{ height: `${candleHeight}px` }"
+          :style="{ height: `${candleHeight}px`, width: '100%' }"
         />
         <p v-else-if="candleError || !candles.length" class="empty">{{ t('market.noCandles') }}</p>
         <CandleChart v-else :candles="candles" :height="candleHeight" :formatters="formatters" />

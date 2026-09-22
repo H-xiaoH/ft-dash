@@ -35,6 +35,23 @@ const limit = ref(300)
 const PAGE_SIZE = 20
 const page = ref(1)
 
+// The overview links here with ?filter=open|closed; keep the query in step with the tab.
+watch(
+  () => route.query.filter,
+  (value) => {
+    if (value === 'open' || value === 'closed' || value === 'all') filter.value = value
+  },
+  { immediate: true },
+)
+watch(filter, (value) => {
+  if (route.query.filter === value) return
+  const query = { ...route.query }
+  // "all" is the default, so it stays out of the URL instead of being spelled out.
+  if (value === 'all') delete query.filter
+  else query.filter = value
+  void router.replace({ query })
+})
+
 const stake = computed(() => bot.stakeCurrency)
 
 /**

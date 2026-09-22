@@ -447,20 +447,32 @@ async function install() {
 
 <style scoped>
 .settings {
-  /* Cards reflow into as many columns as fit, so no dead space on wide screens. */
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(460px, 100%), 1fr));
-  gap: var(--sp-4);
-  align-items: start;
+  /*
+   * Column flow rather than a grid: a grid row is as tall as its tallest card, which
+   * left a hole under the short language card. Columns pack the cards by height.
+   * `display` is reset because the `.stack` helper makes the root a flex column, and
+   * multi-column layout is ignored on flex containers.
+   */
+  display: block;
+  columns: 2;
+  column-gap: var(--sp-4);
 }
 
-/* The connection form is the primary task: give it the full width. */
-.settings > .panel:first-child {
-  grid-column: 1 / -1;
+.settings > .panel {
+  break-inside: avoid;
+  margin-bottom: var(--sp-4);
 }
 
+/* The connection form and the local-data card stay full width; only the middle flows. */
+.settings > .panel:first-child,
 .settings > .panel:last-child {
-  grid-column: 1 / -1;
+  column-span: all;
+}
+
+@media (max-width: 1100px) {
+  .settings {
+    columns: 1;
+  }
 }
 
 .settings__grid {

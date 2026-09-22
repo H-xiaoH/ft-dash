@@ -44,3 +44,13 @@ test('changing the filter returns to the first page', async ({ page }) => {
   await page.locator('.seg__item', { hasText: '已平仓' }).click()
   await expect(pager).toContainText('第 1 / 3 页')
 })
+
+test('opening a trade detail keeps your place in the list', async ({ page }) => {
+  // Phones tap cards instead of rows, which is where the jump-to-top was reported.
+  await page.setViewportSize({ width: 390, height: 700 })
+  await page.evaluate(() => window.scrollTo(0, 1500))
+  await page.locator('.card--tappable').nth(8).click()
+
+  await expect(page.locator('.overlay--drawer')).toBeVisible()
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+})

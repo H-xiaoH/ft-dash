@@ -23,6 +23,10 @@ const settings = useSettingsStore()
 const router = useRouter()
 
 const exitTarget = ref<Trade | null>(null)
+/** Deep-links the overview panels into the matching trades tab. */
+function openTradesTab(filter: 'open' | 'closed') {
+  void router.push({ path: '/trades', query: { filter } })
+}
 const pnlChartHeight = useChartHeight(150, 0.2, 230)
 /** The overview stays a summary: only the newest closed trades are listed. */
 const OVERVIEW_CLOSED_ROWS = 6
@@ -157,7 +161,7 @@ async function confirmExit() {
           <span class="panel__title">{{ t('dashboard.openPositions') }}</span>
           <span class="chip">{{ bot.openTrades.length }}</span>
           <div class="panel__actions">
-            <button type="button" class="link-btn small" @click="router.push('/trades')">
+            <button type="button" class="link-btn small" @click="openTradesTab('open')">
               {{ t('dashboard.viewAll') }}
             </button>
           </div>
@@ -228,7 +232,7 @@ async function confirmExit() {
         <div class="panel__head">
           <span class="panel__title">{{ t('dashboard.recentTrades') }}</span>
           <div class="panel__actions">
-            <button type="button" class="link-btn small" @click="router.push('/trades')">
+            <button type="button" class="link-btn small" @click="openTradesTab('closed')">
               {{ t('dashboard.viewAll') }}
             </button>
           </div>

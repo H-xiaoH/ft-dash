@@ -48,3 +48,32 @@ test('search expands on demand and clears when collapsed', async ({ page }) => {
   await page.locator('.search-toggle__close').click()
   await expect(rows).toHaveCount(5)
 })
+
+test('the overview "view all" links open the matching trades tab', async ({ page }) => {
+  const panel = (title: string) =>
+    page.locator('.panel').filter({ has: page.locator('.panel__title', { hasText: title }) })
+  const tabs = page.locator('.seg__item')
+
+  await page.goto('/#/')
+  await panel('当前持仓').locator('.link-btn').click()
+  await expect(page).toHaveURL(/filter=open/)
+  await expect(tabs.nth(0)).toHaveAttribute('aria-pressed', 'true')
+
+  await page.goto('/#/')
+  await panel('最近平仓').locator('.link-btn').click()
+  await expect(page).toHaveURL(/filter=closed/)
+  await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('the filter travels between the URL and the tabs', async ({ page }) => {
+  const tabs = page.locator('.seg__item')
+
+  await page.goto('/#/trades?filter=closed')
+  await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('table tbody tr')).toHaveCount(4)
+
+  // "all" is the default, so it is dropped from the URL instead of written out.
+  await tabs.nth(2).click()
+  await expect(page).not.toHaveURL(/filter=/)
+  await expect(page.locator('table tbody tr')).toHaveCount(5)
+})

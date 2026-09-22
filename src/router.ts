@@ -59,5 +59,9 @@ export const router = createRouter({
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
-  scrollBehavior: () => ({ top: 0 }),
+  /**
+   * Only a change of page resets the scroll position. Query-only navigation (opening a
+   * trade detail, switching the trades tab) must not yank a scrolled list back to the top.
+   */
+  scrollBehavior: (to, from) => (to.path === from.path ? false : { top: 0 }),
 })
