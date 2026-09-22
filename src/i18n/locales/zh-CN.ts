@@ -279,7 +279,7 @@ export default {
     wsTokenPlaceholder: '留空则使用自动登录',
     retryStream: '重试实时推送',
     notifTitle: '通知',
-    notifHint: '成交、异常与心跳静默超过 1 分钟时发送系统通知。',
+    notifHint: '成交、异常与心跳静默超过 1 分钟时发送系统通知，需保持页面或 App 打开。',
     notifPermission: '需要浏览器授权，且此站点需在后台保持运行。',
     dataTitle: '本机数据',
     dataHint: '凭据、语言偏好与界面设置保存在本设备浏览器中，不会上传到任何服务器。',

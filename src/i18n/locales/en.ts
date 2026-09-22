@@ -280,7 +280,8 @@ export default {
     wsTokenPlaceholder: 'Empty = use auto login',
     retryStream: 'Retry live stream',
     notifTitle: 'Notifications',
-    notifHint: 'Notify on fills, exceptions and a heartbeat silent for a minute.',
+    notifHint:
+      'Notify on fills, exceptions and a heartbeat silent for a minute. Needs the page or App open.',
     notifPermission: 'Needs browser permission and the site running in the background.',
     dataTitle: 'On-device data',
     dataHint:
