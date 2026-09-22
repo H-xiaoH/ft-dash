@@ -21,7 +21,6 @@ import type {
   Trade,
   TradeStats,
   TradesResponse,
-  VersionResponse,
   WhitelistResponse,
 } from './types'
 
@@ -298,10 +297,6 @@ export class FreqtradeApi {
     return this.request('/ping', { timeoutMs: 12_000 })
   }
 
-  version(): Promise<VersionResponse> {
-    return this.request('/version')
-  }
-
   showConfig(): Promise<ShowConfigResponse> {
     return this.request('/show_config')
   }
@@ -336,10 +331,6 @@ export class FreqtradeApi {
 
   trades(params: { limit?: number; offset?: number } = {}): Promise<TradesResponse> {
     return this.request('/trades', { query: { limit: params.limit, offset: params.offset } })
-  }
-
-  trade(id: number | string): Promise<Trade> {
-    return this.request(`/trade/${id}`)
   }
 
   tradeStats(): Promise<TradeStats> {

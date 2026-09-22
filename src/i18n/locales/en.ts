@@ -187,7 +187,6 @@ export default {
     pairs: 'Pairs',
     name: 'Name',
     date: 'Date',
-    group: 'Group',
     durations: 'Durations',
     wins: 'Wins',
     losses: 'Losses',

@@ -4,10 +4,6 @@
  * Reference: Freqtrade 2026.8, api_version 2.5.
  */
 
-export interface VersionResponse {
-  version: string
-}
-
 export interface OrderTypeCount {
   [key: string]: number
 }

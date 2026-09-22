@@ -28,7 +28,9 @@ test.describe('navigation', () => {
     const errors: string[] = []
     page.on('pageerror', (error) => errors.push(String(error)))
     page.on('console', (message) => {
-      if (message.type() === 'error') errors.push(message.text())
+      const text = message.text()
+      // Vue's dev-mode warnings catch real mistakes (bad props, missing keys).
+      if (message.type() === 'error' || text.includes('[Vue warn]')) errors.push(text)
     })
 
     await mockApi(page)

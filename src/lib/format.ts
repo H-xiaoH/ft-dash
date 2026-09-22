@@ -160,18 +160,6 @@ export function formatDateTime(value: Numberish, locale = 'en', fallback = '—'
   }).format(new Date(ts))
 }
 
-export function formatClock(value: Numberish, locale = 'en', fallback = '—'): string {
-  const ts = parseTimestamp(value)
-  if (ts === null) return fallback
-  return new Intl.DateTimeFormat(locale, { timeStyle: 'medium' }).format(new Date(ts))
-}
-
-export function formatDateShort(value: Numberish, locale = 'en', fallback = '—'): string {
-  const ts = parseTimestamp(value)
-  if (ts === null) return fallback
-  return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(new Date(ts))
-}
-
 /**
  * Formats a date-only value (Freqtrade's daily/weekly/monthly rows) in UTC, so a
  * day never shifts for visitors west of Greenwich.

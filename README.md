@@ -16,10 +16,12 @@ backend to host and nothing to trust in the middle.
   staked amount, prices, P&L and duration; sortable columns, a search that expands from the
   toolbar, an outcome filter (all / profitable / losing), per-trade detail (orders, fees,
   funding, leverage, stop loss, liquidation) and CSV export. On phones the same data is a
-  card list instead of a wide table.
+  card list instead of a wide table. 20 rows per page, with a pager that resets whenever the
+  filter, search or sort changes.
 - **Statistics** — per-pair totals plus win rate, average holding time, fees, volume and last
-  close (derived from the loaded trades, no extra request); a daily/weekly/monthly chart with
-  period table; and average holding times. Column headers sort; the search narrows the list.
+  close (derived from the loaded trades, so pairs older than the loaded window show —); a
+  daily/weekly/monthly chart with period table; and average holding times. Column headers
+  sort; the search narrows the list.
 - **Market** — a candlestick chart first (drag across it to scrub, with an exchange-style
   OHLC/volume readout in the corner), a pair picker, the bot's timeframe, then whitelist,
   blacklist and active pair locks.
@@ -174,8 +176,8 @@ JWT auth) or a configured `api_server.ws_token`.
 
 ## Tech stack
 
-Vue 3 (`<script setup>` + TypeScript) · Vite · Pinia · vue-router · vue-i18n · VueUse ·
-`vite-plugin-pwa` (Workbox) · hand-rolled SVG charts, no chart dependency.
+Vue 3 (`<script setup>` + TypeScript) · Vite · Pinia · vue-router · vue-i18n ·
+`vite-plugin-pwa` (Workbox) · Vitest + Playwright · hand-rolled SVG charts, no chart dependency.
 
 ## Project layout
 

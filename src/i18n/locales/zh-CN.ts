@@ -186,7 +186,6 @@ export default {
     pairs: '交易对',
     name: '名称',
     date: '日期',
-    group: '分组',
     durations: '持仓时长',
     wins: '盈利',
     losses: '亏损',
