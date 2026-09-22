@@ -24,6 +24,8 @@ const router = useRouter()
 
 const exitTarget = ref<Trade | null>(null)
 const pnlChartHeight = useChartHeight(150, 0.2, 230)
+/** The overview stays a summary: only the newest closed trades are listed. */
+const OVERVIEW_CLOSED_ROWS = 6
 
 const stake = computed(() => bot.stakeCurrency)
 
@@ -245,7 +247,10 @@ async function confirmExit() {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="trade in bot.closedByRecency" :key="trade.trade_id">
+                <tr
+                  v-for="trade in bot.closedByRecency.slice(0, OVERVIEW_CLOSED_ROWS)"
+                  :key="trade.trade_id"
+                >
                   <td>
                     <div class="table__pair">
                       <span

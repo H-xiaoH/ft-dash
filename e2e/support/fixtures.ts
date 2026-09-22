@@ -327,8 +327,24 @@ function bodyFor(url: URL, method: string): unknown | undefined {
 }
 
 /** Answers every API call from the fixtures and stubs the websocket handshake. */
-export async function mockApi(page: Page, options: { rejectAuth?: boolean } = {}) {
+export async function mockApi(
+  page: Page,
+  options: { rejectAuth?: boolean; tradeCount?: number } = {},
+) {
   const calls: string[] = []
+  const { tradeCount } = options
+  const tradesPayload = tradeCount
+    ? {
+        trades: Array.from({ length: tradeCount }, (_, index) =>
+          trade(index + 1, `P${String(index + 1).padStart(2, '0')}/USDT`, {
+            close_timestamp: NOW - (index + 2) * 3_600_000,
+          }),
+        ),
+        trades_count: tradeCount,
+        offset: 0,
+        total_trades: tradeCount,
+      }
+    : RESPONSES.trades
 
   await page.route(`${API_ORIGIN}/**`, async (route) => {
     const request = route.request()
@@ -345,7 +361,9 @@ export async function mockApi(page: Page, options: { rejectAuth?: boolean } = {}
       return
     }
 
-    const body = bodyFor(url, request.method())
+    // `tradeCount` lets a test page through a longer history than the default fixture.
+    const body =
+      tradeCount && path.startsWith('trades') ? tradesPayload : bodyFor(url, request.method())
     if (body === undefined) {
       await route.fulfill({
         status: 404,

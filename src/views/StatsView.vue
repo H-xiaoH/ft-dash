@@ -198,7 +198,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
 
     <section class="panel">
       <div class="panel__head">
-        <span class="panel__title">{{ t('stats.title') }}</span>
+        <span class="panel__title">{{ t('stats.pairs') }}</span>
         <span class="panel__meta num">{{ rows.length }} / {{ allRows.length }}</span>
         <div class="panel__actions row">
           <SearchToggle v-model="search" :placeholder="t('stats.group')" />

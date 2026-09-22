@@ -32,6 +32,8 @@ export default {
     clear: 'Clear',
     offline: 'Offline',
     live: 'Live',
+    prev: 'Previous',
+    next: 'Next',
   },
   status: {
     running: 'Running',
@@ -131,6 +133,7 @@ export default {
     noClosed: 'No closed trades yet.',
     showing: 'Showing {shown} of {total}',
     loadMore: 'Load more',
+    page: 'Page {page} / {pages}',
     exportCsv: 'Export CSV',
     tradeId: 'Trade ID',
     noOrders: 'No orders recorded',
@@ -182,7 +185,7 @@ export default {
     showOnlyPositions: 'Positions only',
   },
   stats: {
-    title: 'Statistics',
+    pairs: 'Pairs',
     byPair: 'Pair',
     group: 'Group',
     durations: 'Durations',
@@ -207,7 +210,7 @@ export default {
     noData: 'No statistics yet.',
   },
   logs: {
-    title: 'Logs',
+    title: 'Run log',
     level: 'Level',
     follow: 'Follow',
     filterLevel: 'Minimum level',

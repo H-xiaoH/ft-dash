@@ -31,6 +31,9 @@ const sortDir = ref<'asc' | 'desc'>('desc')
 const selected = ref<Trade | null>(null)
 const exitTarget = ref<Trade | null>(null)
 const limit = ref(300)
+/** Rows per page; paging happens in the browser over everything already loaded. */
+const PAGE_SIZE = 20
+const page = ref(1)
 
 const stake = computed(() => bot.stakeCurrency)
 
@@ -98,6 +101,18 @@ const rows = computed(() => {
 const openCount = computed(() => bot.openTrades.length)
 const closedCount = computed(() => bot.profit?.closed_trade_count ?? bot.closedTrades.length)
 const allCount = computed(() => allTrades.value.length)
+const totalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / PAGE_SIZE)))
+const pagedRows = computed(() =>
+  rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
+)
+
+// Any change to the query or ordering restarts from the first page.
+watch([filter, search, result, sortKey, sortDir], () => {
+  page.value = 1
+})
+watch(totalPages, (max) => {
+  if (page.value > max) page.value = max
+})
 
 function toggleSort(key: SortKey) {
   if (sortKey.value === key) {
@@ -324,7 +339,7 @@ onMounted(() => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="trade in rows" :key="trade.trade_id" @click="openTrade(trade)">
+              <tr v-for="trade in pagedRows" :key="trade.trade_id" @click="openTrade(trade)">
                 <td>
                   <div class="table__pair">
                     <span
@@ -363,7 +378,7 @@ onMounted(() => {
       <!-- Mobile: a card list beats a horizontally scrolling table. -->
       <ul v-if="rows.length" class="cards u-mobile-only">
         <li
-          v-for="trade in rows"
+          v-for="trade in pagedRows"
           :key="trade.trade_id"
           class="card card--tappable"
           @click="openTrade(trade)"
@@ -396,18 +411,34 @@ onMounted(() => {
         </li>
       </ul>
 
-      <div v-if="bot.tradesTotal > rows.length" class="panel__head trades__more">
+      <div class="panel__head trades__more">
         <span class="panel__meta num">
-          {{ t('trades.showing', { shown: rows.length, total: bot.tradesTotal }) }}
+          {{ t('trades.showing', { shown: pagedRows.length, total: rows.length }) }}
         </span>
-        <div class="panel__actions">
+        <div class="panel__actions row">
+          <button type="button" class="btn btn--sm" :disabled="page <= 1" @click="page -= 1">
+            <AppIcon name="chevronRight" class="flip" />
+            {{ t('common.prev') }}
+          </button>
+          <span class="num small muted">{{ t('trades.page', { page, pages: totalPages }) }}</span>
           <button
             type="button"
             class="btn btn--sm"
-            :disabled="bot.actionPending === 'loadMore'"
+            :disabled="page >= totalPages"
+            @click="page += 1"
+          >
+            {{ t('common.next') }}
+            <AppIcon name="chevronRight" />
+          </button>
+          <button
+            v-if="bot.tradesTotal > rows.length"
+            type="button"
+            class="btn btn--sm"
+            :disabled="bot.actionPending !== null"
             @click="loadMore"
           >
             {{ t('trades.loadMore') }}
+            <span class="muted small">({{ bot.tradesTotal - rows.length }})</span>
           </button>
         </div>
       </div>
@@ -449,6 +480,10 @@ onMounted(() => {
 .trades__more {
   border-bottom: 0;
   border-top: 1px solid var(--line);
+}
+
+.flip {
+  transform: rotate(180deg);
 }
 
 @media (max-width: 900px) {

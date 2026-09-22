@@ -32,6 +32,8 @@ export default {
     clear: '清除',
     offline: '离线',
     live: '实时',
+    prev: '上一页',
+    next: '下一页',
   },
   status: {
     running: '运行中',
@@ -130,6 +132,7 @@ export default {
     noClosed: '还没有平仓记录。',
     showing: '显示 {shown} / {total}',
     loadMore: '加载更多',
+    page: '第 {page} / {pages} 页',
     exportCsv: '导出 CSV',
     tradeId: '交易 ID',
     noOrders: '没有订单记录',
@@ -181,7 +184,7 @@ export default {
     showOnlyPositions: '仅看有持仓',
   },
   stats: {
-    title: '统计',
+    pairs: '交易对',
     byPair: '交易对',
     group: '分组',
     durations: '持仓时长',
@@ -206,7 +209,7 @@ export default {
     noData: '暂无统计数据。',
   },
   logs: {
-    title: '日志',
+    title: '运行日志',
     level: '级别',
     follow: '自动滚动',
     filterLevel: '最低级别',
@@ -241,7 +244,7 @@ export default {
     trailingStop: '移动止损',
     config: '配置摘要',
     health: '运行状态',
-    connection: '连接',
+    connection: '连接状态',
     wsStatus: '实时推送',
     wsConnected: '已连接',
     wsConnecting: '连接中',
