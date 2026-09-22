@@ -76,7 +76,6 @@ export default {
     winRate: 'Win rate',
     trades: 'Trades',
     openTrades: 'Open positions',
-    bestPair: 'Best pair',
     profitFactor: 'Profit factor',
     expectancy: 'Expectancy',
     sharpe: 'Sharpe',

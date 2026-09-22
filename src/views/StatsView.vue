@@ -97,14 +97,6 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
   <div class="stack">
     <div class="metric-grid stats__summary">
       <div class="metric">
-        <span class="metric__label">{{ t('kpi.totalPnl') }}</span>
-        <span class="metric__value" :class="format.toneClass(summary?.profit_all_coin)">
-          {{ format.signedMoney(summary?.profit_all_coin ?? null, '', 2) }}
-          <span class="metric__unit">{{ stake }}</span>
-        </span>
-        <span class="metric__sub">{{ format.ratio(summary?.profit_all_ratio ?? null) }}</span>
-      </div>
-      <div class="metric">
         <span class="metric__label">{{ t('kpi.closedPnl') }}</span>
         <span class="metric__value" :class="format.toneClass(summary?.profit_closed_coin)">
           {{ format.signedMoney(summary?.profit_closed_coin ?? null, '', 2) }}
@@ -188,11 +180,6 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
         <span class="metric__sub"
           >{{ t('kpi.tradingVolume') }} {{ format.compact(summary?.trading_volume ?? null) }}</span
         >
-      </div>
-      <div class="metric">
-        <span class="metric__label">{{ t('kpi.bestPair') }}</span>
-        <span class="metric__value metric__value--sm">{{ summary?.best_pair ?? '—' }}</span>
-        <span class="metric__sub">{{ format.ratio(summary?.best_pair_profit_ratio ?? null) }}</span>
       </div>
     </div>
 

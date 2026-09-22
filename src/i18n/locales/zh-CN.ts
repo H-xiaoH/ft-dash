@@ -75,7 +75,6 @@ export default {
     winRate: '胜率',
     trades: '交易笔数',
     openTrades: '当前持仓',
-    bestPair: '最佳交易对',
     profitFactor: '盈亏比',
     expectancy: '期望值',
     sharpe: '夏普',

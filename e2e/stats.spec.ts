@@ -34,7 +34,11 @@ test('pair table derives win rate, fees, volume and last close from the trades',
 
 test('period tables, durations panel and KPI tiles render', async ({ page }) => {
   await expect(page.locator('.panel__title')).toHaveText(['交易对', '周期', '持仓时长'])
-  await expect(page.locator('.metric__label').nth(4)).toHaveText('盈利 / 亏损')
+  // The removed tiles stay gone, and the remaining KPIs are still there.
+  await expect(page.locator('.metric__label', { hasText: '盈利 / 亏损' })).toHaveCount(1)
+  await expect(page.locator('.metric__label', { hasText: '已平仓盈亏' })).toHaveCount(1)
+  await expect(page.locator('.metric__label', { hasText: '最佳交易对' })).toHaveCount(0)
+  await expect(page.locator('.metric__label', { hasText: '总盈亏' })).toHaveCount(0)
   await expect(page.locator('.chart__tick').first()).toBeVisible()
   // The period table's first column is "date", not a repeat of the panel title.
   const period = page.locator('.panel', { has: page.locator('.panel__title', { hasText: '周期' }) })
