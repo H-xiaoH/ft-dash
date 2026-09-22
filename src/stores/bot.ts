@@ -357,7 +357,7 @@ export const useBotStore = defineStore('bot', () => {
 
   function applyConfigMetadata(config: ShowConfigResponse) {
     const botName = typeof config.bot_name === 'string' ? config.bot_name : ''
-    if (botName) document.title = `ft-dash · ${botName}`
+    if (botName) document.title = `FT Dash · ${botName}`
   }
 
   async function autoConnect() {

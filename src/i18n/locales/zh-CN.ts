@@ -1,6 +1,6 @@
 export default {
   app: {
-    name: 'ft-dash',
+    name: 'FT Dash',
     tagline: 'Freqtrade 交易控制台',
   },
   nav: {

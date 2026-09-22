@@ -19,8 +19,9 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'robots.txt'],
         manifest: {
-          name: 'ft-dash — Freqtrade dashboard',
-          short_name: 'ft-dash',
+          // Display name shown by the OS; `short_name` is the launcher label.
+          name: 'Freqtrade Dashboard',
+          short_name: 'FT Dash',
           description:
             'Live trading console for Freqtrade bots: positions, P&L, logs and system health.',
           lang: 'en',
