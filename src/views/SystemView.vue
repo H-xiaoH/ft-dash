@@ -146,10 +146,6 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
             <dd>{{ format.dateTime(bot.health?.last_process ?? null) }}</dd>
             <dt>{{ t('system.uptime') }}</dt>
             <dd>{{ format.duration(uptime) }}</dd>
-            <dt>{{ t('stats.avgWinDuration') }}</dt>
-            <dd>{{ format.duration(bot.tradeStats?.durations?.wins ?? null) }}</dd>
-            <dt>{{ t('stats.avgLossDuration') }}</dt>
-            <dd>{{ format.duration(bot.tradeStats?.durations?.losses ?? null) }}</dd>
           </dl>
         </div>
       </section>

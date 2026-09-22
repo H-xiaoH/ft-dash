@@ -185,7 +185,8 @@ export default {
   },
   stats: {
     pairs: '交易对',
-    byPair: '交易对',
+    name: '名称',
+    date: '日期',
     group: '分组',
     durations: '持仓时长',
     wins: '盈利',

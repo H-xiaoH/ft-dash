@@ -186,7 +186,8 @@ export default {
   },
   stats: {
     pairs: 'Pairs',
-    byPair: 'Pair',
+    name: 'Name',
+    date: 'Date',
     group: 'Group',
     durations: 'Durations',
     wins: 'Wins',
@@ -245,7 +246,7 @@ export default {
     trailingStop: 'Trailing stop',
     config: 'Configuration',
     health: 'Health',
-    connection: 'Connection',
+    connection: 'Connection status',
     wsStatus: 'Live stream',
     wsConnected: 'Connected',
     wsConnecting: 'Connecting',

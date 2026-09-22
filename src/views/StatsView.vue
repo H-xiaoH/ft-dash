@@ -212,7 +212,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
               <tr>
                 <th scope="col">
                   <SortHeader
-                    :label="t('stats.byPair')"
+                    :label="t('stats.name')"
                     :active="sortKey === 'name'"
                     :dir="sortDir"
                     @toggle="toggleSort('name')"
@@ -367,7 +367,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
           <table class="table">
             <thead>
               <tr>
-                <th scope="col">{{ t('stats.period') }}</th>
+                <th scope="col">{{ t('stats.date') }}</th>
                 <th scope="col" class="num">{{ t('stats.profitAbs') }}</th>
                 <th scope="col" class="num">{{ t('stats.relProfit') }}</th>
                 <th scope="col" class="num">{{ t('stats.tradeCount') }}</th>
@@ -376,7 +376,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
             </thead>
             <tbody>
               <tr v-for="entry in periodData.slice(0, PERIOD_ROWS)" :key="entry.date">
-                <td class="num">{{ format.day(entry.date) }}</td>
+                <td>{{ format.day(entry.date) }}</td>
                 <td class="num" :class="format.toneClass(entry.abs_profit)">
                   {{ format.signedMoney(entry.abs_profit, stake) }}
                 </td>

@@ -11,9 +11,11 @@ test.beforeEach(async ({ page }) => {
 test('pair table derives win rate, fees, volume and last close from the trades', async ({
   page,
 }) => {
-  const table = page.locator('.panel', { has: page.locator('th', { hasText: '交易对' }) }).first()
+  const table = page
+    .locator('.panel', { has: page.locator('.panel__title', { hasText: '交易对' }) })
+    .first()
   await expect(table.locator('thead th')).toHaveText([
-    '交易对',
+    '名称',
     '笔数',
     '胜率',
     '总盈亏',
@@ -34,10 +36,16 @@ test('period tables, durations panel and KPI tiles render', async ({ page }) => 
   await expect(page.locator('.panel__title')).toHaveText(['交易对', '周期', '持仓时长'])
   await expect(page.locator('.metric__label').nth(4)).toHaveText('盈利 / 亏损')
   await expect(page.locator('.chart__tick').first()).toBeVisible()
+  // The period table's first column is "date", not a repeat of the panel title.
+  const period = page.locator('.panel', { has: page.locator('.panel__title', { hasText: '周期' }) })
+  await expect(period.locator('thead th').first()).toHaveText('日期')
+  await expect(period.locator('tbody td').first()).toHaveCSS('text-align', 'left')
 })
 
 test('column headers sort in both directions', async ({ page }) => {
-  const table = page.locator('.panel', { has: page.locator('th', { hasText: '交易对' }) }).first()
+  const table = page
+    .locator('.panel', { has: page.locator('.panel__title', { hasText: '交易对' }) })
+    .first()
   const total = table.locator('thead th', { hasText: '总盈亏' }).locator('button')
 
   // Total P&L is the default sort (descending), so the first click flips to ascending.
