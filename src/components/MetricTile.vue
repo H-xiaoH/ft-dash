@@ -25,7 +25,8 @@ const format = useFormat()
 
 const display = computed(() => {
   const value = toNumber(props.value)
-  if (props.kind === 'text') return value === null ? String(props.value ?? '—') : String(props.value)
+  if (props.kind === 'text')
+    return value === null ? String(props.value ?? '—') : String(props.value)
   if (value === null) return '—'
   switch (props.kind) {
     case 'money':
@@ -44,9 +45,7 @@ const display = computed(() => {
 
 const unit = computed(() => (props.kind === 'money' ? (props.currency ?? '') : ''))
 
-const toneClass = computed(() =>
-  props.tone === 'auto' ? format.toneClass(props.value) : '',
-)
+const toneClass = computed(() => (props.tone === 'auto' ? format.toneClass(props.value) : ''))
 </script>
 
 <template>

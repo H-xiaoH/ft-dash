@@ -86,7 +86,8 @@ export const useEventsStore = defineStore('events', () => {
     if (text(data.status)) parts.push(text(data.status))
     if (text(data.msg)) parts.push(text(data.msg))
 
-    let severity: BotEvent['severity'] = 'info'
+    // Declared without an initial value: every branch below assigns one.
+    let severity: BotEvent['severity']
     switch (message.type) {
       case 'entry':
       case 'entry_fill':

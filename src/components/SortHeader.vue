@@ -15,12 +15,7 @@ const emit = defineEmits<{ toggle: [] }>()
 </script>
 
 <template>
-  <button
-    type="button"
-    class="sort-header"
-    :aria-label="props.label"
-    @click="emit('toggle')"
-  >
+  <button type="button" class="sort-header" :aria-label="props.label" @click="emit('toggle')">
     {{ props.label }}
     <AppIcon
       v-if="props.active"

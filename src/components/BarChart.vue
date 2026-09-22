@@ -60,7 +60,9 @@ const bars = computed<Bar[]>(() =>
   }),
 )
 
-const activeBar = computed(() => (activeIndex.value === null ? null : bars.value[activeIndex.value]))
+const activeBar = computed(() =>
+  activeIndex.value === null ? null : bars.value[activeIndex.value],
+)
 
 /** Keeps the tooltip inside the plot when the active bar sits near an edge. */
 const tooltipStyle = computed(() => {
@@ -86,9 +88,7 @@ const labelStep = computed(() =>
   Math.max(1, Math.ceil(props.items.length / Math.max(2, props.maxLabels))),
 )
 
-const visibleLabels = computed(() =>
-  bars.value.filter((bar) => bar.index % labelStep.value === 0),
-)
+const visibleLabels = computed(() => bars.value.filter((bar) => bar.index % labelStep.value === 0))
 
 function select(index: number | null) {
   activeIndex.value = index

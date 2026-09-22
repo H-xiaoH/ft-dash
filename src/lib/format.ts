@@ -17,12 +17,7 @@ export function toNumber(value: Numberish): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-export function formatNumber(
-  value: Numberish,
-  locale = 'en',
-  digits = 2,
-  fallback = '—',
-): string {
+export function formatNumber(value: Numberish, locale = 'en', digits = 2, fallback = '—'): string {
   const n = toNumber(value)
   if (n === null) return fallback
   return new Intl.NumberFormat(locale, {
@@ -66,12 +61,7 @@ export function formatSignedMoney(
 }
 
 /** Freqtrade returns ratios (0.07) and percents (7.0) in separate fields. */
-export function formatRatio(
-  value: Numberish,
-  locale = 'en',
-  digits = 2,
-  fallback = '—',
-): string {
+export function formatRatio(value: Numberish, locale = 'en', digits = 2, fallback = '—'): string {
   const n = toNumber(value)
   if (n === null) return fallback
   return `${n > 0 ? '+' : ''}${formatNumber(n * 100, locale, digits)}%`
@@ -150,9 +140,7 @@ export function formatDuration(
   const secs = seconds % 60
 
   if (days > 0) {
-    return hours > 0
-      ? `${days}${labels.day} ${hours}${labels.hour}`
-      : `${days}${labels.day}`
+    return hours > 0 ? `${days}${labels.day} ${hours}${labels.hour}` : `${days}${labels.day}`
   }
   if (hours > 0) {
     return minutes > 0

@@ -122,12 +122,12 @@ const orders = computed(() => props.trade?.orders ?? [])
                 <table class="table">
                   <thead>
                     <tr>
-                      <th>{{ t('trades.orderSide') }}</th>
-                      <th>{{ t('trades.orderType') }}</th>
-                      <th class="num">{{ t('trades.orderPrice') }}</th>
-                      <th class="num">{{ t('trades.orderFilled') }}</th>
-                      <th>{{ t('trades.orderStatus') }}</th>
-                      <th>{{ t('trades.orderDate') }}</th>
+                      <th scope="col">{{ t('trades.orderSide') }}</th>
+                      <th scope="col">{{ t('trades.orderType') }}</th>
+                      <th scope="col" class="num">{{ t('trades.orderPrice') }}</th>
+                      <th scope="col" class="num">{{ t('trades.orderFilled') }}</th>
+                      <th scope="col">{{ t('trades.orderStatus') }}</th>
+                      <th scope="col">{{ t('trades.orderDate') }}</th>
                     </tr>
                   </thead>
                   <tbody>

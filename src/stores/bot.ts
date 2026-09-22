@@ -1,12 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef, watch } from 'vue'
-import {
-  ApiError,
-  describeError,
-  FreqtradeApi,
-  websocketUrl,
-  type Credentials,
-} from '@/lib/api'
+import { ApiError, describeError, FreqtradeApi, websocketUrl, type Credentials } from '@/lib/api'
 import { parseTimestamp } from '@/lib/format'
 import {
   classifyJwtFailure,
@@ -105,11 +99,7 @@ export const useBotStore = defineStore('bot', () => {
     balance.value?.currencies.find((currency) => currency.currency === balance.value?.stake),
   )
   const availableBalance = computed(
-    () =>
-      stakeCurrencyRow.value?.free ??
-      balance.value?.total_bot ??
-      balance.value?.total ??
-      null,
+    () => stakeCurrencyRow.value?.free ?? balance.value?.total_bot ?? balance.value?.total ?? null,
   )
   const positionValue = computed(() =>
     (balance.value?.currencies ?? [])
@@ -721,6 +711,7 @@ export const useBotStore = defineStore('bot', () => {
       runAction('blacklistDelete', () => ensureClient().deleteBlacklist(pairs)),
     deleteLock: (payload: DeleteLockPayload) =>
       runAction('lockDelete', () => ensureClient().deleteLock(payload)),
-    addLock: (payload: LockPayload[]) => runAction('lockAdd', () => ensureClient().addLocks(payload)),
+    addLock: (payload: LockPayload[]) =>
+      runAction('lockAdd', () => ensureClient().addLocks(payload)),
   }
 })

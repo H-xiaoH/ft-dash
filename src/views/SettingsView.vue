@@ -76,7 +76,10 @@ async function saveConnection() {
   const ok = await bot.connect()
   saving.value = false
   tested.value = ok ? 'ok' : 'fail'
-  pushToast(ok ? t('settings.testOk') : t(bot.errorKey?.key ?? 'actions.failed'), ok ? 'good' : 'bad')
+  pushToast(
+    ok ? t('settings.testOk') : t(bot.errorKey?.key ?? 'actions.failed'),
+    ok ? 'good' : 'bad',
+  )
   if (ok) {
     baseUrl.value = settings.baseUrl
     password.value = ''
@@ -86,7 +89,11 @@ async function saveConnection() {
 async function testConnection() {
   saving.value = true
   const probe = normalizeBaseUrl(baseUrl.value) || baseUrl.value.trim()
-  const previous = { baseUrl: settings.baseUrl, username: settings.username, password: settings.password }
+  const previous = {
+    baseUrl: settings.baseUrl,
+    username: settings.username,
+    password: settings.password,
+  }
   settings.updateCredentialFields({
     baseUrl: probe,
     username: username.value,
@@ -95,7 +102,10 @@ async function testConnection() {
   bot.rebuildClient()
   const ok = await bot.connect()
   tested.value = ok ? 'ok' : 'fail'
-  pushToast(ok ? t('settings.testOk') : t(bot.errorKey?.key ?? 'actions.failed'), ok ? 'good' : 'bad')
+  pushToast(
+    ok ? t('settings.testOk') : t(bot.errorKey?.key ?? 'actions.failed'),
+    ok ? 'good' : 'bad',
+  )
   if (!ok) {
     // Restore the working configuration when a test fails.
     settings.updateCredentialFields(previous)
@@ -126,7 +136,10 @@ async function enableNotifications() {
   if (notifState.value === 'unsupported') return
   const result = await Notification.requestPermission()
   settings.notifications = result === 'granted'
-  pushToast(result === 'granted' ? t('settings.testOk') : t('actions.failed'), result === 'granted' ? 'good' : 'bad')
+  pushToast(
+    result === 'granted' ? t('settings.testOk') : t('actions.failed'),
+    result === 'granted' ? 'good' : 'bad',
+  )
 }
 
 async function enableControls() {
@@ -154,7 +167,13 @@ async function install() {
         <div class="panel__actions">
           <span
             class="chip"
-            :class="bot.connection === 'online' ? 'chip--good' : bot.connection === 'idle' ? '' : 'chip--bad'"
+            :class="
+              bot.connection === 'online'
+                ? 'chip--good'
+                : bot.connection === 'idle'
+                  ? ''
+                  : 'chip--bad'
+            "
           >
             {{
               bot.connection === 'online'
@@ -218,7 +237,9 @@ async function install() {
             {{ t('settings.disconnect') }}
           </button>
           <span v-if="tested === 'ok'" class="chip chip--good">{{ t('settings.testOk') }}</span>
-          <span v-else-if="tested === 'fail'" class="chip chip--bad">{{ t('connect.failed') }}</span>
+          <span v-else-if="tested === 'fail'" class="chip chip--bad">{{
+            t('connect.failed')
+          }}</span>
         </div>
       </div>
     </section>
@@ -303,7 +324,11 @@ async function install() {
 
         <div class="row row--wrap">
           <label class="switch">
-            <input v-model="settings.notifications" type="checkbox" :disabled="notifState !== 'granted'" />
+            <input
+              v-model="settings.notifications"
+              type="checkbox"
+              :disabled="notifState !== 'granted'"
+            />
             <span class="switch__track" />
             <span class="switch__text">
               <span class="switch__title">{{ t('settings.notifTitle') }}</span>
@@ -321,7 +346,9 @@ async function install() {
             {{ t('settings.notifTitle') }}
           </button>
         </div>
-        <p v-if="notifState === 'unsupported'" class="small muted">{{ t('settings.notifPermission') }}</p>
+        <p v-if="notifState === 'unsupported'" class="small muted">
+          {{ t('settings.notifPermission') }}
+        </p>
       </div>
     </section>
 
@@ -359,7 +386,9 @@ async function install() {
         <span class="panel__title">{{ t('settings.pwaTitle') }}</span>
         <div class="panel__actions">
           <span v-if="offlineReady" class="chip chip--good">{{ t('settings.offlineReady') }}</span>
-          <span v-if="needRefresh" class="chip chip--warn">{{ t('settings.updateAvailable') }}</span>
+          <span v-if="needRefresh" class="chip chip--warn">{{
+            t('settings.updateAvailable')
+          }}</span>
         </div>
       </div>
       <div class="panel__body row row--wrap">
@@ -388,13 +417,18 @@ async function install() {
             {{ t('settings.clearData') }}
           </button>
           <span class="small muted">
-            {{ t('app.name') }} {{ appVersion }} ·
-            {{ t('system.version') }} {{ bot.showConfig?.version ?? '—' }}
+            {{ t('app.name') }} {{ appVersion }} · {{ t('system.version') }}
+            {{ bot.showConfig?.version ?? '—' }}
           </span>
         </div>
         <p v-if="clearConfirm" class="banner banner--warn">
           {{ t('settings.clearDataConfirm') }}
-          <button type="button" class="btn btn--sm btn--danger" style="margin-left: 8px" @click="clearData">
+          <button
+            type="button"
+            class="btn btn--sm btn--danger"
+            style="margin-left: 8px"
+            @click="clearData"
+          >
             {{ t('common.confirm') }}
           </button>
           <button type="button" class="btn btn--sm" @click="clearConfirm = false">
@@ -448,7 +482,6 @@ async function install() {
   width: auto;
   padding: 5px 8px;
 }
-
 
 .settings__danger {
   border-color: color-mix(in srgb, var(--short) 35%, var(--line));

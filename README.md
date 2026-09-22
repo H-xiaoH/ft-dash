@@ -1,5 +1,7 @@
 # ft-dash
 
+[![Deploy to GitHub Pages](https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml/badge.svg)](https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml)
+
 A mobile-first, offline-capable web console for [Freqtrade](https://www.freqtrade.io/) bots.
 It is a static Vue PWA: your browser talks straight to your bot's REST API, so there is no
 backend to host and nothing to trust in the middle.
@@ -40,10 +42,17 @@ hidden, and overlapping rounds are skipped rather than queued.
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm test         # unit tests
-npm run build    # production build in dist/
+npm run dev          # http://localhost:5173
+npm test             # unit tests (vitest)
+npm run e2e          # end-to-end tests against the production build (playwright)
+npm run lint         # eslint
+npm run format:check # prettier, --write to fix
+npm run build        # type-check + production build in dist/
 ```
+
+The end-to-end suite never touches a real bot: it points the app at a fake API origin and
+answers every request from fixtures in `e2e/support/fixtures.ts`, so it runs offline and needs
+no credentials. First run needs `npx playwright install chromium` to fetch the browser.
 
 Open the app, then enter your API base URL, username and password. Credentials are stored in
 this browser only (localStorage, or sessionStorage if you turn "remember" off) and are used
@@ -182,8 +191,11 @@ tests/          unit tests (vitest)
 ## Contributing
 
 Commits follow [gitmoji](https://gitmoji.dev/) (`✨ feat:`, `🐛 fix:`, `📝 docs:`, …). Run
-`npm test` and `npm run typecheck` before opening a pull request. New UI strings must be added
-to both `src/i18n/locales/zh-CN.ts` and `src/i18n/locales/en.ts`.
+`npm run lint`, `npm run format:check`, `npm test` and `npm run e2e` before opening a pull
+request; CI runs the same set. New UI strings must be added to both
+`src/i18n/locales/zh-CN.ts` and `src/i18n/locales/en.ts` (the two catalogues are expected to
+stay key-for-key identical). Participation is covered by the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 

@@ -114,7 +114,9 @@ function onStreamClick() {
       </div>
       <div class="strip__metric">
         <span class="strip__metric-label">{{ t('kpi.openTrades') }}</span>
-        <span class="num strip__metric-value">{{ openCount }}<small>/{{ maxOpen }}</small></span>
+        <span class="num strip__metric-value"
+          >{{ openCount }}<small>/{{ maxOpen }}</small></span
+        >
       </div>
       <div class="strip__metric" :class="{ 'strip__metric--warn': heartbeatStale }">
         <span class="strip__metric-label">{{ t('dashboard.heartbeat') }}</span>

@@ -117,7 +117,9 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
       </div>
       <div class="metric" :class="{ 'metric--warn': heartbeatLate }">
         <span class="metric__label">{{ t('system.heartbeatAge') }}</span>
-        <span class="metric__value metric__value--sm">{{ format.duration(bot.heartbeatAgeMs) }}</span>
+        <span class="metric__value metric__value--sm">{{
+          format.duration(bot.heartbeatAgeMs)
+        }}</span>
         <span class="metric__sub">{{ format.dateTime(bot.health?.last_process ?? null) }}</span>
       </div>
       <div class="metric">

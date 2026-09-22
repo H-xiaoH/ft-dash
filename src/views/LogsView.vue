@@ -65,7 +65,12 @@ function levelClass(level: string): string {
             <span class="switch__title small">{{ t('logs.follow') }}</span>
           </span>
         </label>
-        <button type="button" class="btn btn--sm" :disabled="bot.refreshing" @click="bot.refreshSystem()">
+        <button
+          type="button"
+          class="btn btn--sm"
+          :disabled="bot.refreshing"
+          @click="bot.refreshSystem()"
+        >
           <AppIcon name="refresh" />
           {{ t('common.refresh') }}
         </button>

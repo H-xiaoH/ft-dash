@@ -12,14 +12,7 @@ import { useBotStore } from '@/stores/bot'
 
 type Period = 'daily' | 'weekly' | 'monthly'
 type SortKey =
-  | 'name'
-  | 'count'
-  | 'winRate'
-  | 'profitAbs'
-  | 'avgDuration'
-  | 'fees'
-  | 'volume'
-  | 'lastTrade'
+  'name' | 'count' | 'winRate' | 'profitAbs' | 'avgDuration' | 'fees' | 'volume' | 'lastTrade'
 
 const { t } = useI18n()
 const format = useFormat()
@@ -75,7 +68,8 @@ function toggleSort(key: SortKey) {
 }
 
 const periodData = computed(() => {
-  const source = period.value === 'daily' ? bot.daily : period.value === 'weekly' ? bot.weekly : bot.monthly
+  const source =
+    period.value === 'daily' ? bot.daily : period.value === 'weekly' ? bot.weekly : bot.monthly
   return source?.data ?? []
 })
 
@@ -95,7 +89,6 @@ const periodBars = computed<BarItem[]>(() =>
 const summary = computed(() => bot.profit)
 const openCount = computed(() => bot.count?.current ?? bot.openTrades.length)
 const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades ?? 0)
-
 </script>
 
 <template>
@@ -170,7 +163,11 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
       <div class="metric">
         <span class="metric__label">{{ t('kpi.maxDrawdown') }}</span>
         <span class="metric__value u-neg">
-          {{ format.percent((summary?.max_drawdown ?? null) === null ? null : (summary?.max_drawdown ?? 0) * 100) }}
+          {{
+            format.percent(
+              (summary?.max_drawdown ?? null) === null ? null : (summary?.max_drawdown ?? 0) * 100,
+            )
+          }}
         </span>
         <span class="metric__sub">
           {{ t('kpi.currentDrawdown') }}
@@ -186,7 +183,9 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
       <div class="metric">
         <span class="metric__label">{{ t('kpi.avgDuration') }}</span>
         <span class="metric__value metric__value--sm">{{ summary?.avg_duration ?? '—' }}</span>
-        <span class="metric__sub">{{ t('kpi.tradingVolume') }} {{ format.compact(summary?.trading_volume ?? null) }}</span>
+        <span class="metric__sub"
+          >{{ t('kpi.tradingVolume') }} {{ format.compact(summary?.trading_volume ?? null) }}</span
+        >
       </div>
       <div class="metric">
         <span class="metric__label">{{ t('kpi.bestPair') }}</span>
@@ -209,7 +208,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
           <table class="table">
             <thead>
               <tr>
-                <th>
+                <th scope="col">
                   <SortHeader
                     :label="t('stats.byPair')"
                     :active="sortKey === 'name'"
@@ -217,7 +216,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
                     @toggle="toggleSort('name')"
                   />
                 </th>
-                <th>
+                <th scope="col">
                   <SortHeader
                     :label="t('stats.count')"
                     :active="sortKey === 'count'"
@@ -225,7 +224,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
                     @toggle="toggleSort('count')"
                   />
                 </th>
-                <th class="num">
+                <th scope="col" class="num">
                   <SortHeader
                     :label="t('stats.winRate')"
                     :active="sortKey === 'winRate'"
@@ -233,7 +232,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
                     @toggle="toggleSort('winRate')"
                   />
                 </th>
-                <th class="num">
+                <th scope="col" class="num">
                   <SortHeader
                     :label="t('stats.totalProfit')"
                     :active="sortKey === 'profitAbs'"
@@ -241,7 +240,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
                     @toggle="toggleSort('profitAbs')"
                   />
                 </th>
-                <th class="num">
+                <th scope="col" class="num">
                   <SortHeader
                     :label="t('kpi.avgDuration')"
                     :active="sortKey === 'avgDuration'"
@@ -249,7 +248,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
                     @toggle="toggleSort('avgDuration')"
                   />
                 </th>
-                <th class="num">
+                <th scope="col" class="num">
                   <SortHeader
                     :label="t('trades.fees')"
                     :active="sortKey === 'fees'"
@@ -257,7 +256,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
                     @toggle="toggleSort('fees')"
                   />
                 </th>
-                <th class="num">
+                <th scope="col" class="num">
                   <SortHeader
                     :label="t('kpi.tradingVolume')"
                     :active="sortKey === 'volume'"
@@ -265,7 +264,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
                     @toggle="toggleSort('volume')"
                   />
                 </th>
-                <th class="num">
+                <th scope="col" class="num">
                   <SortHeader
                     :label="t('stats.lastTrade')"
                     :active="sortKey === 'lastTrade'"
@@ -301,13 +300,28 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
       <div class="panel__head">
         <span class="panel__title">{{ t('stats.period') }}</span>
         <div class="seg">
-          <button type="button" class="seg__item" :aria-pressed="period === 'daily'" @click="period = 'daily'">
+          <button
+            type="button"
+            class="seg__item"
+            :aria-pressed="period === 'daily'"
+            @click="period = 'daily'"
+          >
             {{ t('stats.daily') }}
           </button>
-          <button type="button" class="seg__item" :aria-pressed="period === 'weekly'" @click="period = 'weekly'">
+          <button
+            type="button"
+            class="seg__item"
+            :aria-pressed="period === 'weekly'"
+            @click="period = 'weekly'"
+          >
             {{ t('stats.weekly') }}
           </button>
-          <button type="button" class="seg__item" :aria-pressed="period === 'monthly'" @click="period = 'monthly'">
+          <button
+            type="button"
+            class="seg__item"
+            :aria-pressed="period === 'monthly'"
+            @click="period = 'monthly'"
+          >
             {{ t('stats.monthly') }}
           </button>
         </div>
@@ -326,11 +340,11 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
           <table class="table">
             <thead>
               <tr>
-                <th>{{ t('stats.period') }}</th>
-                <th class="num">{{ t('stats.profitAbs') }}</th>
-                <th class="num">{{ t('stats.relProfit') }}</th>
-                <th class="num">{{ t('stats.tradeCount') }}</th>
-                <th class="num">{{ t('stats.startingBalance') }}</th>
+                <th scope="col">{{ t('stats.period') }}</th>
+                <th scope="col" class="num">{{ t('stats.profitAbs') }}</th>
+                <th scope="col" class="num">{{ t('stats.relProfit') }}</th>
+                <th scope="col" class="num">{{ t('stats.tradeCount') }}</th>
+                <th scope="col" class="num">{{ t('stats.startingBalance') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -373,5 +387,4 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
   </div>
 </template>
 
-<style scoped>
-</style>
+<style scoped></style>

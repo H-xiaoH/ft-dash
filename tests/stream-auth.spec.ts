@@ -60,9 +60,9 @@ describe('planStreamAuth', () => {
       }).reason,
     ).toBe('errors.wsAuthCredentials')
 
-    expect(
-      planStreamAuth({ preference: 'auto', wsToken: '', jwtToken: null }).reason,
-    ).toBe('errors.wsAuthPending')
+    expect(planStreamAuth({ preference: 'auto', wsToken: '', jwtToken: null }).reason).toBe(
+      'errors.wsAuthPending',
+    )
   })
 
   it('falls back to a ws_token when the login endpoint cannot mint a JWT', () => {
@@ -76,17 +76,19 @@ describe('planStreamAuth', () => {
   })
 
   it('honours an explicit ws_token preference and an explicit opt-out', () => {
-    expect(
-      planStreamAuth({ preference: 'ws_token', wsToken: '', jwtToken: 'jwt' }),
-    ).toMatchObject({ mode: 'unavailable', reason: 'errors.wsTokenMissing' })
+    expect(planStreamAuth({ preference: 'ws_token', wsToken: '', jwtToken: 'jwt' })).toMatchObject({
+      mode: 'unavailable',
+      reason: 'errors.wsTokenMissing',
+    })
 
     expect(
       planStreamAuth({ preference: 'ws_token', wsToken: 'tok', jwtToken: null }),
     ).toMatchObject({ mode: 'ws_token', token: 'tok' })
 
-    expect(
-      planStreamAuth({ preference: 'off', wsToken: 'tok', jwtToken: 'jwt' }),
-    ).toMatchObject({ mode: 'off', connectable: false })
+    expect(planStreamAuth({ preference: 'off', wsToken: 'tok', jwtToken: 'jwt' })).toMatchObject({
+      mode: 'off',
+      connectable: false,
+    })
   })
 })
 

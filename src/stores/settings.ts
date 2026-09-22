@@ -56,7 +56,9 @@ export const useSettingsStore = defineStore('settings', () => {
   const baseUrl = ref(source.baseUrl ?? import.meta.env.VITE_API_BASE_DEFAULT ?? '')
   const username = ref(source.username ?? '')
   const password = ref(source.password ?? '')
-  const locale = ref<AppLocale>(isSupportedLocale(persisted.locale) ? persisted.locale : detectLocale())
+  const locale = ref<AppLocale>(
+    isSupportedLocale(persisted.locale) ? persisted.locale : detectLocale(),
+  )
   const websocket = ref(persisted.websocket ?? DEFAULT_SETTINGS.websocket)
   const streamAuth = ref(resolveStreamAuth(persisted.streamAuth))
   const wsToken = ref(typeof persisted.wsToken === 'string' ? persisted.wsToken : '')

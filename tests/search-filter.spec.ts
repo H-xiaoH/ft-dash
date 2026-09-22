@@ -62,11 +62,7 @@ describe('FilterMenu', () => {
     expect(popupItems()).toHaveLength(0)
 
     await wrapper.find('.filter-menu__button').trigger('click')
-    expect(popupItems().map((item) => item.textContent)).toEqual([
-      'All',
-      'Wins',
-      'Losses',
-    ])
+    expect(popupItems().map((item) => item.textContent)).toEqual(['All', 'Wins', 'Losses'])
   })
 
   it('emits the chosen value and closes', async () => {
@@ -91,5 +87,4 @@ describe('FilterMenu', () => {
     await nextTick()
     expect(document.querySelector('.filter-menu__list')).toBeNull()
   })
-
 })

@@ -243,9 +243,9 @@ onMounted(() => {
           <table class="table table--clickable">
             <thead>
               <tr>
-                <th>{{ t('market.pair') }}</th>
-                <th>{{ t('trades.open') }}</th>
-                <th class="num">{{ t('stats.totalProfit') }}</th>
+                <th scope="col">{{ t('market.pair') }}</th>
+                <th scope="col">{{ t('trades.open') }}</th>
+                <th scope="col" class="num">{{ t('stats.totalProfit') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -326,11 +326,11 @@ onMounted(() => {
           <table class="table">
             <thead>
               <tr>
-                <th>{{ t('market.pair') }}</th>
-                <th>{{ t('market.lockUntil') }}</th>
-                <th>{{ t('market.lockReason') }}</th>
-                <th>{{ t('market.locks') }}</th>
-                <th v-if="settings.writesEnabled" />
+                <th scope="col">{{ t('market.pair') }}</th>
+                <th scope="col">{{ t('market.lockUntil') }}</th>
+                <th scope="col">{{ t('market.lockReason') }}</th>
+                <th scope="col">{{ t('market.locks') }}</th>
+                <th v-if="settings.writesEnabled" scope="col" />
               </tr>
             </thead>
             <tbody>
@@ -371,7 +371,9 @@ onMounted(() => {
       :open="lockTarget !== null"
       tone="danger"
       :title="t('actions.deleteLock')"
-      :body="lockTarget ? `${lockTarget.pair} · ${format.dateTime(lockTarget.lock_end_timestamp)}` : ''"
+      :body="
+        lockTarget ? `${lockTarget.pair} · ${format.dateTime(lockTarget.lock_end_timestamp)}` : ''
+      "
       :confirm-label="t('actions.deleteLock')"
       :pending="bot.actionPending === 'lockDelete'"
       @cancel="lockTarget = null"

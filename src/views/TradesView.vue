@@ -247,7 +247,7 @@ onMounted(() => {
           <table class="table table--clickable">
             <thead>
               <tr>
-                <th>
+                <th scope="col">
                   <button type="button" class="sort" @click="toggleSort('pair')">
                     {{ t('trades.pair') }}
                     <AppIcon
@@ -257,8 +257,8 @@ onMounted(() => {
                     />
                   </button>
                 </th>
-                <th class="u-hide-sm side-col">{{ t('trades.side') }}</th>
-                <th class="num">
+                <th scope="col" class="u-hide-sm side-col">{{ t('trades.side') }}</th>
+                <th scope="col" class="num">
                   <button type="button" class="sort" @click="toggleSort('stake_amount')">
                     {{ t('trades.stake') }}
                     <AppIcon
@@ -268,9 +268,9 @@ onMounted(() => {
                     />
                   </button>
                 </th>
-                <th class="num">{{ t('trades.entryPrice') }}</th>
-                <th class="num">{{ t('trades.currentPrice') }}</th>
-                <th class="num">
+                <th scope="col" class="num">{{ t('trades.entryPrice') }}</th>
+                <th scope="col" class="num">{{ t('trades.currentPrice') }}</th>
+                <th scope="col" class="num">
                   <button type="button" class="sort" @click="toggleSort('profit_abs')">
                     {{ t('trades.profit') }}
                     <AppIcon
@@ -280,7 +280,7 @@ onMounted(() => {
                     />
                   </button>
                 </th>
-                <th class="num">
+                <th scope="col" class="num">
                   <button type="button" class="sort" @click="toggleSort('duration')">
                     {{ t('trades.duration') }}
                     <AppIcon
@@ -290,7 +290,7 @@ onMounted(() => {
                     />
                   </button>
                 </th>
-                <th class="num">
+                <th scope="col" class="num">
                   <button type="button" class="sort" @click="toggleSort('open_timestamp')">
                     {{ t('trades.openDate') }}
                     <AppIcon
@@ -312,7 +312,9 @@ onMounted(() => {
                     />
                     <span class="num">{{ trade.pair }}</span>
                     <SideBadge class="u-inline-sm" :is-short="trade.is_short" />
-                    <span v-if="trade.is_open" class="chip chip--accent">{{ t('trades.open') }}</span>
+                    <span v-if="trade.is_open" class="chip chip--accent">{{
+                      t('trades.open')
+                    }}</span>
                   </div>
                 </td>
                 <td class="u-hide-sm side-col"><SideBadge :is-short="trade.is_short" /></td>
@@ -322,7 +324,9 @@ onMounted(() => {
                   {{ format.price(trade.current_rate ?? trade.close_rate ?? null) }}
                 </td>
                 <td class="num" :class="format.toneClass(trade.profit_ratio ?? trade.close_profit)">
-                  {{ format.signedMoney(trade.profit_abs ?? trade.close_profit_abs ?? null, stake) }}
+                  {{
+                    format.signedMoney(trade.profit_abs ?? trade.close_profit_abs ?? null, stake)
+                  }}
                   <div class="small muted">
                     {{ format.ratio(trade.profit_ratio ?? trade.close_profit) }}
                   </div>
@@ -458,7 +462,6 @@ onMounted(() => {
   font-size: var(--fs-sm);
   margin-left: 4px;
 }
-
 
 @media (max-width: 900px) {
   .panel__head {

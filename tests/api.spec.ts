@@ -43,18 +43,14 @@ describe('normalizeBaseUrl', () => {
 describe('url helpers', () => {
   it('resolves relative bases against the current origin', () => {
     expect(absoluteBaseUrl('/ft-api')).toBe(`${window.location.origin}/ft-api`)
-    expect(absoluteBaseUrl('https://bot.example.com/api/v1')).toBe(
-      'https://bot.example.com/api/v1',
-    )
+    expect(absoluteBaseUrl('https://bot.example.com/api/v1')).toBe('https://bot.example.com/api/v1')
   })
 
   it('builds an encoded websocket url', () => {
     expect(websocketUrl('https://bot.example.com/api/v1', 'a.b c')).toBe(
       'wss://bot.example.com/api/v1/message/ws?token=a.b%20c',
     )
-    expect(websocketUrl('http://host/api/v1', 'tok')).toBe(
-      'ws://host/api/v1/message/ws?token=tok',
-    )
+    expect(websocketUrl('http://host/api/v1', 'tok')).toBe('ws://host/api/v1/message/ws?token=tok')
   })
 })
 
@@ -185,12 +181,15 @@ describe('describeError', () => {
   })
 
   it('explains a missing endpoint and an out-of-state bot in plain language', () => {
-    expect(
-      describeError(new ApiError('http', 'Not Found', { status: 404 })).key,
-    ).toBe('errors.notFound')
+    expect(describeError(new ApiError('http', 'Not Found', { status: 404 })).key).toBe(
+      'errors.notFound',
+    )
     expect(
       describeError(
-        new ApiError('http', 'Bot is not in the correct state.', { status: 502, detail: 'Bot is not in the correct state.' }),
+        new ApiError('http', 'Bot is not in the correct state.', {
+          status: 502,
+          detail: 'Bot is not in the correct state.',
+        }),
       ).key,
     ).toBe('errors.notInState')
   })

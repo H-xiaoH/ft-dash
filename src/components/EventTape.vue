@@ -16,7 +16,13 @@ const follow = ref(true)
 const visible = computed(() => (props.compact ? events.events.slice(0, 6) : events.events))
 
 const toneClass = (severity: string) =>
-  severity === 'good' ? 'u-pos' : severity === 'bad' ? 'u-neg' : severity === 'warn' ? 'tape__warn' : ''
+  severity === 'good'
+    ? 'u-pos'
+    : severity === 'bad'
+      ? 'u-neg'
+      : severity === 'warn'
+        ? 'tape__warn'
+        : ''
 
 function label(type: string): string {
   const map: Record<string, string> = {

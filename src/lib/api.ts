@@ -26,14 +26,7 @@ import type {
 } from './types'
 
 export type ApiErrorKind =
-  | 'config'
-  | 'timeout'
-  | 'aborted'
-  | 'cors'
-  | 'offline'
-  | 'auth'
-  | 'http'
-  | 'parse'
+  'config' | 'timeout' | 'aborted' | 'cors' | 'offline' | 'auth' | 'http' | 'parse'
 
 /** Raised when an endpoint a feature depends on is missing or refuses to serve us. */
 export const WS_AUTH_UNSUPPORTED_STATUS = [404, 405, 501]
@@ -139,7 +132,9 @@ function extractDetail(payload: unknown): string | undefined {
   if (typeof detail === 'string') return detail
   if (Array.isArray(detail)) {
     const messages = detail
-      .map((item) => (item && typeof item === 'object' ? (item as { msg?: string }).msg : undefined))
+      .map((item) =>
+        item && typeof item === 'object' ? (item as { msg?: string }).msg : undefined,
+      )
       .filter((msg): msg is string => typeof msg === 'string')
     return messages.length ? messages.join('; ') : undefined
   }
@@ -196,7 +191,10 @@ export class FreqtradeApi {
     const url = `${this.baseUrl}${path}${buildQuery(options.query)}`
     const controller = new AbortController()
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-    const timer = setTimeout(() => controller.abort(new ApiError('timeout', 'Request timed out')), timeoutMs)
+    const timer = setTimeout(
+      () => controller.abort(new ApiError('timeout', 'Request timed out')),
+      timeoutMs,
+    )
     const onExternalAbort = () => controller.abort()
     options.signal?.addEventListener('abort', onExternalAbort, { once: true })
 
@@ -220,7 +218,8 @@ export class FreqtradeApi {
       })
     } catch (error) {
       const abortedByTimeout =
-        controller.signal.aborted && (controller.signal.reason as ApiError | undefined)?.kind === 'timeout'
+        controller.signal.aborted &&
+        (controller.signal.reason as ApiError | undefined)?.kind === 'timeout'
       if (abortedByTimeout) {
         throw new ApiError('timeout', `Timed out after ${timeoutMs}ms`, { url })
       }
@@ -228,7 +227,10 @@ export class FreqtradeApi {
         throw new ApiError('aborted', 'Request aborted', { url, cause: error })
       }
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        throw new ApiError('offline', 'Browser reports no network connection', { url, cause: error })
+        throw new ApiError('offline', 'Browser reports no network connection', {
+          url,
+          cause: error,
+        })
       }
       throw new ApiError('cors', 'Request blocked or host unreachable', {
         url,
@@ -460,7 +462,10 @@ export function describeError(error: unknown): { key: string; params?: Record<st
         if (error.detail?.toLowerCase().includes('correct state')) {
           return { key: 'errors.notInState' }
         }
-        return { key: 'errors.http', params: { status: error.status ?? 0, detail: error.detail ?? '' } }
+        return {
+          key: 'errors.http',
+          params: { status: error.status ?? 0, detail: error.detail ?? '' },
+        }
     }
   }
   return { key: 'errors.unknown' }

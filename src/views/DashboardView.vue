@@ -167,21 +167,23 @@ async function confirmExit() {
               <table class="table table--clickable">
                 <thead>
                   <tr>
-                    <th>{{ t('trades.pair') }}</th>
-                    <th class="u-hide-sm side-col">{{ t('trades.side') }}</th>
-                    <th class="num u-hide-sm">{{ t('trades.entryPrice') }}</th>
-                    <th class="num">{{ t('trades.currentPrice') }}</th>
-                    <th class="num u-hide-sm">{{ t('trades.stake') }}</th>
-                    <th class="num">{{ t('kpi.unrealized') }}</th>
-                    <th class="num">{{ t('trades.duration') }}</th>
-                    <th v-if="settings.writesEnabled" />
+                    <th scope="col">{{ t('trades.pair') }}</th>
+                    <th scope="col" class="u-hide-sm side-col">{{ t('trades.side') }}</th>
+                    <th scope="col" class="num u-hide-sm">{{ t('trades.entryPrice') }}</th>
+                    <th scope="col" class="num">{{ t('trades.currentPrice') }}</th>
+                    <th scope="col" class="num u-hide-sm">{{ t('trades.stake') }}</th>
+                    <th scope="col" class="num">{{ t('kpi.unrealized') }}</th>
+                    <th scope="col" class="num">{{ t('trades.duration') }}</th>
+                    <th v-if="settings.writesEnabled" scope="col" />
                   </tr>
                 </thead>
                 <tbody>
                   <tr
                     v-for="trade in bot.openTrades"
                     :key="trade.trade_id"
-                    @click="router.push({ path: '/trades', query: { trade: String(trade.trade_id) } })"
+                    @click="
+                      router.push({ path: '/trades', query: { trade: String(trade.trade_id) } })
+                    "
                   >
                     <td>
                       <div class="table__pair">
@@ -190,10 +192,7 @@ async function confirmExit() {
                           :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
                         />
                         <span class="num">{{ trade.pair }}</span>
-                        <SideBadge
-                          class="u-inline-sm"
-                          :is-short="trade.is_short"
-                        />
+                        <SideBadge class="u-inline-sm" :is-short="trade.is_short" />
                         <span v-if="trade.leverage && trade.leverage > 1" class="chip">
                           {{ trade.leverage }}x
                         </span>
@@ -239,11 +238,11 @@ async function confirmExit() {
               <table class="table">
                 <thead>
                   <tr>
-                    <th>{{ t('trades.pair') }}</th>
-                    <th class="u-hide-sm side-col">{{ t('trades.side') }}</th>
-                    <th class="num">{{ t('trades.profit') }}</th>
-                    <th class="num u-hide-sm">{{ t('trades.exitPrice') }}</th>
-                    <th class="num">{{ t('trades.duration') }}</th>
+                    <th scope="col">{{ t('trades.pair') }}</th>
+                    <th scope="col" class="u-hide-sm side-col">{{ t('trades.side') }}</th>
+                    <th scope="col" class="num">{{ t('trades.profit') }}</th>
+                    <th scope="col" class="num u-hide-sm">{{ t('trades.exitPrice') }}</th>
+                    <th scope="col" class="num">{{ t('trades.duration') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -281,7 +280,15 @@ async function confirmExit() {
           <div class="panel__body">
             <dl class="dl">
               <dt>{{ t('system.uptime') }}</dt>
-              <dd>{{ format.duration(bot.health ? Date.now() - (format.timestamp(bot.health.bot_startup_ts) ?? Date.now()) : null) }}</dd>
+              <dd>
+                {{
+                  format.duration(
+                    bot.health
+                      ? Date.now() - (format.timestamp(bot.health.bot_startup_ts) ?? Date.now())
+                      : null,
+                  )
+                }}
+              </dd>
               <dt>{{ t('system.botStartup') }}</dt>
               <dd>{{ format.dateTime(bot.health?.bot_startup ?? null) }}</dd>
               <dt>{{ t('system.lastProcess') }}</dt>
@@ -302,8 +309,12 @@ async function confirmExit() {
             <div class="meter">
               <div
                 class="meter__fill"
-                :class="bot.count.current >= bot.count.max ? 'meter__fill--warn' : 'meter__fill--good'"
-                :style="{ width: `${bot.count.max ? (bot.count.current / bot.count.max) * 100 : 0}%` }"
+                :class="
+                  bot.count.current >= bot.count.max ? 'meter__fill--warn' : 'meter__fill--good'
+                "
+                :style="{
+                  width: `${bot.count.max ? (bot.count.current / bot.count.max) * 100 : 0}%`,
+                }"
               />
             </div>
             <p class="small muted" style="margin-top: 8px">

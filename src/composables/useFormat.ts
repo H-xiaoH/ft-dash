@@ -52,7 +52,8 @@ export function useFormat(): Formatter {
     locale: () => current.value,
     number: (value, digits = 2) => formatNumber(value, current.value, digits),
     compact: (value) => formatCompact(value, current.value),
-    money: (value, currency = '', digits = 2) => formatMoney(value, currency, current.value, digits),
+    money: (value, currency = '', digits = 2) =>
+      formatMoney(value, currency, current.value, digits),
     signedMoney: (value, currency = '', digits = 2) =>
       formatSignedMoney(value, currency, current.value, digits),
     ratio: (value, digits = 2) => formatRatio(value, current.value, digits),

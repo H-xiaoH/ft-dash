@@ -51,7 +51,9 @@ const canConfirm = computed(
           <p v-if="body">{{ body }}</p>
           <p v-if="tone === 'danger'" class="confirm-warning">{{ t('actions.confirmBody') }}</p>
           <label v-if="requireText" class="field">
-            <span class="field__label">{{ requiredHint ?? t('actions.forceExitConfirm', { pair: requireText }) }}</span>
+            <span class="field__label">{{
+              requiredHint ?? t('actions.forceExitConfirm', { pair: requireText })
+            }}</span>
             <input v-model="typed" class="input num" autocomplete="off" spellcheck="false" />
           </label>
         </div>

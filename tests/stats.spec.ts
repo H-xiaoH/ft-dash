@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { buildPairStats } from '@/lib/stats'
 import type { PerformanceEntry, Trade } from '@/lib/types'
 
-function performance(pair: string, count: number, profitAbs: number, ratio: number): PerformanceEntry {
+function performance(
+  pair: string,
+  count: number,
+  profitAbs: number,
+  ratio: number,
+): PerformanceEntry {
   return {
     pair,
     count,

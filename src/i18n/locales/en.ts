@@ -292,7 +292,8 @@ export default {
     pwaTitle: 'Install as app',
     install: 'Add to home screen',
     installed: 'Installed',
-    installManual: 'This browser offers no install prompt — use its menu to install or add to home screen.',
+    installManual:
+      'This browser offers no install prompt — use its menu to install or add to home screen.',
     installHint: 'Installed, the console runs full screen and opens offline.',
     updateAvailable: 'New version available',
     update: 'Update now',

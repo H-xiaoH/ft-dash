@@ -27,7 +27,8 @@ const trigger = ref<HTMLElement | null>(null)
 const anchor = ref<{ top: number; left?: number; right?: number }>({ top: 0, right: 0 })
 
 const current = computed(
-  () => props.options.find((option) => option.value === model.value)?.label ?? props.options[0]?.label,
+  () =>
+    props.options.find((option) => option.value === model.value)?.label ?? props.options[0]?.label,
 )
 
 function choose(value: string) {
@@ -49,9 +50,7 @@ async function toggle() {
   const flip = rect.bottom + estimated > window.innerHeight
   anchor.value = {
     top: flip ? rect.top - estimated : rect.bottom + 4,
-    ...(props.align === 'end'
-      ? { right: window.innerWidth - rect.right }
-      : { left: rect.left }),
+    ...(props.align === 'end' ? { right: window.innerWidth - rect.right } : { left: rect.left }),
   }
 }
 

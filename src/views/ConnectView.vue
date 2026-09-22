@@ -17,7 +17,9 @@ const password = ref(settings.password)
 const submitting = ref(false)
 
 const origin = computed(() => (typeof window === 'undefined' ? '' : window.location.origin))
-const errorMessage = computed(() => (bot.errorKey ? t(bot.errorKey.key, bot.errorKey.params ?? {}) : ''))
+const errorMessage = computed(() =>
+  bot.errorKey ? t(bot.errorKey.key, bot.errorKey.params ?? {}) : '',
+)
 const canSubmit = computed(
   () => baseUrl.value.trim().length > 0 && username.value.trim() && password.value.length > 0,
 )
@@ -118,7 +120,11 @@ async function submit() {
           </div>
         </div>
 
-        <button type="submit" class="btn btn--primary connect__submit" :disabled="!canSubmit || submitting">
+        <button
+          type="submit"
+          class="btn btn--primary connect__submit"
+          :disabled="!canSubmit || submitting"
+        >
           <AppIcon name="key" />
           {{ submitting ? t('connect.connecting') : t('connect.connect') }}
         </button>
