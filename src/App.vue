@@ -177,16 +177,21 @@ watch(
       <div class="shell__body">
         <main class="content">
           <h1 class="sr-only">{{ pageTitle }}</h1>
-          <div class="page-host">
+          <!--
+            The travel direction lives on this stable host, not on the page itself:
+            an inline custom property is baked in when a page renders, so a leaving
+            page would animate with the direction of the *previous* navigation.
+          -->
+          <div
+            class="page-host"
+            :style="{
+              '--page-enter': `${pageDirection * 28}px`,
+              '--page-leave': `${pageDirection * -16}px`,
+            }"
+          >
             <RouterView v-slot="{ Component }">
               <Transition name="page" mode="out-in">
-                <component
-                  :is="Component"
-                  :style="{
-                    '--page-enter': `${pageDirection * 28}px`,
-                    '--page-leave': `${pageDirection * -16}px`,
-                  }"
-                />
+                <component :is="Component" />
               </Transition>
             </RouterView>
           </div>

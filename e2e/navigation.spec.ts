@@ -82,3 +82,32 @@ test('the rail keeps no hover plate behind the sliding indicator', async ({ page
   await item.hover()
   await expect(item).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
 })
+
+test('a page travels the way you navigated', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 })
+  const host = page.locator('.page-host')
+  const travel = () =>
+    host.evaluate((el) => ({
+      enter: el.style.getPropertyValue('--page-enter'),
+      leave: el.style.getPropertyValue('--page-leave'),
+    }))
+
+  // Forward: the new page arrives from the right, the old one leaves to the left.
+  await page.locator('.tabbar__item').nth(3).click()
+  await expect.poll(travel).toEqual({ enter: '28px', leave: '-16px' })
+
+  // Backward: both flip, so the outgoing page never slides against your finger.
+  await page.locator('.tabbar__item').nth(1).click()
+  await expect.poll(travel).toEqual({ enter: '-28px', leave: '16px' })
+
+  /*
+   * The direction has to live on the stable host. An inline custom property is baked in
+   * when an element renders, so a value carried by the page itself is read from the
+   * render that created it — which is how the leaving page ended up animating with the
+   * direction of the previous navigation.
+   */
+  const onPage = await page
+    .locator('.page-host > *')
+    .evaluate((el) => el.style.getPropertyValue('--page-enter'))
+  expect(onPage).toBe('')
+})
