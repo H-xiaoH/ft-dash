@@ -165,7 +165,8 @@ function exportCsv() {
 }
 
 async function loadMore() {
-  limit.value = Math.min(1000, limit.value + 300)
+  // No artificial ceiling: keep paging until every available trade is loaded.
+  limit.value += 300
   await bot.fetchTrades(limit.value)
 }
 
@@ -195,6 +196,26 @@ onMounted(() => {
 
 <template>
   <div class="stack">
+    <!-- Position summary, moved here from the overview. -->
+    <section v-if="bot.count" class="panel">
+      <div class="panel__head">
+        <span class="panel__title">{{ t('kpi.openTrades') }}</span>
+        <span class="panel__meta num">
+          {{ bot.count.current }} / {{ bot.count.max }} ·
+          {{ format.money(bot.count.total_stake, stake) }}
+        </span>
+      </div>
+      <div class="panel__body">
+        <div class="meter">
+          <div
+            class="meter__fill"
+            :class="bot.count.current >= bot.count.max ? 'meter__fill--warn' : 'meter__fill--good'"
+            :style="{ width: `${bot.count.max ? (bot.count.current / bot.count.max) * 100 : 0}%` }"
+          />
+        </div>
+      </div>
+    </section>
+
     <section class="panel">
       <div class="panel__head">
         <div class="seg">

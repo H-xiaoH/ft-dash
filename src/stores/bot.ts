@@ -122,10 +122,9 @@ export const useBotStore = defineStore('bot', () => {
     return ts === null ? null : Date.now() - ts
   })
   const closedTrades = computed(() => trades.value.filter((trade) => !trade.is_open))
-  const recentClosed = computed(() =>
-    [...closedTrades.value]
-      .sort((a, b) => (b.close_timestamp ?? 0) - (a.close_timestamp ?? 0))
-      .slice(0, 12),
+  /** Every closed trade the app has loaded, newest first — no artificial cap. */
+  const closedByRecency = computed(() =>
+    [...closedTrades.value].sort((a, b) => (b.close_timestamp ?? 0) - (a.close_timestamp ?? 0)),
   )
   const tradesByPair = computed(() => {
     const map = new Map<string, Trade[]>()
@@ -668,7 +667,7 @@ export const useBotStore = defineStore('bot', () => {
     isBotRunning,
     heartbeatAgeMs,
     closedTrades,
-    recentClosed,
+    closedByRecency,
     tradesByPair,
     // lifecycle
     connect,

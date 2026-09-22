@@ -133,6 +133,27 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
     </div>
 
     <div class="grid-2">
+      <!-- Moved here from the overview; uptime itself is already in the tiles above. -->
+      <section class="panel">
+        <div class="panel__head">
+          <span class="panel__title">{{ t('system.health') }}</span>
+        </div>
+        <div class="panel__body">
+          <dl class="dl">
+            <dt>{{ t('system.botStartup') }}</dt>
+            <dd>{{ format.dateTime(bot.health?.bot_startup ?? null) }}</dd>
+            <dt>{{ t('system.lastProcess') }}</dt>
+            <dd>{{ format.dateTime(bot.health?.last_process ?? null) }}</dd>
+            <dt>{{ t('system.uptime') }}</dt>
+            <dd>{{ format.duration(uptime) }}</dd>
+            <dt>{{ t('stats.avgWinDuration') }}</dt>
+            <dd>{{ format.duration(bot.tradeStats?.durations?.wins ?? null) }}</dd>
+            <dt>{{ t('stats.avgLossDuration') }}</dt>
+            <dd>{{ format.duration(bot.tradeStats?.durations?.losses ?? null) }}</dd>
+          </dl>
+        </div>
+      </section>
+
       <section class="panel">
         <div class="panel__head">
           <span class="panel__title">{{ t('system.config') }}</span>

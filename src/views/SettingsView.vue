@@ -34,7 +34,6 @@ const appVersion = __APP_VERSION__
 const STREAM_AUTH_CHOICES: { value: StreamAuthPreference; label: string }[] = [
   { value: 'auto', label: 'settings.streamAuthAuto' },
   { value: 'ws_token', label: 'settings.streamAuthToken' },
-  { value: 'off', label: 'settings.streamAuthOff' },
 ]
 
 const streamAuthLabel = computed(() => {
@@ -246,11 +245,10 @@ async function install() {
 
     <section class="panel">
       <div class="panel__head">
-        <span class="panel__title">{{ t('settings.title') }}</span>
+        <span class="panel__title">{{ t('settings.language') }}</span>
       </div>
-      <div class="panel__body stack">
+      <div class="panel__body">
         <div class="field">
-          <span class="field__label">{{ t('settings.language') }}</span>
           <div class="seg">
             <button
               v-for="code in SUPPORTED_LOCALES"
@@ -264,7 +262,14 @@ async function install() {
             </button>
           </div>
         </div>
+      </div>
+    </section>
 
+    <section class="panel">
+      <div class="panel__head">
+        <span class="panel__title">{{ t('settings.push') }}</span>
+      </div>
+      <div class="panel__body stack">
         <label class="switch">
           <input v-model="settings.websocket" type="checkbox" />
           <span class="switch__track" />
@@ -307,7 +312,7 @@ async function install() {
                 </button>
               </div>
             </div>
-            <label class="field">
+            <label v-if="settings.streamAuth === 'ws_token'" class="field">
               <span class="field__label">{{ t('settings.wsToken') }}</span>
               <input
                 v-model="settings.wsToken"

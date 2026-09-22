@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS: StoredSettings = {
   controlsAcknowledged: false,
 }
 
-export const STREAM_AUTH_OPTIONS: StreamAuthPreference[] = ['auto', 'ws_token', 'off']
+export const STREAM_AUTH_OPTIONS: StreamAuthPreference[] = ['auto', 'ws_token']
 
 function resolveStreamAuth(value: unknown): StreamAuthPreference {
   return STREAM_AUTH_OPTIONS.includes(value as StreamAuthPreference)

@@ -23,6 +23,8 @@ const search = ref('')
 const sortKey = ref<SortKey>('profitAbs')
 const sortDir = ref<'asc' | 'desc'>('desc')
 const periodChartHeight = useChartHeight(140, 0.19, 220)
+/** The period tables list exactly as many rows as the chart draws bars. */
+const PERIOD_ROWS = 30
 
 const stake = computed(() => bot.stakeCurrency)
 
@@ -373,7 +375,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
               </tr>
             </thead>
             <tbody>
-              <tr v-for="entry in periodData.slice(0, 12)" :key="entry.date">
+              <tr v-for="entry in periodData.slice(0, PERIOD_ROWS)" :key="entry.date">
                 <td class="num">{{ format.day(entry.date) }}</td>
                 <td class="num" :class="format.toneClass(entry.abs_profit)">
                   {{ format.signedMoney(entry.abs_profit, stake) }}
@@ -390,7 +392,7 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
       </div>
 
       <ul class="cards u-mobile-only">
-        <li v-for="entry in periodData.slice(0, 12)" :key="entry.date" class="card">
+        <li v-for="entry in periodData.slice(0, PERIOD_ROWS)" :key="entry.date" class="card">
           <div class="card__row">
             <span class="num">{{ format.day(entry.date) }}</span>
             <span class="spacer" />

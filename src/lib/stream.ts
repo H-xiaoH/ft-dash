@@ -9,7 +9,8 @@
  * cannot be used for the socket — it stays the transport for every REST call.
  */
 
-export type StreamAuthPreference = 'auto' | 'ws_token' | 'off'
+/** Turning the stream off is the WebSocket switch's job, not an auth choice. */
+export type StreamAuthPreference = 'auto' | 'ws_token'
 
 export type StreamAuthMode = 'jwt' | 'ws_token' | 'off' | 'unavailable'
 
@@ -55,10 +56,6 @@ const JWT_FAILURE_REASONS: Record<JwtFailure, string> = {
 
 export function planStreamAuth(input: StreamAuthInput): StreamAuthPlan {
   const wsToken = input.wsToken.trim()
-
-  if (input.preference === 'off') {
-    return { mode: 'off', token: null, reason: 'errors.wsDisabled', connectable: false }
-  }
 
   if (input.preference === 'ws_token') {
     if (!wsToken) {

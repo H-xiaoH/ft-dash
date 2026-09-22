@@ -84,11 +84,6 @@ describe('planStreamAuth', () => {
     expect(
       planStreamAuth({ preference: 'ws_token', wsToken: 'tok', jwtToken: null }),
     ).toMatchObject({ mode: 'ws_token', token: 'tok' })
-
-    expect(planStreamAuth({ preference: 'off', wsToken: 'tok', jwtToken: 'jwt' })).toMatchObject({
-      mode: 'off',
-      connectable: false,
-    })
   })
 })
 

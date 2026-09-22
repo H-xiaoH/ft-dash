@@ -125,205 +125,150 @@ async function confirmExit() {
       />
     </div>
 
-    <div class="dash__grid">
-      <div class="dash__main stack">
-        <section class="panel">
-          <div class="panel__head">
-            <span class="panel__title">{{ t('dashboard.dailyPnl') }}</span>
-            <span class="panel__meta num">
-              {{ format.money(bot.balance?.starting_capital ?? null, stake) }} →
-              {{ format.money(bot.balance?.total ?? null, stake) }}
-            </span>
-            <div class="panel__actions">
-              <button type="button" class="link-btn small" @click="router.push('/stats')">
-                {{ t('dashboard.viewAll') }}
-              </button>
-            </div>
+    <div class="stack">
+      <section class="panel">
+        <div class="panel__head">
+          <span class="panel__title">{{ t('dashboard.dailyPnl') }}</span>
+          <span class="panel__meta num">
+            {{ format.money(bot.balance?.starting_capital ?? null, stake) }} →
+            {{ format.money(bot.balance?.total ?? null, stake) }}
+          </span>
+          <div class="panel__actions">
+            <button type="button" class="link-btn small" @click="router.push('/stats')">
+              {{ t('dashboard.viewAll') }}
+            </button>
           </div>
-          <div class="panel__body">
-            <BarChart
-              v-if="bars.length"
-              :items="bars"
-              :height="pnlChartHeight"
-              :axis-format="(value: number) => format.money(value, '', 2)"
-            />
-            <p v-else class="empty">{{ t('stats.noData') }}</p>
-          </div>
-        </section>
+        </div>
+        <div class="panel__body">
+          <BarChart
+            v-if="bars.length"
+            :items="bars"
+            :height="pnlChartHeight"
+            :axis-format="(value: number) => format.money(value, '', 2)"
+          />
+          <p v-else class="empty">{{ t('stats.noData') }}</p>
+        </div>
+      </section>
 
-        <section class="panel">
-          <div class="panel__head">
-            <span class="panel__title">{{ t('dashboard.openPositions') }}</span>
-            <span class="chip">{{ bot.openTrades.length }}</span>
-            <div class="panel__actions">
-              <button type="button" class="link-btn small" @click="router.push('/trades')">
-                {{ t('dashboard.viewAll') }}
-              </button>
-            </div>
+      <section class="panel">
+        <div class="panel__head">
+          <span class="panel__title">{{ t('dashboard.openPositions') }}</span>
+          <span class="chip">{{ bot.openTrades.length }}</span>
+          <div class="panel__actions">
+            <button type="button" class="link-btn small" @click="router.push('/trades')">
+              {{ t('dashboard.viewAll') }}
+            </button>
           </div>
-          <div class="panel__body panel__body--flush">
-            <div v-if="!bot.openTrades.length" class="empty">{{ t('dashboard.noPositions') }}</div>
-            <div v-else class="table-wrap">
-              <table class="table table--clickable">
-                <thead>
-                  <tr>
-                    <th scope="col">{{ t('trades.pair') }}</th>
-                    <th scope="col" class="u-hide-sm side-col">{{ t('trades.side') }}</th>
-                    <th scope="col" class="num u-hide-sm">{{ t('trades.entryPrice') }}</th>
-                    <th scope="col" class="num">{{ t('trades.currentPrice') }}</th>
-                    <th scope="col" class="num u-hide-sm">{{ t('trades.stake') }}</th>
-                    <th scope="col" class="num">{{ t('kpi.unrealized') }}</th>
-                    <th scope="col" class="num">{{ t('trades.duration') }}</th>
-                    <th v-if="settings.writesEnabled" scope="col" />
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="trade in bot.openTrades"
-                    :key="trade.trade_id"
-                    @click="
-                      router.push({ path: '/trades', query: { trade: String(trade.trade_id) } })
-                    "
-                  >
-                    <td>
-                      <div class="table__pair">
-                        <span
-                          class="table__side"
-                          :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
-                        />
-                        <span class="num">{{ trade.pair }}</span>
-                        <SideBadge class="u-inline-sm" :is-short="trade.is_short" />
-                        <span v-if="trade.leverage && trade.leverage > 1" class="chip">
-                          {{ trade.leverage }}x
-                        </span>
-                      </div>
-                    </td>
-                    <td class="u-hide-sm side-col"><SideBadge :is-short="trade.is_short" /></td>
-                    <td class="num u-hide-sm">{{ format.price(trade.open_rate) }}</td>
-                    <td class="num">{{ format.price(trade.current_rate ?? trade.open_rate) }}</td>
-                    <td class="num u-hide-sm">{{ format.money(trade.stake_amount, stake) }}</td>
-                    <td class="num" :class="format.toneClass(trade.profit_ratio)">
-                      {{ format.signedMoney(trade.profit_abs ?? 0, stake) }}
-                      <div class="small muted">{{ format.ratio(trade.profit_ratio) }}</div>
-                    </td>
-                    <td class="num">{{ format.duration(durationOf(trade)) }}</td>
-                    <td v-if="settings.writesEnabled">
-                      <button
-                        type="button"
-                        class="btn btn--sm btn--danger"
-                        @click.stop="exitTarget = trade"
-                      >
-                        {{ t('actions.forceExit') }}
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+        </div>
+        <div class="panel__body panel__body--flush">
+          <div v-if="!bot.openTrades.length" class="empty">{{ t('dashboard.noPositions') }}</div>
+          <div v-else class="table-wrap">
+            <table class="table table--clickable">
+              <thead>
+                <tr>
+                  <th scope="col">{{ t('trades.pair') }}</th>
+                  <th scope="col" class="u-hide-sm side-col">{{ t('trades.side') }}</th>
+                  <th scope="col" class="num u-hide-sm">{{ t('trades.entryPrice') }}</th>
+                  <th scope="col" class="num">{{ t('trades.currentPrice') }}</th>
+                  <th scope="col" class="num u-hide-sm">{{ t('trades.stake') }}</th>
+                  <th scope="col" class="num">{{ t('kpi.unrealized') }}</th>
+                  <th scope="col" class="num">{{ t('trades.duration') }}</th>
+                  <th v-if="settings.writesEnabled" scope="col" />
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="trade in bot.openTrades"
+                  :key="trade.trade_id"
+                  @click="
+                    router.push({ path: '/trades', query: { trade: String(trade.trade_id) } })
+                  "
+                >
+                  <td>
+                    <div class="table__pair">
+                      <span
+                        class="table__side"
+                        :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
+                      />
+                      <span class="num">{{ trade.pair }}</span>
+                      <SideBadge class="u-inline-sm" :is-short="trade.is_short" />
+                      <span v-if="trade.leverage && trade.leverage > 1" class="chip">
+                        {{ trade.leverage }}x
+                      </span>
+                    </div>
+                  </td>
+                  <td class="u-hide-sm side-col"><SideBadge :is-short="trade.is_short" /></td>
+                  <td class="num u-hide-sm">{{ format.price(trade.open_rate) }}</td>
+                  <td class="num">{{ format.price(trade.current_rate ?? trade.open_rate) }}</td>
+                  <td class="num u-hide-sm">{{ format.money(trade.stake_amount, stake) }}</td>
+                  <td class="num" :class="format.toneClass(trade.profit_ratio)">
+                    {{ format.signedMoney(trade.profit_abs ?? 0, stake) }}
+                    <div class="small muted">{{ format.ratio(trade.profit_ratio) }}</div>
+                  </td>
+                  <td class="num">{{ format.duration(durationOf(trade)) }}</td>
+                  <td v-if="settings.writesEnabled">
+                    <button
+                      type="button"
+                      class="btn btn--sm btn--danger"
+                      @click.stop="exitTarget = trade"
+                    >
+                      {{ t('actions.forceExit') }}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section class="panel">
-          <div class="panel__head">
-            <span class="panel__title">{{ t('dashboard.recentTrades') }}</span>
-            <div class="panel__actions">
-              <button type="button" class="link-btn small" @click="router.push('/trades')">
-                {{ t('dashboard.viewAll') }}
-              </button>
-            </div>
+      <section class="panel">
+        <div class="panel__head">
+          <span class="panel__title">{{ t('dashboard.recentTrades') }}</span>
+          <div class="panel__actions">
+            <button type="button" class="link-btn small" @click="router.push('/trades')">
+              {{ t('dashboard.viewAll') }}
+            </button>
           </div>
-          <div class="panel__body panel__body--flush">
-            <div v-if="!bot.recentClosed.length" class="empty">{{ t('trades.noClosed') }}</div>
-            <div v-else class="table-wrap">
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th scope="col">{{ t('trades.pair') }}</th>
-                    <th scope="col" class="u-hide-sm side-col">{{ t('trades.side') }}</th>
-                    <th scope="col" class="num">{{ t('trades.profit') }}</th>
-                    <th scope="col" class="num u-hide-sm">{{ t('trades.exitPrice') }}</th>
-                    <th scope="col" class="num">{{ t('trades.duration') }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="trade in bot.recentClosed" :key="trade.trade_id">
-                    <td>
-                      <div class="table__pair">
-                        <span
-                          class="table__side"
-                          :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
-                        />
-                        <span class="num">{{ trade.pair }}</span>
-                        <SideBadge class="u-inline-sm" :is-short="trade.is_short" />
-                      </div>
-                    </td>
-                    <td class="u-hide-sm side-col"><SideBadge :is-short="trade.is_short" /></td>
-                    <td class="num" :class="format.toneClass(trade.profit_ratio)">
-                      {{ format.signedMoney(trade.profit_abs ?? 0, stake) }}
-                      <div class="small muted">{{ format.ratio(trade.profit_ratio) }}</div>
-                    </td>
-                    <td class="num u-hide-sm">{{ format.price(trade.close_rate ?? null) }}</td>
-                    <td class="num">{{ format.duration(durationOf(trade)) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+        </div>
+        <div class="panel__body panel__body--flush">
+          <div v-if="!bot.closedByRecency.length" class="empty">{{ t('trades.noClosed') }}</div>
+          <div v-else class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th scope="col">{{ t('trades.pair') }}</th>
+                  <th scope="col" class="u-hide-sm side-col">{{ t('trades.side') }}</th>
+                  <th scope="col" class="num">{{ t('trades.profit') }}</th>
+                  <th scope="col" class="num u-hide-sm">{{ t('trades.exitPrice') }}</th>
+                  <th scope="col" class="num">{{ t('trades.duration') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="trade in bot.closedByRecency" :key="trade.trade_id">
+                  <td>
+                    <div class="table__pair">
+                      <span
+                        class="table__side"
+                        :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
+                      />
+                      <span class="num">{{ trade.pair }}</span>
+                      <SideBadge class="u-inline-sm" :is-short="trade.is_short" />
+                    </div>
+                  </td>
+                  <td class="u-hide-sm side-col"><SideBadge :is-short="trade.is_short" /></td>
+                  <td class="num" :class="format.toneClass(trade.profit_ratio)">
+                    {{ format.signedMoney(trade.profit_abs ?? 0, stake) }}
+                    <div class="small muted">{{ format.ratio(trade.profit_ratio) }}</div>
+                  </td>
+                  <td class="num u-hide-sm">{{ format.price(trade.close_rate ?? null) }}</td>
+                  <td class="num">{{ format.duration(durationOf(trade)) }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-        </section>
-      </div>
-
-      <aside class="dash__aside stack">
-        <section class="panel">
-          <div class="panel__head">
-            <span class="panel__title">{{ t('system.health') }}</span>
-          </div>
-          <div class="panel__body">
-            <dl class="dl">
-              <dt>{{ t('system.uptime') }}</dt>
-              <dd>
-                {{
-                  format.duration(
-                    bot.health
-                      ? Date.now() - (format.timestamp(bot.health.bot_startup_ts) ?? Date.now())
-                      : null,
-                  )
-                }}
-              </dd>
-              <dt>{{ t('system.botStartup') }}</dt>
-              <dd>{{ format.dateTime(bot.health?.bot_startup ?? null) }}</dd>
-              <dt>{{ t('system.lastProcess') }}</dt>
-              <dd>{{ format.dateTime(bot.health?.last_process ?? null) }}</dd>
-              <dt>{{ t('stats.avgWinDuration') }}</dt>
-              <dd>{{ format.duration(bot.tradeStats?.durations?.wins ?? null) }}</dd>
-              <dt>{{ t('stats.avgLossDuration') }}</dt>
-              <dd>{{ format.duration(bot.tradeStats?.durations?.losses ?? null) }}</dd>
-            </dl>
-          </div>
-        </section>
-
-        <section v-if="bot.count" class="panel">
-          <div class="panel__head">
-            <span class="panel__title">{{ t('kpi.openTrades') }}</span>
-          </div>
-          <div class="panel__body">
-            <div class="meter">
-              <div
-                class="meter__fill"
-                :class="
-                  bot.count.current >= bot.count.max ? 'meter__fill--warn' : 'meter__fill--good'
-                "
-                :style="{
-                  width: `${bot.count.max ? (bot.count.current / bot.count.max) * 100 : 0}%`,
-                }"
-              />
-            </div>
-            <p class="small muted" style="margin-top: 8px">
-              {{ bot.count.current }} / {{ bot.count.max }} ·
-              {{ format.money(bot.count.total_stake, stake) }}
-            </p>
-          </div>
-        </section>
-      </aside>
+        </div>
+      </section>
     </div>
 
     <ConfirmDialog
@@ -341,18 +286,6 @@ async function confirmExit() {
 </template>
 
 <style scoped>
-.dash__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 2.6fr) minmax(min(240px, 100%), 1fr);
-  gap: var(--sp-4);
-  align-items: start;
-}
-
-.dash__main,
-.dash__aside {
-  min-width: 0;
-}
-
 @media (max-width: 1080px) {
   .dash__grid {
     grid-template-columns: 1fr;
