@@ -239,7 +239,7 @@ onMounted(() => {
 
       <div v-if="tab === 'whitelist'" class="panel__body panel__body--flush market__scroll">
         <div v-if="!whitelistRows.length" class="empty">{{ t('empty.table') }}</div>
-        <div v-else class="table-wrap">
+        <div v-else class="table-wrap u-desktop-only">
           <table class="table table--clickable">
             <thead>
               <tr>
@@ -274,6 +274,36 @@ onMounted(() => {
             </tbody>
           </table>
         </div>
+
+        <ul v-if="whitelistRows.length" class="cards u-mobile-only">
+          <li
+            v-for="pair in whitelistRows"
+            :key="pair"
+            class="card card--tappable"
+            @click="selectedPair = pair"
+          >
+            <div class="card__row">
+              <span class="num card__pair">{{ pair }}</span>
+              <span v-if="openPairs.has(pair)" class="chip chip--accent">
+                {{ t('trades.open') }}
+              </span>
+              <span class="spacer" />
+              <span
+                class="num"
+                :class="
+                  format.toneClass(bot.performance.find((entry) => entry.pair === pair)?.profit_abs)
+                "
+              >
+                {{
+                  format.signedMoney(
+                    bot.performance.find((entry) => entry.pair === pair)?.profit_abs ?? null,
+                    bot.stakeCurrency,
+                  )
+                }}
+              </span>
+            </div>
+          </li>
+        </ul>
       </div>
 
       <div v-else-if="tab === 'blacklist'" class="panel__body stack">
@@ -322,7 +352,7 @@ onMounted(() => {
 
       <div v-else class="panel__body panel__body--flush">
         <div v-if="!bot.locks?.locks.length" class="empty">{{ t('market.noLocks') }}</div>
-        <div v-else class="table-wrap">
+        <div v-else class="table-wrap u-desktop-only">
           <table class="table">
             <thead>
               <tr>
@@ -353,6 +383,35 @@ onMounted(() => {
             </tbody>
           </table>
         </div>
+
+        <ul v-if="bot.locks?.locks.length" class="cards u-mobile-only">
+          <li v-for="lock in bot.locks.locks" :key="lock.id" class="card">
+            <div class="card__row">
+              <span class="num card__pair">{{ lock.pair }}</span>
+              <span class="chip" :class="lock.active ? 'chip--warn' : ''">
+                {{ lock.active ? t('market.lockActive') : t('market.lockInactive') }}
+              </span>
+              <span class="spacer" />
+              <button
+                v-if="settings.writesEnabled"
+                type="button"
+                class="btn btn--sm btn--danger"
+                @click="lockTarget = lock"
+              >
+                <AppIcon name="unlock" />
+                {{ t('actions.deleteLock') }}
+              </button>
+            </div>
+            <div class="card__row small muted">
+              <span
+                >{{ t('market.lockUntil') }} {{ format.dateTime(lock.lock_end_timestamp) }}</span
+              >
+            </div>
+            <div class="card__row small muted">
+              <span>{{ lock.reason }}</span>
+            </div>
+          </li>
+        </ul>
       </div>
     </section>
 

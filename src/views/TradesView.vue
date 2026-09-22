@@ -341,7 +341,12 @@ onMounted(() => {
 
       <!-- Mobile: a card list beats a horizontally scrolling table. -->
       <ul v-if="rows.length" class="cards u-mobile-only">
-        <li v-for="trade in rows" :key="trade.trade_id" class="card" @click="openTrade(trade)">
+        <li
+          v-for="trade in rows"
+          :key="trade.trade_id"
+          class="card card--tappable"
+          @click="openTrade(trade)"
+        >
           <div class="card__row">
             <span
               class="table__side"
@@ -423,44 +428,6 @@ onMounted(() => {
 .trades__more {
   border-bottom: 0;
   border-top: 1px solid var(--line);
-}
-
-.cards {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.card {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: var(--sp-3) var(--sp-4);
-  border-bottom: 1px solid var(--line);
-}
-
-.card:active {
-  background: var(--ink-800);
-}
-
-.card__row {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-2);
-  min-width: 0;
-}
-
-.card__pair {
-  font-size: var(--fs-base);
-}
-
-.card__pnl {
-  font-size: var(--fs-md);
-}
-
-.card__pnl small {
-  font-size: var(--fs-sm);
-  margin-left: 4px;
 }
 
 @media (max-width: 900px) {

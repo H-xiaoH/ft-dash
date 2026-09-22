@@ -2,6 +2,8 @@
 
 [![Deploy to GitHub Pages](https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml/badge.svg)](https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml)
 
+**English** · [简体中文](README.zh-CN.md)
+
 A mobile-first, offline-capable web console for [Freqtrade](https://www.freqtrade.io/) bots.
 It is a static Vue PWA: your browser talks straight to your bot's REST API, so there is no
 backend to host and nothing to trust in the middle.

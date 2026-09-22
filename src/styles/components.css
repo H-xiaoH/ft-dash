@@ -741,6 +741,54 @@
   display: none;
 }
 
+/* --- card lists: the narrow-screen form of every data table ------------------ */
+
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.card:last-child {
+  border-bottom: 0;
+}
+
+.card--tappable:active {
+  background: var(--ink-800);
+}
+
+.card__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.card__pair {
+  font-size: var(--fs-base);
+}
+
+.card__pnl {
+  font-size: var(--fs-md);
+}
+
+.card__pnl small {
+  font-size: var(--fs-sm);
+  margin-left: 4px;
+}
+
+.card__label {
+  color: var(--text-3);
+}
+
 .u-hide-sm {
   display: table-cell;
 }
