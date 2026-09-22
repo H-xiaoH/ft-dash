@@ -2,21 +2,38 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BarChart from '@/components/BarChart.vue'
-import AppIcon from '@/components/AppIcon.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
+import SortHeader from '@/components/SortHeader.vue'
 import type { BarItem } from '@/components/charts'
 import { useFormat } from '@/composables/useFormat'
 import { useChartHeight } from '@/composables/useChartHeight'
 import { useBotStore } from '@/stores/bot'
 
 type Period = 'daily' | 'weekly' | 'monthly'
-type SortKey = 'name' | 'count' | 'profitAbs' | 'profitRatio'
+type SortKey =
+  | 'name'
+  | 'count'
+  | 'winRate'
+  | 'profitAbs'
+  | 'profitRatio'
+  | 'avgDuration'
+  | 'fees'
+  | 'volume'
+  | 'lastTrade'
 
 interface Row {
   name: string
   count: number
   profitAbs: number
   profitRatio: number
+  /** Derived from the closed trades the API already hands us. */
+  wins: number
+  losses: number
+  winRate: number | null
+  avgDuration: number | null
+  fees: number
+  volume: number
+  lastTrade: number | null
 }
 
 const { t } = useI18n()
@@ -31,15 +48,49 @@ const periodChartHeight = useChartHeight(140, 0.19, 220)
 
 const stake = computed(() => bot.stakeCurrency)
 
-/** Per-pair performance, one row per traded pair. */
-const allRows = computed<Row[]>(() => [
-  ...bot.performance.map((entry) => ({
-    name: entry.pair,
-    count: entry.count,
-    profitAbs: entry.profit_abs,
-    profitRatio: entry.profit_ratio,
-  })),
-])
+/** Closed trades grouped by pair, so per-pair details need no extra API call. */
+const tradesByPair = computed(() => {
+  const map = new Map<string, typeof bot.closedTrades>()
+  for (const trade of bot.closedTrades) {
+    const list = map.get(trade.pair) ?? []
+    list.push(trade)
+    map.set(trade.pair, list)
+  }
+  return map
+})
+
+/** `/performance` keeps the authoritative totals; the trades enrich each row. */
+const allRows = computed<Row[]>(() =>
+  bot.performance.map((entry) => {
+    const trades = tradesByPair.value.get(entry.pair) ?? []
+    const wins = trades.filter((trade) => (trade.profit_ratio ?? 0) > 0).length
+    const losses = trades.filter((trade) => (trade.profit_ratio ?? 0) < 0).length
+    const durations = trades
+      .map((trade) => (trade.close_timestamp ?? 0) - trade.open_timestamp)
+      .filter((duration) => duration > 0)
+    const decided = wins + losses
+    return {
+      name: entry.pair,
+      count: entry.count,
+      profitAbs: entry.profit_abs,
+      profitRatio: entry.profit_ratio,
+      wins,
+      losses,
+      winRate: decided > 0 ? (wins / decided) * 100 : null,
+      avgDuration: durations.length
+        ? durations.reduce((sum, duration) => sum + duration, 0) / durations.length
+        : null,
+      fees: trades.reduce(
+        (sum, trade) => sum + (trade.fee_open_cost ?? 0) + (trade.fee_close_cost ?? 0),
+        0,
+      ),
+      volume: trades.reduce((sum, trade) => sum + (trade.open_trade_value ?? 0), 0),
+      lastTrade: trades.length
+        ? Math.max(...trades.map((trade) => trade.close_timestamp ?? 0)) || null
+        : null,
+    }
+  }),
+)
 
 const rows = computed<Row[]>(() => {
   const query = search.value.trim().toLowerCase()
@@ -54,8 +105,18 @@ const rows = computed<Row[]>(() => {
         return a.name.localeCompare(b.name) * direction
       case 'count':
         return (a.count - b.count) * direction
+      case 'winRate':
+        return ((a.winRate ?? -1) - (b.winRate ?? -1)) * direction
       case 'profitRatio':
         return (a.profitRatio - b.profitRatio) * direction
+      case 'avgDuration':
+        return ((a.avgDuration ?? 0) - (b.avgDuration ?? 0)) * direction
+      case 'fees':
+        return (a.fees - b.fees) * direction
+      case 'volume':
+        return (a.volume - b.volume) * direction
+      case 'lastTrade':
+        return ((a.lastTrade ?? 0) - (b.lastTrade ?? 0)) * direction
       default:
         return (a.profitAbs - b.profitAbs) * direction
     }
@@ -223,35 +284,76 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
             <thead>
               <tr>
                 <th>
-                  <button type="button" class="sort" @click="toggleSort('name')">
-                    {{ t('stats.byPair') }}
-                    <AppIcon
-                      v-if="sortKey === 'name'"
-                      :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
-                      :size="12"
-                    />
-                  </button>
+                  <SortHeader
+                    :label="t('stats.byPair')"
+                    :active="sortKey === 'name'"
+                    :dir="sortDir"
+                    @toggle="toggleSort('name')"
+                  />
                 </th>
                 <th>
-                  <button type="button" class="sort" @click="toggleSort('count')">
-                    {{ t('stats.count') }}
-                    <AppIcon
-                      v-if="sortKey === 'count'"
-                      :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
-                      :size="12"
-                    />
-                  </button>
+                  <SortHeader
+                    :label="t('stats.count')"
+                    :active="sortKey === 'count'"
+                    :dir="sortDir"
+                    @toggle="toggleSort('count')"
+                  />
                 </th>
-                <th class="num">{{ t('stats.totalProfit') }}</th>
                 <th class="num">
-                  <button type="button" class="sort" @click="toggleSort('profitRatio')">
-                    {{ t('stats.avgProfit') }}
-                    <AppIcon
-                      v-if="sortKey === 'profitRatio'"
-                      :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
-                      :size="12"
-                    />
-                  </button>
+                  <SortHeader
+                    :label="t('stats.winRate')"
+                    :active="sortKey === 'winRate'"
+                    :dir="sortDir"
+                    @toggle="toggleSort('winRate')"
+                  />
+                </th>
+                <th class="num">
+                  <SortHeader
+                    :label="t('stats.totalProfit')"
+                    :active="sortKey === 'profitAbs'"
+                    :dir="sortDir"
+                    @toggle="toggleSort('profitAbs')"
+                  />
+                </th>
+                <th class="num">
+                  <SortHeader
+                    :label="t('stats.avgProfit')"
+                    :active="sortKey === 'profitRatio'"
+                    :dir="sortDir"
+                    @toggle="toggleSort('profitRatio')"
+                  />
+                </th>
+                <th class="num">
+                  <SortHeader
+                    :label="t('kpi.avgDuration')"
+                    :active="sortKey === 'avgDuration'"
+                    :dir="sortDir"
+                    @toggle="toggleSort('avgDuration')"
+                  />
+                </th>
+                <th class="num">
+                  <SortHeader
+                    :label="t('trades.fees')"
+                    :active="sortKey === 'fees'"
+                    :dir="sortDir"
+                    @toggle="toggleSort('fees')"
+                  />
+                </th>
+                <th class="num">
+                  <SortHeader
+                    :label="t('kpi.tradingVolume')"
+                    :active="sortKey === 'volume'"
+                    :dir="sortDir"
+                    @toggle="toggleSort('volume')"
+                  />
+                </th>
+                <th class="num">
+                  <SortHeader
+                    :label="t('stats.lastTrade')"
+                    :active="sortKey === 'lastTrade'"
+                    :dir="sortDir"
+                    @toggle="toggleSort('lastTrade')"
+                  />
                 </th>
               </tr>
             </thead>
@@ -259,6 +361,10 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
               <tr v-for="row in rows" :key="row.name">
                 <td>{{ row.name }}</td>
                 <td>{{ row.count }}</td>
+                <td class="num">
+                  {{ format.percent(row.winRate) }}
+                  <div class="small muted">{{ row.wins }} / {{ row.losses }}</div>
+                </td>
                 <td class="num" :class="format.toneClass(row.profitAbs)">
                   {{ format.signedMoney(row.profitAbs, stake) }}
                 </td>
@@ -272,6 +378,10 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
                     />
                   </div>
                 </td>
+                <td class="num">{{ format.duration(row.avgDuration) }}</td>
+                <td class="num">{{ format.money(row.fees, stake, 4) }}</td>
+                <td class="num">{{ format.money(row.volume, stake) }}</td>
+                <td class="num">{{ format.day(row.lastTrade) }}</td>
               </tr>
             </tbody>
           </table>
@@ -387,18 +497,6 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
 </template>
 
 <style scoped>
-.sort {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: none;
-  border: 0;
-  padding: 0;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
 .stats__ratio {
   min-width: 120px;
 }
