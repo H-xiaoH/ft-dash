@@ -183,4 +183,15 @@ describe('describeError', () => {
     expect(describeError(new ApiError('http', 'boom', { status: 500 })).key).toBe('errors.http')
     expect(describeError(new Error('whatever')).key).toBe('errors.unknown')
   })
+
+  it('explains a missing endpoint and an out-of-state bot in plain language', () => {
+    expect(
+      describeError(new ApiError('http', 'Not Found', { status: 404 })).key,
+    ).toBe('errors.notFound')
+    expect(
+      describeError(
+        new ApiError('http', 'Bot is not in the correct state.', { status: 502, detail: 'Bot is not in the correct state.' }),
+      ).key,
+    ).toBe('errors.notInState')
+  })
 })

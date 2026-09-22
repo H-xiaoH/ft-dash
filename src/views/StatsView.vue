@@ -7,6 +7,7 @@ import SortHeader from '@/components/SortHeader.vue'
 import type { BarItem } from '@/components/charts'
 import { useFormat } from '@/composables/useFormat'
 import { useChartHeight } from '@/composables/useChartHeight'
+import { buildPairStats, type PairStats } from '@/lib/stats'
 import { useBotStore } from '@/stores/bot'
 
 type Period = 'daily' | 'weekly' | 'monthly'
@@ -20,21 +21,6 @@ type SortKey =
   | 'volume'
   | 'lastTrade'
 
-interface Row {
-  name: string
-  count: number
-  profitAbs: number
-  profitRatio: number
-  /** Derived from the closed trades the API already hands us. */
-  wins: number
-  losses: number
-  winRate: number | null
-  avgDuration: number | null
-  fees: number
-  volume: number
-  lastTrade: number | null
-}
-
 const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
@@ -47,61 +33,20 @@ const periodChartHeight = useChartHeight(140, 0.19, 220)
 
 const stake = computed(() => bot.stakeCurrency)
 
-/** Closed trades grouped by pair, so per-pair details need no extra API call. */
-const tradesByPair = computed(() => {
-  const map = new Map<string, typeof bot.closedTrades>()
-  for (const trade of bot.closedTrades) {
-    const list = map.get(trade.pair) ?? []
-    list.push(trade)
-    map.set(trade.pair, list)
-  }
-  return map
-})
+/** Totals come from `/performance`, per-pair details from the loaded trades. */
+const allRows = computed<PairStats[]>(() => buildPairStats(bot.performance, bot.closedTrades))
 
-/** `/performance` keeps the authoritative totals; the trades enrich each row. */
-const allRows = computed<Row[]>(() =>
-  bot.performance.map((entry) => {
-    const trades = tradesByPair.value.get(entry.pair) ?? []
-    const wins = trades.filter((trade) => (trade.profit_ratio ?? 0) > 0).length
-    const losses = trades.filter((trade) => (trade.profit_ratio ?? 0) < 0).length
-    const durations = trades
-      .map((trade) => (trade.close_timestamp ?? 0) - trade.open_timestamp)
-      .filter((duration) => duration > 0)
-    const decided = wins + losses
-    return {
-      name: entry.pair,
-      count: entry.count,
-      profitAbs: entry.profit_abs,
-      profitRatio: entry.profit_ratio,
-      wins,
-      losses,
-      winRate: decided > 0 ? (wins / decided) * 100 : null,
-      avgDuration: durations.length
-        ? durations.reduce((sum, duration) => sum + duration, 0) / durations.length
-        : null,
-      fees: trades.reduce(
-        (sum, trade) => sum + (trade.fee_open_cost ?? 0) + (trade.fee_close_cost ?? 0),
-        0,
-      ),
-      volume: trades.reduce((sum, trade) => sum + (trade.open_trade_value ?? 0), 0),
-      lastTrade: trades.length
-        ? Math.max(...trades.map((trade) => trade.close_timestamp ?? 0)) || null
-        : null,
-    }
-  }),
-)
-
-const rows = computed<Row[]>(() => {
+const rows = computed<PairStats[]>(() => {
   const query = search.value.trim().toLowerCase()
   const filtered = allRows.value.filter((row) => {
-    if (query && !row.name.toLowerCase().includes(query)) return false
+    if (query && !row.pair.toLowerCase().includes(query)) return false
     return true
   })
   const direction = sortDir.value === 'asc' ? 1 : -1
   return [...filtered].sort((a, b) => {
     switch (sortKey.value) {
       case 'name':
-        return a.name.localeCompare(b.name) * direction
+        return a.pair.localeCompare(b.pair) * direction
       case 'count':
         return (a.count - b.count) * direction
       case 'winRate':
@@ -331,8 +276,8 @@ const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in rows" :key="row.name">
-                <td>{{ row.name }}</td>
+              <tr v-for="row in rows" :key="row.pair">
+                <td>{{ row.pair }}</td>
                 <td>{{ row.count }}</td>
                 <td class="num">
                   {{ format.percent(row.winRate) }}

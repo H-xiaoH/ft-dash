@@ -612,6 +612,13 @@ export const useBotStore = defineStore('bot', () => {
       api.pairCandles(pair, timeframe, limit, ['date', 'open', 'high', 'low', 'close', 'volume']),
     )
     if (result) candleCache.value = { ...candleCache.value, [key]: result }
+    // Keep the cache bounded — browsing many pairs must not grow memory forever.
+    const keys = Object.keys(candleCache.value)
+    if (keys.length > 8) {
+      candleCache.value = Object.fromEntries(
+        keys.slice(-8).map((entry) => [entry, candleCache.value[entry]]),
+      )
+    }
     return result
   }
 

@@ -449,11 +449,6 @@ async function install() {
   padding: 5px 8px;
 }
 
-.field--row {
-  flex-direction: row;
-  align-items: center;
-  gap: var(--sp-3);
-}
 
 .settings__danger {
   border-color: color-mix(in srgb, var(--short) 35%, var(--line));

@@ -6,25 +6,35 @@ backend to host and nothing to trust in the middle.
 
 ## What it does
 
-- **Overview** — equity, available balance, position value, open/closed P&L, today's P&L,
-  win rate, drawdown, profit factor, a daily P&L chart and the live position list.
-- **Trades** — open and closed trades with sorting, search, per-trade detail (orders, fees,
+- **Overview** — equity, open/closed/today's P&L, trade count and profit factor over a daily
+  P&L chart, plus the open positions and recently closed trades.
+- **Trades** — open, closed or all trades (all = positions merged with history) with side,
+  staked amount, prices, P&L and duration; sortable columns, a search that expands from the
+  toolbar, an outcome filter (all / profitable / losing), per-trade detail (orders, fees,
   funding, leverage, stop loss, liquidation) and CSV export. On phones the same data is a
   card list instead of a wide table.
-- **Statistics** — performance by pair, entry tag, exit reason and full tag; daily, weekly
-  and monthly breakdowns; exit-reason win/loss counts and holding-time averages.
-- **Market** — whitelist and blacklist, active pair locks and a candlestick chart for any
-  whitelisted pair with the price scale of the latest close.
-- **Logs** — live bot log with level filtering, search and a follow toggle.
-- **System** — CPU/RAM/load, heartbeat lag warning, process uptime and the effective config
-  (strategy, exchange, trading mode, stake, leverage mode).
+- **Statistics** — per-pair totals plus win rate, average holding time, fees, volume and last
+  close (derived from the loaded trades, no extra request); a daily/weekly/monthly chart with
+  period table; and average holding times. Column headers sort; the search narrows the list.
+- **Market** — a candlestick chart first (drag across it to scrub, with an exchange-style
+  OHLC/volume readout in the corner), a pair picker, the bot's timeframe, then whitelist,
+  blacklist and active pair locks.
+- **Logs** — live bot log with a level filter, search that expands from the toolbar and a
+  follow toggle.
+- **System** — CPU/RAM/load, heartbeat lag warning, process uptime, the effective config
+  (strategy, exchange, trading mode, stake mode) and the live event tape.
 - **Live events** — a real-time tape fed by the Freqtrade websocket (entries, fills,
-  cancellations, protection triggers, warnings, exceptions).
+  cancellations, protection triggers, warnings, exceptions), shown on the System page.
 - **Bot controls** — pause/resume entries, stop, reload config, close a position, edit the
   blacklist and release locks. These are *off by default* and require an explicit
   acknowledgement in Settings; destructive actions ask for typed confirmation.
 
 Interface languages: **简体中文** and **English** (follows the browser by default).
+
+Data refreshes on a fixed 2-second cadence while the tab is visible (balance, positions,
+P&L, CPU/RAM), with heavier slices spread over longer intervals — trades and pair lists every
+8 seconds, analytics, logs and config every 24 seconds. Polling stops entirely when the tab is
+hidden, and overlapping rounds are skipped rather than queued.
 
 ## Quick start
 
@@ -140,10 +150,16 @@ Never commit a real host, username or password: `.env*` files are git-ignored.
 ## Compatibility
 
 Built against **Freqtrade 2026.8 / API v2.5** and verified end to end against a live futures
-instance. Older releases may lack individual endpoints (`/exits`, `/mix_tags`,
-`/pair_candles` column filtering); the affected panels then show an error or stay empty
-instead of breaking the app. WebSocket delivery needs either `api_server.jwt_secret_key` (for
-automatic JWT auth) or a configured `api_server.ws_token`.
+instance. It reads `/ping`, `/show_config`, `/version`, `/health`, `/sysinfo`, `/balance`,
+`/profit`, `/profit_all`, `/status`, `/count`, `/trades`, `/performance`, `/stats`,
+`/daily`, `/weekly`, `/monthly`, `/logs`, `/whitelist`, `/blacklist`, `/locks` and
+`/pair_candles`, and posts to `/start`, `/stop`, `/stopentry`, `/reload_config`, `/forceexit`,
+`/blacklist` and `/locks/delete` when controls are enabled.
+
+Older releases may lack individual endpoints (for example `/pair_candles` column filtering or
+`/stats` durations); the affected panel then shows an error or stays empty instead of
+breaking the app. WebSocket delivery needs either `api_server.jwt_secret_key` (for automatic
+JWT auth) or a configured `api_server.ws_token`.
 
 ## Tech stack
 
@@ -154,10 +170,11 @@ Vue 3 (`<script setup>` + TypeScript) · Vite · Pinia · vue-router · vue-i18n
 
 ```
 src/
-  lib/          API client, formatters, CSV, storage helpers
+  lib/          API client, formatters, axis scale, pair statistics, CSV, storage helpers
   stores/       settings, bot data + polling, live event tape
   views/        one file per screen
-  components/   shell pieces, charts, dialogs
+  components/   shell pieces, hand-rolled charts, toolbar controls, dialogs
+  composables/  locale-bound formatters, toasts, responsive chart heights
   i18n/         zh-CN and en message catalogues
 tests/          unit tests (vitest)
 ```

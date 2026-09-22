@@ -456,6 +456,10 @@ export function describeError(error: unknown): { key: string; params?: Record<st
       case 'aborted':
         return { key: 'errors.aborted' }
       default:
+        if (error.status === 404) return { key: 'errors.notFound' }
+        if (error.detail?.toLowerCase().includes('correct state')) {
+          return { key: 'errors.notInState' }
+        }
         return { key: 'errors.http', params: { status: error.status ?? 0, detail: error.detail ?? '' } }
     }
   }

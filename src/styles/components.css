@@ -49,9 +49,6 @@
   padding: 0;
 }
 
-.panel--quiet {
-  background: transparent;
-}
 
 /* --- metrics ------------------------------------------------------------ */
 
@@ -670,9 +667,6 @@
   gap: var(--sp-4);
 }
 
-.stack--tight {
-  gap: var(--sp-2);
-}
 
 .row {
   display: flex;
@@ -696,9 +690,6 @@
   font-size: var(--fs-sm);
 }
 
-.scroll-y {
-  overflow-y: auto;
-}
 
 .grid-2 {
   display: grid;

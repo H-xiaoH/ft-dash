@@ -31,8 +31,9 @@ export const i18n = createI18n({
     'zh-CN': zhCN,
     en,
   },
-  missingWarn: false,
-  fallbackWarn: false,
+  // Surface missing translations while developing; stay quiet in production.
+  missingWarn: import.meta.env.DEV,
+  fallbackWarn: import.meta.env.DEV,
 })
 
 export const LOCALE_LABELS: Record<AppLocale, string> = {
