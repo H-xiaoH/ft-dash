@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
@@ -61,50 +61,212 @@ function openTape() {
   if (route.name !== 'system') void router.push('/system')
 }
 
-/** Steps one page along the rail, clamped at both ends. */
-function stepPage(delta: number) {
-  const next = NAV_ROUTES[navIndex.value + delta]
-  if (next) void router.push(next.path)
-}
-
 /** A gesture that belongs to a dialog, or to a component that owns horizontal drags. */
 function gestureIsTaken(target: EventTarget | null) {
   if (showConnect.value || document.querySelector('[role="dialog"]')) return true
   return target instanceof Element && target.closest('[data-scrub]') !== null
 }
 
-const SWIPE_MIN_PX = 60
-let swipeStart: { x: number; y: number } | null = null
+/*
+ * Page drag. The neighbouring page is mounted beside the current one and the pair slides
+ * with the finger; releasing decides whether the swipe completes or springs back. That
+ * costs a live component per drag, so the neighbour is mounted only once the gesture is
+ * clearly sideways — and only then does the page take the gesture from the scroller.
+ */
+
+/** Sideways travel before the page claims the gesture. */
+const DRAG_CLAIM_PX = 10
+/** Share of the viewport that completes the swipe on release. */
+const DRAG_COMMIT_RATIO = 0.35
+/** A quick flick completes it without travelling that far. */
+const DRAG_FLICK_PX_PER_MS = 0.5
+const DRAG_SETTLE = 'transform 180ms cubic-bezier(0.22, 0.61, 0.36, 1)'
+
+const dragOffset = ref(0)
+const dragWidth = ref(0)
+const dragTransition = ref('none')
+/** True while a finger-committed swipe swaps pages, so nothing animates twice. */
+const handoff = ref(false)
+const neighbor = shallowRef<{ side: 1 | -1; component: unknown } | null>(null)
+
+/** Drag travel in fractions of a page; also moves the tab indicator. */
+const dragFraction = computed(() => {
+  const width = dragWidth.value
+  if (!width) return 0
+  return Math.max(-1, Math.min(1, -dragOffset.value / width))
+})
+
+let gesture: {
+  target: EventTarget | null
+  startX: number
+  startY: number
+  claimed: boolean
+  lastX: number
+  lastAt: number
+  velocity: number
+} | null = null
+/** The neighbour's code, in flight from the moment the gesture is claimed. */
+let neighborLoad: Promise<{ side: 1 | -1; component: unknown } | null> | null = null
+/** A committed swipe is still sliding into place; a new gesture would fight over the track. */
+let settling = false
+
+/** A sideways scroller under the finger keeps the gesture for itself. */
+function hasHorizontalScroll(target: EventTarget | null) {
+  for (let node = target instanceof Element ? target : null; node; node = node.parentElement) {
+    if (node.scrollWidth - node.clientWidth < 4) continue
+    const overflow = getComputedStyle(node).overflowX
+    if (overflow === 'auto' || overflow === 'scroll') return true
+  }
+  return false
+}
+
+/**
+ * The page one step along the rail. Resolved from the router's own table, so the drag
+ * never keeps a second copy of the lazy import list.
+ */
+async function loadNeighbor(delta: number) {
+  const target = NAV_ROUTES[navIndex.value + delta]
+  if (!target) return null
+  const entry = router.resolve(target.path).matched.at(-1)?.components?.default as unknown
+  if (!entry) return null
+  const resolved = typeof entry === 'function' ? await (entry as () => Promise<unknown>)() : entry
+  const component = (resolved as { default?: unknown })?.default ?? resolved
+  return { side: (delta > 0 ? 1 : -1) as 1 | -1, component }
+}
+
+/** Waits out the settle animation, so the page swap happens after the slide. */
+const settle = (ms = 200) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Pulls in the other pages' code once the first data load is done. A swipe can only show
+ * a neighbour whose chunk is already here, and the very first swipe to an unvisited page
+ * would otherwise slide into empty space.
+ */
+function warmPageChunks() {
+  for (const item of NAV_ROUTES) {
+    const entry = router.resolve(item.path).matched.at(-1)?.components?.default as unknown
+    if (typeof entry === 'function') void (entry as () => Promise<unknown>)()
+  }
+}
 
 function onTouchStart(event: TouchEvent) {
-  swipeStart = null
-  if (event.touches.length !== 1 || gestureIsTaken(event.target)) return
+  gesture = null
+  if (settling || event.touches.length !== 1 || gestureIsTaken(event.target)) return
   const touch = event.touches[0]
-  swipeStart = { x: touch.clientX, y: touch.clientY }
+  gesture = {
+    target: event.target,
+    startX: touch.clientX,
+    startY: touch.clientY,
+    claimed: false,
+    lastX: touch.clientX,
+    lastAt: performance.now(),
+    velocity: 0,
+  }
+}
+
+function onTouchMove(event: TouchEvent) {
+  const current = gesture
+  const touch = event.touches[0]
+  if (!current || !touch) return
+
+  const dx = touch.clientX - current.startX
+  const dy = touch.clientY - current.startY
+
+  if (!current.claimed) {
+    // Until the gesture is clearly sideways, the scroller owns it.
+    if (Math.abs(dx) < DRAG_CLAIM_PX || Math.abs(dx) < Math.abs(dy) * 1.2) return
+    if (hasHorizontalScroll(current.target)) {
+      gesture = null
+      return
+    }
+    current.claimed = true
+    dragWidth.value = document.querySelector('.page-host')?.clientWidth ?? window.innerWidth
+    dragTransition.value = 'none'
+    neighborLoad = loadNeighbor(dx < 0 ? 1 : -1)
+    void neighborLoad.then((loaded) => {
+      // A chunk that lands after the finger left must not resurrect the drag.
+      if (loaded && gesture === current) neighbor.value = loaded
+    })
+  }
+
+  // The page owns the gesture now, so nothing behind it may scroll.
+  event.preventDefault()
+
+  const now = performance.now()
+  current.velocity = (touch.clientX - current.lastX) / Math.max(1, now - current.lastAt)
+  current.lastX = touch.clientX
+  current.lastAt = now
+
+  const side = dx < 0 ? 1 : -1
+  // One page per drag: follow the finger, and resist only where the rail ends.
+  dragOffset.value = NAV_ROUTES[navIndex.value + side] ? dx : dx * 0.25
 }
 
 function onTouchEnd(event: TouchEvent) {
-  const start = swipeStart
-  swipeStart = null
-  if (!start) return
+  const current = gesture
+  gesture = null
+  if (!current?.claimed) return
+
   const touch = event.changedTouches[0]
-  const dx = touch.clientX - start.x
-  const dy = touch.clientY - start.y
-  // A deliberate sideways flick, not a vertical scroll that drifted.
-  if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * 2) return
-  stepPage(dx < 0 ? 1 : -1)
+  const dx = touch ? touch.clientX - current.startX : dragOffset.value
+  const side = dx < 0 ? 1 : -1
+  const width = dragWidth.value || window.innerWidth
+  const route = NAV_ROUTES[navIndex.value + side]
+  const flicked =
+    Math.sign(current.velocity) === Math.sign(dx) &&
+    Math.abs(current.velocity) > DRAG_FLICK_PX_PER_MS
+  const committed = !!route && (Math.abs(dx) > width * DRAG_COMMIT_RATIO || flicked)
+
+  if (committed && route) void commitDrag(side, route.path)
+  else cancelDrag()
+}
+
+async function commitDrag(side: 1 | -1, path: string) {
+  settling = true
+  dragTransition.value = DRAG_SETTLE
+  dragOffset.value = -side * (dragWidth.value || window.innerWidth)
+  await settle()
+  try {
+    // The neighbour must be on screen before the router takes over, otherwise the swap
+    // would land on an empty track.
+    await neighborLoad
+    handoff.value = true
+    await router.push(path)
+    await nextTick()
+  } finally {
+    // The neighbour was showing this page here, so the real one lands on the same spot.
+    dragTransition.value = 'none'
+    dragOffset.value = 0
+    neighbor.value = null
+    handoff.value = false
+    settling = false
+  }
+}
+
+function cancelDrag() {
+  dragTransition.value = DRAG_SETTLE
+  dragOffset.value = 0
+  setTimeout(() => {
+    if (gesture) return
+    dragTransition.value = 'none'
+    neighbor.value = null
+  }, 200)
 }
 
 onMounted(async () => {
   locale.value = settings.locale
   document.documentElement.lang = settings.locale
   window.addEventListener('touchstart', onTouchStart, { passive: true })
+  window.addEventListener('touchmove', onTouchMove, { passive: false })
   window.addEventListener('touchend', onTouchEnd, { passive: true })
   await bot.autoConnect()
+  // Off the critical path: the first paint and the first API burst go first.
+  window.setTimeout(warmPageChunks, 1200)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('touchstart', onTouchStart)
+  window.removeEventListener('touchmove', onTouchMove)
   window.removeEventListener('touchend', onTouchEnd)
   bot.cleanup()
 })
@@ -185,15 +347,33 @@ watch(
           <div
             class="page-host"
             :style="{
-              '--page-enter': `${pageDirection * 28}px`,
-              '--page-leave': `${pageDirection * -16}px`,
+              '--page-enter': `${handoff ? 0 : pageDirection * 28}px`,
+              '--page-leave': `${handoff ? 0 : pageDirection * -16}px`,
             }"
           >
-            <RouterView v-slot="{ Component }">
-              <Transition name="page" mode="out-in">
-                <component :is="Component" />
-              </Transition>
-            </RouterView>
+            <div
+              class="page-track"
+              :style="{ transform: `translateX(${dragOffset}px)`, transition: dragTransition }"
+            >
+              <RouterView v-slot="{ Component }">
+                <!--
+                  A finger-committed swipe has already moved the pages into place, so that
+                  navigation gets a zero-length transition with no displacement. It stays a
+                  real transition: `css: false` would resolve the leave synchronously inside
+                  the render and re-enter the renderer.
+                -->
+                <Transition name="page" mode="out-in" :duration="handoff ? 0 : undefined">
+                  <component :is="Component" />
+                </Transition>
+              </RouterView>
+              <div
+                v-if="neighbor"
+                class="page-neighbor"
+                :style="{ transform: `translateX(${neighbor.side * 100}%)` }"
+              >
+                <component :is="neighbor.component" />
+              </div>
+            </div>
           </div>
         </main>
       </div>
@@ -214,7 +394,7 @@ watch(
       <span
         class="tabbar__indicator"
         aria-hidden="true"
-        :style="{ transform: `translateX(calc(${navIndex} * 100%))` }"
+        :style="{ transform: `translateX(calc(${navIndex + dragFraction} * 100%))` }"
       />
     </nav>
   </div>
@@ -342,6 +522,24 @@ watch(
 .page-host {
   min-width: 0;
   overflow-x: clip;
+}
+
+/* The page and its neighbour ride this track, moved only by the finger. */
+.page-track {
+  position: relative;
+  min-width: 0;
+  will-change: transform;
+}
+
+/*
+ * The neighbour is absolutely placed so it never adds to the document height — the real
+ * page keeps defining the layout while the pair slides.
+ */
+.page-neighbor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
 }
 
 .shell__banner {

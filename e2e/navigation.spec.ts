@@ -34,45 +34,143 @@ test('the wheel scrolls the page and never switches pages', async ({ page }) => 
   expect(hash(page)).toBe('#/system')
 })
 
-test('a sideways flick switches pages, except on a scrubbable chart', async ({ page }) => {
+/** Drives one touch of a drag; the tests always start, move, then end. */
+const touchAt = (
+  page: Page,
+  type: 'touchstart' | 'touchmove' | 'touchend',
+  x: number,
+  y = 500,
+  selector = '.shell__body',
+) =>
+  page.evaluate(
+    ({ type, x, y, selector }) => {
+      const target = document.querySelector(selector) as Element
+      const point = new Touch({ identifier: 1, target, clientX: x, clientY: y })
+      target.dispatchEvent(
+        new TouchEvent(type, {
+          touches: type === 'touchend' ? [] : [point],
+          changedTouches: [point],
+          bubbles: true,
+          cancelable: true,
+        }),
+      )
+    },
+    { type, x, y, selector },
+  )
+
+const trackX = (page: Page) =>
+  page.locator('.page-track').evaluate((el) => {
+    const transform = getComputedStyle(el).transform
+    return transform === 'none' ? 0 : Math.round(new DOMMatrixReadOnly(transform).m41)
+  })
+
+test('the page follows the finger and commits past a third of the screen', async ({ page }) => {
+  // A drag touches the transition machinery directly, so watch the console while it runs.
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(String(error)))
+  page.on('console', (message) => {
+    const text = message.text()
+    if (
+      message.type() === 'error' ||
+      text.includes('[Vue warn]') ||
+      text.includes('[Vue Router warn]')
+    )
+      errors.push(text)
+  })
+
+  await page.setViewportSize({ width: 390, height: 780 })
+  const neighbor = page.locator('.page-neighbor')
+  await expect(neighbor).toHaveCount(0)
+
+  await touchAt(page, 'touchstart', 330)
+  await touchAt(page, 'touchmove', 270)
+  await expect.poll(() => trackX(page)).toBe(-60)
+  // The next page peeks in from the right, one page beyond the one you are dragging.
+  await expect(neighbor).toBeVisible()
+  const peek = (await neighbor.boundingBox())!.x
+  expect(peek).toBeGreaterThan(0)
+  expect(peek).toBeLessThan(390)
+
+  await touchAt(page, 'touchmove', 150)
+  await expect.poll(() => trackX(page)).toBe(-180)
+  // Both pages travel with the finger, one for one.
+  expect(Math.round(peek - (await neighbor.boundingBox())!.x)).toBe(120)
+  await touchAt(page, 'touchend', 150)
+
+  await expect.poll(() => hash(page)).toBe('#/trades')
+  // The neighbour was already showing this page, so the track lands back at rest.
+  await expect.poll(() => trackX(page)).toBe(0)
+  await expect(neighbor).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
+test('a short slow drag springs back without switching', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 })
+  await page.locator('.tabbar__item').nth(1).click()
+  await expect.poll(() => hash(page)).toBe('#/trades')
+
+  await touchAt(page, 'touchstart', 330)
+  for (const x of [320, 312, 306, 302, 299]) {
+    await touchAt(page, 'touchmove', x)
+    await page.waitForTimeout(90)
+  }
+  expect(await trackX(page)).toBe(-31)
+  await touchAt(page, 'touchend', 299)
+
+  await page.waitForTimeout(400)
+  expect(hash(page)).toBe('#/trades')
+  expect(await trackX(page)).toBe(0)
+  await expect(page.locator('.page-neighbor')).toHaveCount(0)
+})
+
+test('a drag with nowhere to go resists and never switches', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 })
+  // The first page has nothing before it, so dragging right only rubber-bands.
+  await touchAt(page, 'touchstart', 60)
+  await touchAt(page, 'touchmove', 180)
+  await expect.poll(() => trackX(page)).toBe(30)
+  await expect(page.locator('.page-neighbor')).toHaveCount(0)
+
+  await touchAt(page, 'touchend', 260)
+  await page.waitForTimeout(400)
+  expect(hash(page)).toBe('#/')
+  expect(await trackX(page)).toBe(0)
+})
+
+test('a horizontal drag on a scrubbable chart stays with the chart', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 })
   await page.goto('/#/market')
-  await expect(page.locator('[data-scrub]').first()).toBeVisible()
+  const chart = page.locator('[data-scrub]').first()
+  await expect(chart).toBeVisible()
 
-  const flick = (from: string, dx: number) =>
-    page.evaluate(
-      ({ selector, delta }) => {
-        const target = document.querySelector(selector) as Element
-        const touch = (x: number, y: number) =>
-          new Touch({ identifier: 1, target, clientX: x, clientY: y })
-        target.dispatchEvent(
-          new TouchEvent('touchstart', {
-            touches: [touch(300, 500)],
-            changedTouches: [touch(300, 500)],
-            bubbles: true,
-          }),
-        )
-        target.dispatchEvent(
-          new TouchEvent('touchend', {
-            touches: [],
-            changedTouches: [touch(300 + delta, 505)],
-            bubbles: true,
-          }),
-        )
-      },
-      { selector: from, delta: dx },
-    )
+  const box = (await chart.boundingBox())!
+  const selector = '[data-scrub]'
+  await touchAt(
+    page,
+    'touchstart',
+    Math.round(box.x + box.width * 0.7),
+    Math.round(box.y + 40),
+    selector,
+  )
+  await touchAt(
+    page,
+    'touchmove',
+    Math.round(box.x + box.width * 0.3),
+    Math.round(box.y + 42),
+    selector,
+  )
 
-  // A drag on the chart is the chart's business: the page must not move.
-  await flick('[data-scrub]', -160)
+  expect(await trackX(page)).toBe(0)
+  await expect(page.locator('.page-neighbor')).toHaveCount(0)
+  await touchAt(
+    page,
+    'touchend',
+    Math.round(box.x + box.width * 0.3),
+    Math.round(box.y + 42),
+    selector,
+  )
   await page.waitForTimeout(300)
   expect(hash(page)).toBe('#/market')
-
-  // Anywhere else, flicking left goes forward and right goes back.
-  await flick('.shell__body', -160)
-  await expect.poll(() => hash(page)).toBe('#/logs')
-  await flick('.shell__body', 160)
-  await expect.poll(() => hash(page)).toBe('#/market')
 })
 
 test('the rail keeps no hover plate behind the sliding indicator', async ({ page }) => {
