@@ -95,12 +95,34 @@ test('the page follows the finger and commits past a third of the screen', async
   await expect.poll(() => trackX(page)).toBe(-180)
   // Both pages travel with the finger, one for one.
   expect(Math.round(peek - (await neighbor.boundingBox())!.x)).toBe(120)
+
+  /*
+   * Record the biggest offset the page's own root shows for the next few frames. The
+   * neighbour is already showing this page, so the swap must not displace it — clearing
+   * the handoff too early re-arms the slide and the page arrives a second time.
+   */
+  await page.evaluate(() => {
+    ;(window as unknown as { __worst?: number }).__worst = 0
+    const started = performance.now()
+    const tick = () => {
+      const root = document.querySelector('.page-track > *')
+      const transform = root ? getComputedStyle(root).transform : 'none'
+      if (transform !== 'none') {
+        const offset = Math.abs(new DOMMatrixReadOnly(transform).m41)
+        const worst = (window as unknown as { __worst?: number }).__worst ?? 0
+        ;(window as unknown as { __worst?: number }).__worst = Math.max(worst, offset)
+      }
+      if (performance.now() - started < 400) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
   await touchAt(page, 'touchend', 150)
 
   await expect.poll(() => hash(page)).toBe('#/trades')
   // The neighbour was already showing this page, so the track lands back at rest.
   await expect.poll(() => trackX(page)).toBe(0)
   await expect(neighbor).toHaveCount(0)
+  expect(await page.evaluate(() => (window as unknown as { __worst?: number }).__worst)).toBe(0)
   expect(errors).toEqual([])
 })
 

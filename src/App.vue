@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
@@ -232,15 +232,31 @@ async function commitDrag(side: 1 | -1, path: string) {
     await neighborLoad
     handoff.value = true
     await router.push(path)
-    await nextTick()
-  } finally {
-    // The neighbour was showing this page here, so the real one lands on the same spot.
-    dragTransition.value = 'none'
-    dragOffset.value = 0
-    neighbor.value = null
-    handoff.value = false
-    settling = false
+    // The reset waits for the enter to finish — clearing the handoff earlier re-arms the
+    // slide, and the page you just swiped to slides in a second time. This is the safety
+    // net for an enter that never reports back.
+    handoffTimer = window.setTimeout(finishHandoff, 600)
+  } catch {
+    finishHandoff()
   }
+}
+
+let handoffTimer = 0
+
+/**
+ * Ends a finger-committed swap. Runs on the transition's `after-enter`, once the enter
+ * classes are gone: the neighbour was showing this page here, so the real one lands on
+ * the same spot and only then do the direction variables come back.
+ */
+function finishHandoff() {
+  if (!settling) return
+  window.clearTimeout(handoffTimer)
+  handoffTimer = 0
+  dragTransition.value = 'none'
+  dragOffset.value = 0
+  neighbor.value = null
+  handoff.value = false
+  settling = false
 }
 
 function cancelDrag() {
@@ -362,7 +378,12 @@ watch(
                   real transition: `css: false` would resolve the leave synchronously inside
                   the render and re-enter the renderer.
                 -->
-                <Transition name="page" mode="out-in" :duration="handoff ? 0 : undefined">
+                <Transition
+                  name="page"
+                  mode="out-in"
+                  :duration="handoff ? 0 : undefined"
+                  @after-enter="finishHandoff"
+                >
                   <component :is="Component" />
                 </Transition>
               </RouterView>
