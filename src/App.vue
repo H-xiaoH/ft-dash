@@ -98,6 +98,18 @@ const dragFraction = computed(() => {
   return Math.max(-1, Math.min(1, -dragOffset.value / width))
 })
 
+/** The page a committed swipe is heading for, until the router gets there. */
+const dragTarget = ref<string | null>(null)
+
+/**
+ * How far the block itself has travelled, in tab slots. The travel has to be dropped the
+ * moment the swipe's target becomes the current page: the index moves at the same time,
+ * and counting both would send the block one slot past the tab it is heading for.
+ */
+const indicatorFraction = computed(() =>
+  dragTarget.value !== null && route.name === dragTarget.value ? 0 : dragFraction.value,
+)
+
 /**
  * The indicator follows the finger one for one (its stylesheet easing would otherwise
  * leave it chasing the touch and reading as a jitter), eases with the pages while they
@@ -237,6 +249,7 @@ function onTouchEnd(event: TouchEvent) {
 async function commitDrag(side: 1 | -1, path: string) {
   settling = true
   dragging.value = false
+  dragTarget.value = NAV_ROUTES[navIndex.value + side]?.name ?? null
   dragTransition.value = DRAG_SETTLE
   dragOffset.value = -side * (dragWidth.value || window.innerWidth)
   await settle()
@@ -268,6 +281,7 @@ function finishHandoff() {
   handoffTimer = 0
   dragTransition.value = 'none'
   dragOffset.value = 0
+  dragTarget.value = null
   neighbor.value = null
   handoff.value = false
   settling = false
@@ -430,7 +444,7 @@ watch(
         class="tabbar__indicator"
         aria-hidden="true"
         :style="{
-          transform: `translateX(calc(${navIndex + dragFraction} * 100%))`,
+          transform: `translateX(calc(${navIndex + indicatorFraction} * 100%))`,
           transition: indicatorTransition,
         }"
       />

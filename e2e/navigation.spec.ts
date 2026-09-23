@@ -145,6 +145,46 @@ test('a short slow drag springs back without switching', async ({ page }) => {
   await expect(page.locator('.page-neighbor')).toHaveCount(0)
 })
 
+test('the tab block lands on the tab you swiped to and never past it', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 })
+  await page.locator('.tabbar__item').nth(2).click()
+  await expect.poll(() => hash(page)).toBe('#/stats')
+  const slots = await page
+    .locator('.tabbar__item')
+    .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().x)))
+
+  // Watch the block for the whole gesture: 统计 -> 市场.
+  await page.evaluate(() => {
+    const seen: number[] = []
+    ;(window as unknown as { __block?: number[] }).__block = seen
+    const started = performance.now()
+    const tick = () => {
+      seen.push(Math.round(document.querySelector('.tabbar__indicator')!.getBoundingClientRect().x))
+      if (performance.now() - started < 1200) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+
+  await touchAt(page, 'touchstart', 330)
+  for (const x of [300, 260, 220, 180]) {
+    await touchAt(page, 'touchmove', x)
+    await page.waitForTimeout(45)
+  }
+  await touchAt(page, 'touchend', 150)
+
+  await expect.poll(() => hash(page)).toBe('#/market')
+  await page.waitForTimeout(500)
+
+  const seen = await page.evaluate(
+    () => (window as unknown as { __block?: number[] }).__block ?? [],
+  )
+  // The index moves and the drag travel drops in the same render, so the block stops on
+  // 市场 — counting both would send it a slot further, to 日志.
+  expect(Math.max(...seen)).toBeLessThanOrEqual(slots[3] + 2)
+  expect(seen.at(-1)).toBe(slots[3])
+  expect(slots[4]).toBeGreaterThan(slots[3])
+})
+
 test('a drag with nowhere to go resists and never switches', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 })
   // The first page has nothing before it, so dragging right only rubber-bands.
