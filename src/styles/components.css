@@ -646,6 +646,9 @@
 }
 
 .toast {
+  position: relative;
+  /* Keeps the countdown bar inside the rounded corners. */
+  overflow: hidden;
   background: var(--ink-800);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-2);
@@ -654,6 +657,38 @@
   box-shadow: 0 12px 30px rgb(0 0 0 / 45%);
   /* Rare, feedback-only element: a short rise keeps it from appearing out of nowhere. */
   animation: toast-in var(--dur-quick) var(--ease-out-strong);
+}
+
+/* Counts down the time the toast has left, in step with its dismissal. */
+.toast__timer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: currentColor;
+  opacity: 0.45;
+  transform-origin: left center;
+  animation-name: toast-drain;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+.toast--good .toast__timer {
+  color: var(--long);
+}
+
+.toast--bad .toast__timer {
+  color: var(--short);
+}
+
+@keyframes toast-drain {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
 }
 
 @keyframes toast-in {

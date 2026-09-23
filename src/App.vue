@@ -256,6 +256,12 @@ watch(
       @click="dismissToast(toast.id)"
     >
       {{ toast.message }}
+      <!-- The countdown itself: same length as the dismissal that is already scheduled. -->
+      <span
+        class="toast__timer"
+        aria-hidden="true"
+        :style="{ animationDuration: `${toast.ttlMs}ms` }"
+      />
     </div>
   </div>
 </template>

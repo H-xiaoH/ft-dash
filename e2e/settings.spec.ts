@@ -58,6 +58,13 @@ test('enabling bot controls removes the acknowledgement button', async ({ page }
   await expect(enable).toHaveCount(0)
   await expect(disable).toBeVisible()
 
+  // Saving confirmation: the toast counts its own life down, so the bar must shrink.
+  const timer = page.locator('.toast__timer').first()
+  await expect(timer).toBeVisible()
+  const start = (await timer.boundingBox())!.width
+  await page.waitForTimeout(1200)
+  expect((await timer.boundingBox())!.width).toBeLessThan(start)
+
   // Turning them back off returns the acknowledgement flow.
   await disable.click()
   await expect(enable).toBeVisible()
