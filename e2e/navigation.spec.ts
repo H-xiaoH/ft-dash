@@ -212,13 +212,14 @@ test('a page travels the way you navigated', async ({ page }) => {
       leave: el.style.getPropertyValue('--page-leave'),
     }))
 
-  // Forward: the new page arrives from the right, the old one leaves to the left.
+  // Forward: the new page arrives from the right, the old one leaves to the left, and
+  // both travel a full page — the same motion the finger produces.
   await page.locator('.tabbar__item').nth(3).click()
-  await expect.poll(travel).toEqual({ enter: '28px', leave: '-16px' })
+  await expect.poll(travel).toEqual({ enter: '100%', leave: '-100%' })
 
   // Backward: both flip, so the outgoing page never slides against your finger.
   await page.locator('.tabbar__item').nth(1).click()
-  await expect.poll(travel).toEqual({ enter: '-28px', leave: '16px' })
+  await expect.poll(travel).toEqual({ enter: '-100%', leave: '100%' })
 
   /*
    * The direction has to live on the stable host. An inline custom property is baked in
@@ -230,4 +231,52 @@ test('a page travels the way you navigated', async ({ page }) => {
     .locator('.page-host > *')
     .evaluate((el) => el.style.getPropertyValue('--page-enter'))
   expect(onPage).toBe('')
+
+  // Wide screens keep swapping straight away: the slide is a phone thing.
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.locator('.rail__item').nth(4).click()
+  await expect.poll(() => hash(page)).toBe('#/logs')
+  await page.waitForTimeout(120)
+  expect(
+    await page
+      .locator('.page-track > *')
+      .first()
+      .evaluate((el) => getComputedStyle(el).transform),
+  ).toBe('none')
+})
+
+test('tapping a tab slides the pages the way a swipe does', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 })
+
+  // Watch the two pages while the tap is handled: they must be in flight together, each
+  // travelling a full page. The old step animation moved one at a time and only 28px.
+  await page.evaluate(() => {
+    const frames: { leaving: number; entering: number }[] = []
+    ;(window as unknown as { __frames?: unknown }).__frames = frames
+    const started = performance.now()
+    const offset = (el: Element) => {
+      const transform = getComputedStyle(el).transform
+      return transform === 'none' ? 0 : Math.round(new DOMMatrixReadOnly(transform).m41)
+    }
+    const tick = () => {
+      const pages = [...document.querySelectorAll('.page-track > *')]
+      if (pages.length === 2) {
+        frames.push({ leaving: offset(pages[0]), entering: offset(pages[1]) })
+      }
+      if (performance.now() - started < 700) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+
+  await page.locator('.tabbar__item').nth(1).click()
+  await expect.poll(() => hash(page)).toBe('#/trades')
+  await page.waitForTimeout(700)
+
+  const frames = await page.evaluate(
+    () =>
+      (window as unknown as { __frames?: { leaving: number; entering: number }[] }).__frames ?? [],
+  )
+  // Both pages on screen at once: the old one heading left, the new one arriving from the right.
+  expect(frames.length).toBeGreaterThan(2)
+  expect(frames.some((frame) => frame.leaving < -20 && frame.entering > 20)).toBe(true)
 })

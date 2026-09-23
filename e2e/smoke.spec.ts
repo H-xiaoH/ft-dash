@@ -82,14 +82,21 @@ test.describe('navigation', () => {
     for (const route of ['#/trades', '#/stats', '#/market']) {
       await page.goto(`/${route}`)
       await expect(page.locator('.card').first()).toBeVisible()
+      // A hash change slides the previous page out; wait for it to leave before judging
+      // this page's layout.
+      await expect(page.locator('.page-track > *')).toHaveCount(1)
       // Nothing on the page may still require sideways scrolling.
-      const scrollable = await page.evaluate(
-        () =>
-          [...document.querySelectorAll('.table-wrap')].filter(
-            (element) => element.scrollWidth > element.clientWidth + 2,
-          ).length,
+      const scrollable = await page.evaluate(() =>
+        [...document.querySelectorAll('.table-wrap')]
+          .filter((element) => element.scrollWidth > element.clientWidth + 2)
+          .map(
+            (element) =>
+              `${element.className}: ${element.clientWidth}/${element.scrollWidth} in ${
+                element.closest('.panel')?.querySelector('.panel__title')?.textContent ?? '?'
+              }`,
+          ),
       )
-      expect(scrollable, `${route} still scrolls horizontally`).toBe(0)
+      expect(scrollable, `${route} still scrolls horizontally`).toEqual([])
     }
   })
 })

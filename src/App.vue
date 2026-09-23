@@ -85,6 +85,8 @@ const DRAG_SETTLE = 'transform 180ms cubic-bezier(0.22, 0.61, 0.36, 1)'
 const dragOffset = ref(0)
 const dragWidth = ref(0)
 const dragTransition = ref('none')
+/** True while a finger owns the pages: the tab block must track it exactly, not ease. */
+const dragging = ref(false)
 /** True while a finger-committed swipe swaps pages, so nothing animates twice. */
 const handoff = ref(false)
 const neighbor = shallowRef<{ side: 1 | -1; component: unknown } | null>(null)
@@ -94,6 +96,16 @@ const dragFraction = computed(() => {
   const width = dragWidth.value
   if (!width) return 0
   return Math.max(-1, Math.min(1, -dragOffset.value / width))
+})
+
+/**
+ * The indicator follows the finger one for one (its stylesheet easing would otherwise
+ * leave it chasing the touch and reading as a jitter), eases with the pages while they
+ * settle, and keeps its own slide between taps.
+ */
+const indicatorTransition = computed(() => {
+  if (dragging.value) return 'none'
+  return dragTransition.value === 'none' ? undefined : dragTransition.value
 })
 
 let gesture: {
@@ -180,6 +192,7 @@ function onTouchMove(event: TouchEvent) {
       return
     }
     current.claimed = true
+    dragging.value = true
     dragWidth.value = document.querySelector('.page-host')?.clientWidth ?? window.innerWidth
     dragTransition.value = 'none'
     neighborLoad = loadNeighbor(dx < 0 ? 1 : -1)
@@ -223,6 +236,7 @@ function onTouchEnd(event: TouchEvent) {
 
 async function commitDrag(side: 1 | -1, path: string) {
   settling = true
+  dragging.value = false
   dragTransition.value = DRAG_SETTLE
   dragOffset.value = -side * (dragWidth.value || window.innerWidth)
   await settle()
@@ -260,6 +274,7 @@ function finishHandoff() {
 }
 
 function cancelDrag() {
+  dragging.value = false
   dragTransition.value = DRAG_SETTLE
   dragOffset.value = 0
   setTimeout(() => {
@@ -363,8 +378,8 @@ watch(
           <div
             class="page-host"
             :style="{
-              '--page-enter': `${handoff ? 0 : pageDirection * 28}px`,
-              '--page-leave': `${handoff ? 0 : pageDirection * -16}px`,
+              '--page-enter': `${handoff ? 0 : pageDirection * 100}%`,
+              '--page-leave': `${handoff ? 0 : pageDirection * -100}%`,
             }"
           >
             <div
@@ -380,7 +395,6 @@ watch(
                 -->
                 <Transition
                   name="page"
-                  mode="out-in"
                   :duration="handoff ? 0 : undefined"
                   @after-enter="finishHandoff"
                 >
@@ -415,7 +429,10 @@ watch(
       <span
         class="tabbar__indicator"
         aria-hidden="true"
-        :style="{ transform: `translateX(calc(${navIndex + dragFraction} * 100%))` }"
+        :style="{
+          transform: `translateX(calc(${navIndex + dragFraction} * 100%))`,
+          transition: indicatorTransition,
+        }"
       />
     </nav>
   </div>
@@ -502,6 +519,8 @@ watch(
   background: color-mix(in srgb, var(--accent) 14%, var(--ink-800));
   transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
   pointer-events: none;
+  /* Its own layer, so following the finger stays on whole device pixels. */
+  will-change: transform;
 }
 
 /* No hover plate: it painted over the sliding indicator. The label just brightens. */
@@ -577,7 +596,19 @@ watch(
  */
 .page-enter-active,
 .page-leave-active {
-  transition: transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/*
+ * The two pages trade places at the same time — the same full-width slide the finger
+ * produces — so the outgoing one leaves the flow instead of stacking under the new page
+ * and doubling the scroll height for a frame.
+ */
+.page-leave-active {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
 }
 
 .page-enter-from {
@@ -656,6 +687,8 @@ watch(
     background: color-mix(in srgb, var(--accent) 14%, var(--ink-800));
     transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
     pointer-events: none;
+    /* Its own layer, so following the finger stays on whole device pixels. */
+    will-change: transform;
   }
 
   .tabbar__item.is-active {
