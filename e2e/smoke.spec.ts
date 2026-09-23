@@ -24,6 +24,22 @@ test.describe('connect screen', () => {
 })
 
 test.describe('navigation', () => {
+  test('a page whose code cannot be fetched says so instead of hanging', async ({ page }) => {
+    await mockApi(page)
+    await page.goto('/')
+    await connect(page)
+    await expect(page.locator('.shell')).toBeVisible()
+
+    // The flaky-network case: the view's chunk never arrives, so the navigation dies.
+    // Built app: a hashed chunk. Dev server: the source module it serves instead.
+    for (const pattern of ['**/assets/SettingsView-*.js', '**/views/SettingsView.vue*']) {
+      await page.route(pattern, (route) => route.abort())
+    }
+    await page.goto('/#/settings')
+
+    await expect(page.locator('.toast')).toContainText('页面加载失败')
+  })
+
   test('every route renders its content without console errors', async ({ page }) => {
     const errors: string[] = []
     page.on('pageerror', (error) => errors.push(String(error)))

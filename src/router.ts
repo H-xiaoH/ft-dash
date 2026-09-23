@@ -1,5 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import type { IconName } from '@/components/icons'
+import { pushToast } from '@/composables/useToast'
+import { i18n } from '@/i18n'
 
 export interface NavRoute {
   path: string
@@ -64,4 +66,12 @@ export const router = createRouter({
    * trade detail, switching the trades tab) must not yank a scrolled list back to the top.
    */
   scrollBehavior: (to, from) => (to.path === from.path ? false : { top: 0 }),
+})
+
+/**
+ * Views load as separate chunks. When one fails — offline, flaky network, a proxy in the
+ * way — the navigation dies with nothing but a console error, so say something instead.
+ */
+router.onError(() => {
+  pushToast(i18n.global.t('errors.pageLoad'), 'bad')
 })

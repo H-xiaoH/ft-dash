@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useFormat } from '@/composables/useFormat'
+import { useModalFocus } from '@/composables/useModalFocus'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
@@ -13,6 +14,13 @@ const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
 const settings = useSettingsStore()
+
+const panel = ref<HTMLElement | null>(null)
+
+useModalFocus(
+  computed(() => props.trade !== null),
+  panel,
+)
 
 const stake = computed(() => bot.stakeCurrency)
 
@@ -47,7 +55,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   <Teleport to="body">
     <Transition name="drawer-overlay">
       <div v-if="trade" class="overlay overlay--drawer" @click.self="emit('close')">
-        <aside class="drawer" role="dialog" aria-modal="true">
+        <aside ref="panel" class="drawer" role="dialog" aria-modal="true" tabindex="-1">
           <header class="drawer__head">
             <div>
               <div class="row">

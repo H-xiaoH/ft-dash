@@ -331,6 +331,7 @@ export default {
     http: '请求失败（HTTP {status}）：{detail}',
     unknown: '出现未知错误。',
     notFound: '接口不存在，可能是 Freqtrade 版本过低。',
+    pageLoad: '页面加载失败，请检查网络后重试。',
     notInState: '机器人当前状态不支持该接口。',
     wsTokenMissing: '已选择 ws_token 鉴权，但还没有填写 ws_token。',
     wsAuthUnsupported:

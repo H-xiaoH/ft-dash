@@ -6,27 +6,31 @@ import { toNumber, type Numberish } from '@/lib/format'
 const props = withDefaults(
   defineProps<{
     label: string
-    value: Numberish
+    /** Leave it out when the value slot renders the figure itself. */
+    value?: Numberish
     /** How the value is rendered. `text` prints `value` verbatim. */
-    kind?: 'number' | 'money' | 'percent' | 'ratio' | 'text'
+    kind?: 'number' | 'money' | 'percent' | 'text'
     currency?: string
     digits?: number
     signed?: boolean
-    tone?: 'auto' | 'none'
+    /**
+     * Colour of the value: `auto` follows its sign, `none` leaves it neutral, and any
+     * other value is used as the utility class itself (`u-pos`, `u-neg`, `u-warn`).
+     */
+    tone?: string
     sub?: string
     small?: boolean
   }>(),
   { kind: 'number', tone: 'none', signed: false, small: false },
 )
 
-defineSlots<{ default?: () => unknown }>()
+defineSlots<{ default?: () => unknown; value?: () => unknown }>()
 
 const format = useFormat()
 
 const display = computed(() => {
   const value = toNumber(props.value)
-  if (props.kind === 'text')
-    return value === null ? String(props.value ?? '—') : String(props.value)
+  if (props.kind === 'text') return String(props.value ?? '—')
   if (value === null) return '—'
   switch (props.kind) {
     case 'money':
@@ -36,8 +40,6 @@ const display = computed(() => {
         : format.money(value, '', props.digits ?? 2)
     case 'percent':
       return format.percent(value, props.digits ?? 2, props.signed)
-    case 'ratio':
-      return format.ratio(value, props.digits ?? 2)
     default:
       return format.number(value, props.digits ?? 2)
   }
@@ -45,15 +47,21 @@ const display = computed(() => {
 
 const unit = computed(() => (props.kind === 'money' ? (props.currency ?? '') : ''))
 
-const toneClass = computed(() => (props.tone === 'auto' ? format.toneClass(props.value) : ''))
+const toneClass = computed(() => {
+  if (props.tone === 'auto') return format.toneClass(props.value)
+  return props.tone === 'none' ? '' : props.tone
+})
 </script>
 
 <template>
   <div class="metric">
     <span class="metric__label">{{ label }}</span>
     <span class="metric__value" :class="[toneClass, { 'metric__value--sm': small }]">
-      {{ display }}
-      <span v-if="unit" class="metric__unit">{{ unit }}</span>
+      <!-- The value slot is for figures that need their own markup, like a win/loss pair. -->
+      <slot name="value">
+        {{ display }}
+        <span v-if="unit" class="metric__unit">{{ unit }}</span>
+      </slot>
     </span>
     <span v-if="sub" class="metric__sub">{{ sub }}</span>
     <slot />

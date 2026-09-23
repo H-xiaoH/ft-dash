@@ -335,6 +335,7 @@ export default {
     http: 'Request failed (HTTP {status}): {detail}',
     unknown: 'Something went wrong.',
     notFound: 'Endpoint not found — the Freqtrade version may be too old.',
+    pageLoad: 'That page failed to load. Check your connection and try again.',
     notInState: 'The bot is not in a state that supports this endpoint.',
     wsTokenMissing: 'ws_token auth is selected but no token is set.',
     wsAuthUnsupported:

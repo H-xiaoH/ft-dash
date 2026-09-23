@@ -77,3 +77,21 @@ test('the filter travels between the URL and the tabs', async ({ page }) => {
   await expect(page).not.toHaveURL(/filter=/)
   await expect(page.locator('table tbody tr')).toHaveCount(5)
 })
+
+test('a trade drawer takes focus, parks the page, and gives both back on close', async ({
+  page,
+}) => {
+  const shell = page.locator('.shell')
+  expect(await shell.evaluate((el) => el.hasAttribute('inert'))).toBe(false)
+
+  await page.locator('table tbody tr').first().click()
+  const drawer = page.locator('.overlay--drawer .drawer')
+  await expect(drawer).toBeVisible()
+  // Tab must start inside the dialog, not behind it.
+  await expect(drawer).toBeFocused()
+  expect(await shell.evaluate((el) => el.hasAttribute('inert'))).toBe(true)
+
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.overlay--drawer')).toHaveCount(0)
+  expect(await shell.evaluate((el) => el.hasAttribute('inert'))).toBe(false)
+})

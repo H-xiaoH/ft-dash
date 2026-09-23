@@ -785,10 +785,6 @@
   margin-left: 4px;
 }
 
-.card__label {
-  color: var(--text-3);
-}
-
 .u-hide-sm {
   display: table-cell;
 }

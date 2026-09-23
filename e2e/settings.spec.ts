@@ -63,3 +63,14 @@ test('enabling bot controls removes the acknowledgement button', async ({ page }
   await expect(enable).toBeVisible()
   await expect(disable).toHaveCount(0)
 })
+
+test('the password stays out of localStorage unless you ask for it', async ({ page }) => {
+  // The connect helper never touches the "remember" toggle, so this is the default path.
+  const stored = await page.evaluate(() => ({
+    local: localStorage.getItem('ftdash.credentials.v1'),
+    session: sessionStorage.getItem('ftdash.credentials.v1'),
+  }))
+
+  expect(stored.local).toBeNull()
+  expect(stored.session).toContain('tester')
+})

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useModalFocus } from '@/composables/useModalFocus'
 
 const props = withDefaults(
   defineProps<{
@@ -22,6 +23,12 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>()
 
 const { t } = useI18n()
 const typed = ref('')
+const panel = ref<HTMLElement | null>(null)
+
+useModalFocus(
+  computed(() => props.open),
+  panel,
+)
 
 watch(
   () => props.open,
@@ -38,7 +45,7 @@ const canConfirm = computed(
 <template>
   <Teleport to="body">
     <div v-if="open" class="overlay" role="dialog" aria-modal="true" @click.self="emit('cancel')">
-      <div class="dialog">
+      <div ref="panel" class="dialog" tabindex="-1">
         <div class="dialog__head">
           <span class="dialog__title">{{ title }}</span>
           <div class="spacer" />

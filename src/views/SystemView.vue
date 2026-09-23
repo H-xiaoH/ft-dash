@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
+import MetricTile from '@/components/MetricTile.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EventTape from '@/components/EventTape.vue'
 import { useFormat } from '@/composables/useFormat'
@@ -31,6 +32,13 @@ const heartbeatLate = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STALE
 const uptime = computed(() =>
   bot.health ? Date.now() - (format.timestamp(bot.health.bot_startup_ts) ?? Date.now()) : null,
 )
+/** 1 / 5 / 15 minute load averages, as the bot reports them. */
+const loadAverage = computed(() => {
+  const load = bot.sysinfo?.cpu_load_avg
+  return [load?.['1m'], load?.['5m'], load?.['15m']]
+    .map((value) => format.number(value ?? null, 1))
+    .join(' / ')
+})
 const config = computed(() => bot.showConfig)
 
 const wsLabel = computed(() => {
@@ -80,9 +88,12 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
     </section>
 
     <div class="metric-grid">
-      <div class="metric">
-        <span class="metric__label">{{ t('system.cpu') }}</span>
-        <span class="metric__value">{{ format.percent(bot.sysinfo?.cpu_avg ?? null, 1) }}</span>
+      <MetricTile
+        :label="t('system.cpu')"
+        :value="bot.sysinfo?.cpu_avg ?? null"
+        kind="percent"
+        :digits="1"
+      >
         <div class="meter" style="margin-top: 6px">
           <div
             class="meter__fill"
@@ -90,10 +101,13 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
             :style="{ width: `${bot.sysinfo?.cpu_avg ?? 0}%` }"
           />
         </div>
-      </div>
-      <div class="metric">
-        <span class="metric__label">{{ t('system.ram') }}</span>
-        <span class="metric__value">{{ format.percent(bot.sysinfo?.ram_pct ?? null, 1) }}</span>
+      </MetricTile>
+      <MetricTile
+        :label="t('system.ram')"
+        :value="bot.sysinfo?.ram_pct ?? null"
+        kind="percent"
+        :digits="1"
+      >
         <div class="meter" style="margin-top: 6px">
           <div
             class="meter__fill"
@@ -101,36 +115,38 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
             :style="{ width: `${bot.sysinfo?.ram_pct ?? 0}%` }"
           />
         </div>
-      </div>
-      <div class="metric">
-        <span class="metric__label">{{ t('system.loadAvg') }}</span>
-        <span class="metric__value metric__value--sm">
-          {{ format.number(bot.sysinfo?.cpu_load_avg?.['1m'] ?? null, 1) }} /
-          {{ format.number(bot.sysinfo?.cpu_load_avg?.['5m'] ?? null, 1) }} /
-          {{ format.number(bot.sysinfo?.cpu_load_avg?.['15m'] ?? null, 1) }}
-        </span>
-        <span class="metric__sub">{{ t('system.cores') }} {{ bot.sysinfo?.cpu_count ?? '—' }}</span>
-      </div>
-      <div class="metric">
-        <span class="metric__label">{{ t('system.uptime') }}</span>
-        <span class="metric__value metric__value--sm">{{ format.duration(uptime) }}</span>
-        <span class="metric__sub">{{ format.dateTime(bot.health?.bot_startup ?? null) }}</span>
-      </div>
-      <div class="metric" :class="{ 'metric--warn': heartbeatLate }">
-        <span class="metric__label">{{ t('system.heartbeatAge') }}</span>
-        <span class="metric__value metric__value--sm">{{
-          format.duration(bot.heartbeatAgeMs)
-        }}</span>
-        <span class="metric__sub">{{ format.dateTime(bot.health?.last_process ?? null) }}</span>
-      </div>
-      <div class="metric">
-        <span class="metric__label">{{ t('system.wsStatus') }}</span>
-        <span class="metric__value metric__value--sm">{{ wsLabel }}</span>
-        <span class="metric__sub">
-          {{ t('system.polling') }} {{ bot.pollIntervalSeconds }}s ·
-          {{ bot.latencyMs !== null ? `${bot.latencyMs}ms` : '—' }}
-        </span>
-      </div>
+      </MetricTile>
+      <MetricTile
+        :label="t('system.loadAvg')"
+        :value="loadAverage"
+        kind="text"
+        small
+        :sub="`${t('system.cores')} ${bot.sysinfo?.cpu_count ?? '—'}`"
+      />
+      <MetricTile
+        :label="t('system.uptime')"
+        :value="format.duration(uptime)"
+        kind="text"
+        small
+        :sub="format.dateTime(bot.health?.bot_startup ?? null)"
+      />
+      <MetricTile
+        :label="t('system.heartbeatAge')"
+        :value="format.duration(bot.heartbeatAgeMs)"
+        kind="text"
+        small
+        :class="{ 'metric--warn': heartbeatLate }"
+        :sub="format.dateTime(bot.health?.last_process ?? null)"
+      />
+      <MetricTile
+        :label="t('system.wsStatus')"
+        :value="wsLabel"
+        kind="text"
+        small
+        :sub="`${t('system.polling')} ${bot.pollIntervalSeconds}s · ${
+          bot.latencyMs !== null ? `${bot.latencyMs}ms` : '—'
+        }`"
+      />
     </div>
 
     <div class="grid-2">

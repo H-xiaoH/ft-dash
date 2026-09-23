@@ -1,7 +1,7 @@
 {
   "name": "ft-dash",
   "version": "0.1.0",
-  "description": "A mobile-first, offline-capable PWA dashboard for Freqtrade bots.",
+  "description": "A mobile-first, installable PWA dashboard for Freqtrade bots.",
   "private": true,
   "license": "MIT",
   "scripts": {

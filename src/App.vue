@@ -169,7 +169,8 @@ const settle = (ms = 200) => new Promise((resolve) => setTimeout(resolve, ms))
 function warmPageChunks() {
   for (const item of NAV_ROUTES) {
     const entry = router.resolve(item.path).matched.at(-1)?.components?.default as unknown
-    if (typeof entry === 'function') void (entry as () => Promise<unknown>)()
+    // A prefetch that fails is not worth reporting — the page will ask again when opened.
+    if (typeof entry === 'function') void (entry as () => Promise<unknown>)().catch(() => {})
   }
 }
 
@@ -208,10 +209,13 @@ function onTouchMove(event: TouchEvent) {
     dragWidth.value = document.querySelector('.page-host')?.clientWidth ?? window.innerWidth
     dragTransition.value = 'none'
     neighborLoad = loadNeighbor(dx < 0 ? 1 : -1)
-    void neighborLoad.then((loaded) => {
-      // A chunk that lands after the finger left must not resurrect the drag.
-      if (loaded && gesture === current) neighbor.value = loaded
-    })
+    void neighborLoad
+      .then((loaded) => {
+        // A chunk that lands after the finger left must not resurrect the drag.
+        if (loaded && gesture === current) neighbor.value = loaded
+      })
+      // A neighbour that cannot be fetched just leaves the drag with nothing to show.
+      .catch(() => {})
   }
 
   // The page owns the gesture now, so nothing behind it may scroll.

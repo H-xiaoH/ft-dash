@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BarChart from '@/components/BarChart.vue'
+import MetricTile from '@/components/MetricTile.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
 import SortHeader from '@/components/SortHeader.vue'
 import type { BarItem } from '@/components/charts'
@@ -113,104 +114,83 @@ function riskRatioTone(value: Numberish) {
   if (ratio < 0) return 'u-neg'
   return ratio < 1 ? 'u-warn' : 'u-pos'
 }
+
+/** Freqtrade reports drawdown as a ratio; the tiles show percentages. */
+function drawdownPercent(value: number | null | undefined) {
+  return value === null || value === undefined ? null : value * 100
+}
 </script>
 
 <template>
   <div class="stack">
     <div class="metric-grid stats__summary">
-      <div class="metric">
-        <span class="metric__label">{{ t('kpi.closedPnl') }}</span>
-        <span class="metric__value" :class="format.toneClass(summary?.profit_closed_coin)">
-          {{ format.signedMoney(summary?.profit_closed_coin ?? null, '', 2) }}
-          <span class="metric__unit">{{ stake }}</span>
-        </span>
-        <span class="metric__sub">{{ format.ratio(summary?.profit_closed_ratio ?? null) }}</span>
-      </div>
-      <div class="metric">
-        <span class="metric__label">{{ t('kpi.availableBalance') }}</span>
-        <span class="metric__value">
-          {{ format.money(bot.availableBalance, '', 2) }}
-          <span class="metric__unit">{{ stake }}</span>
-        </span>
-        <span class="metric__sub">
-          {{ t('kpi.botManaged') }} {{ format.money(bot.balance?.total_bot ?? null, stake) }}
-        </span>
-      </div>
-      <div class="metric">
-        <span class="metric__label">{{ t('kpi.positionValue') }}</span>
-        <span class="metric__value">
-          {{ format.money(bot.positionValue, '', 2) }}
-          <span class="metric__unit">{{ stake }}</span>
-        </span>
-        <span class="metric__sub">{{ openCount }} / {{ maxOpen }}</span>
-      </div>
-      <div class="metric">
-        <span class="metric__label">{{ t('stats.wins') }} / {{ t('stats.losses') }}</span>
-        <span class="metric__value">
+      <MetricTile
+        :label="t('kpi.closedPnl')"
+        :value="summary?.profit_closed_coin ?? null"
+        kind="money"
+        :currency="stake"
+        signed
+        tone="auto"
+        :sub="format.ratio(summary?.profit_closed_ratio ?? null)"
+      />
+      <MetricTile
+        :label="t('kpi.availableBalance')"
+        :value="bot.availableBalance"
+        kind="money"
+        :currency="stake"
+        :sub="`${t('kpi.botManaged')} ${format.money(bot.balance?.total_bot ?? null, stake)}`"
+      />
+      <MetricTile
+        :label="t('kpi.positionValue')"
+        :value="bot.positionValue"
+        kind="money"
+        :currency="stake"
+        :sub="`${openCount} / ${maxOpen}`"
+      />
+      <MetricTile
+        :label="`${t('stats.wins')} / ${t('stats.losses')}`"
+        :sub="`${t('kpi.trades')} ${summary?.trade_count ?? 0}`"
+      >
+        <template #value>
           <span class="u-pos">{{ summary?.winning_trades ?? 0 }}</span>
           <span class="muted">/</span>
           <span class="u-neg">{{ summary?.losing_trades ?? 0 }}</span>
-        </span>
-        <span class="metric__sub">{{ t('kpi.trades') }} {{ summary?.trade_count ?? 0 }}</span>
-      </div>
-      <div class="metric">
-        <span class="metric__label">{{ t('kpi.winRate') }}</span>
-        <span class="metric__value" :class="winRateTone(bot.winRate)">
-          {{ format.percent(bot.winRate) }}
-        </span>
-        <span class="metric__sub">
-          {{ t('kpi.expectancy') }} {{ format.number(summary?.expectancy ?? null, 3) }}
-        </span>
-      </div>
-      <div class="metric">
-        <span class="metric__label">{{ t('kpi.profitFactor') }}</span>
-        <span class="metric__value">{{ format.number(summary?.profit_factor ?? null) }}</span>
-      </div>
-      <div class="metric">
-        <span class="metric__label">{{ t('kpi.sharpe') }}</span>
-        <span class="metric__value" :class="riskRatioTone(summary?.sharpe)">
-          {{ format.number(summary?.sharpe ?? null) }}
-        </span>
-        <span class="metric__sub">
-          {{ t('kpi.sqn') }} {{ format.number(summary?.sqn ?? null) }}
-        </span>
-      </div>
-      <div class="metric">
-        <span class="metric__label">{{ t('kpi.sortino') }}</span>
-        <span class="metric__value" :class="riskRatioTone(summary?.sortino)">
-          {{ format.number(summary?.sortino ?? null) }}
-        </span>
-        <span class="metric__sub">
-          {{ t('kpi.calmar') }} {{ format.number(summary?.calmar ?? null) }}
-        </span>
-      </div>
-      <div class="metric">
-        <span class="metric__label">{{ t('kpi.maxDrawdown') }}</span>
-        <span class="metric__value u-neg">
-          {{
-            format.percent(
-              (summary?.max_drawdown ?? null) === null ? null : (summary?.max_drawdown ?? 0) * 100,
-            )
-          }}
-        </span>
-        <span class="metric__sub">
-          {{ t('kpi.currentDrawdown') }}
-          {{
-            format.percent(
-              (summary?.current_drawdown ?? null) === null
-                ? null
-                : (summary?.current_drawdown ?? 0) * 100,
-            )
-          }}
-        </span>
-      </div>
-      <div class="metric">
-        <span class="metric__label">{{ t('kpi.avgDuration') }}</span>
-        <span class="metric__value metric__value--sm">{{ summary?.avg_duration ?? '—' }}</span>
-        <span class="metric__sub"
-          >{{ t('kpi.tradingVolume') }} {{ format.compact(summary?.trading_volume ?? null) }}</span
-        >
-      </div>
+        </template>
+      </MetricTile>
+      <MetricTile
+        :label="t('kpi.winRate')"
+        :value="bot.winRate"
+        kind="percent"
+        :tone="winRateTone(bot.winRate)"
+        :sub="`${t('kpi.expectancy')} ${format.number(summary?.expectancy ?? null, 3)}`"
+      />
+      <MetricTile :label="t('kpi.profitFactor')" :value="summary?.profit_factor ?? null" />
+      <MetricTile
+        :label="t('kpi.sharpe')"
+        :value="summary?.sharpe ?? null"
+        :tone="riskRatioTone(summary?.sharpe)"
+        :sub="`${t('kpi.sqn')} ${format.number(summary?.sqn ?? null)}`"
+      />
+      <MetricTile
+        :label="t('kpi.sortino')"
+        :value="summary?.sortino ?? null"
+        :tone="riskRatioTone(summary?.sortino)"
+        :sub="`${t('kpi.calmar')} ${format.number(summary?.calmar ?? null)}`"
+      />
+      <MetricTile
+        :label="t('kpi.maxDrawdown')"
+        :value="drawdownPercent(summary?.max_drawdown)"
+        kind="percent"
+        tone="u-neg"
+        :sub="`${t('kpi.currentDrawdown')} ${format.percent(drawdownPercent(summary?.current_drawdown))}`"
+      />
+      <MetricTile
+        :label="t('kpi.avgDuration')"
+        :value="summary?.avg_duration ?? '—'"
+        kind="text"
+        small
+        :sub="`${t('kpi.tradingVolume')} ${format.compact(summary?.trading_volume ?? null)}`"
+      />
     </div>
 
     <section class="panel">

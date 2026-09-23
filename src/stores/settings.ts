@@ -31,7 +31,11 @@ const DEFAULT_SETTINGS: StoredSettings = {
   wsToken: '',
   allowControls: false,
   notifications: false,
-  remember: true,
+  /**
+   * Off by default: the password then lives in sessionStorage and dies with the tab,
+   * instead of sitting in localStorage until someone clears it.
+   */
+  remember: false,
   controlsAcknowledged: false,
 }
 
@@ -109,7 +113,7 @@ export const useSettingsStore = defineStore('settings', () => {
     baseUrl.value = ''
     username.value = ''
     password.value = ''
-    remember.value = true
+    remember.value = DEFAULT_SETTINGS.remember
     removeKey(CREDENTIALS_KEY)
     removeKey(CREDENTIALS_KEY, safeSessionStorage())
     persist()
