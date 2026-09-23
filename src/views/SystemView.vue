@@ -98,7 +98,7 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
           <div
             class="meter__fill"
             :class="meterTone(bot.sysinfo?.cpu_avg ?? null)"
-            :style="{ width: `${bot.sysinfo?.cpu_avg ?? 0}%` }"
+            :style="{ transform: `scaleX(${(bot.sysinfo?.cpu_avg ?? 0) / 100})` }"
           />
         </div>
       </MetricTile>
@@ -112,7 +112,7 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
           <div
             class="meter__fill"
             :class="meterTone(bot.sysinfo?.ram_pct ?? null)"
-            :style="{ width: `${bot.sysinfo?.ram_pct ?? 0}%` }"
+            :style="{ transform: `scaleX(${(bot.sysinfo?.ram_pct ?? 0) / 100})` }"
           />
         </div>
       </MetricTile>
@@ -311,7 +311,7 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
               <div
                 class="meter__fill"
                 :class="meterTone(core.pct)"
-                :style="{ width: `${core.pct}%` }"
+                :style="{ transform: `scaleX(${core.pct / 100})` }"
               />
             </div>
             <span class="small num">{{ format.percent(core.pct, 0) }}</span>

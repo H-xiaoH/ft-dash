@@ -135,7 +135,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
               </div>
               <div class="panel__body panel__body--flush">
                 <div v-if="!orders.length" class="empty">{{ t('trades.noOrders') }}</div>
-                <div v-else class="table-wrap">
+                <!-- The orders table scrolls sideways on phones: give it a focus stop. -->
+                <div
+                  v-else
+                  class="table-wrap"
+                  tabindex="0"
+                  role="region"
+                  :aria-label="t('trades.orders')"
+                >
                   <table class="table">
                     <thead>
                       <tr>

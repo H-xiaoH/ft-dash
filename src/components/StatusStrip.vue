@@ -89,7 +89,11 @@ function onStreamClick() {
 <template>
   <header class="strip">
     <div class="strip__state" :data-tone="stateTone">
-      <span :key="bot.lastFetchAt ?? 0" class="strip__pulse" :data-tone="stateTone" />
+      <!--
+        Keyed on the state, not on every fetch: at a 1-second poll a beat per round is
+        constant motion, and this dot only has something to say when the state changes.
+      -->
+      <span :key="`${stateTone}-${bot.connection}`" class="strip__pulse" :data-tone="stateTone" />
       <span class="strip__state-label">{{ t(stateKey) }}</span>
       <span v-if="bot.isLiveAccount" class="chip chip--bad">{{ t('connect.liveTrading') }}</span>
       <span v-else-if="bot.showConfig" class="chip">{{ t('connect.dryRun') }}</span>

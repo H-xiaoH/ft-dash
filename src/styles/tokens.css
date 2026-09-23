@@ -22,7 +22,9 @@
   /* text */
   --text: #ffffff;
   --text-2: #b5bac1;
-  --text-3: #7e838a;
+  /* Muted text: 4.65:1 on the lightest surface it lands on (--ink-700, e.g. the selected
+     segment), so small muted labels keep AA contrast everywhere. */
+  --text-3: #8a8f96;
 
   /* semantics — values only */
   --long: #24c98a;
@@ -61,6 +63,11 @@
   --sp-5: 20px;
   --sp-6: 24px;
   --sp-8: 32px;
+
+  /* motion — the one curve the sliding surfaces share, plus the durations they use */
+  --ease-out-strong: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-quick: 140ms;
+  --dur-slide: 220ms;
 
   /* shape */
   --r-1: 4px;
@@ -192,12 +199,23 @@ a {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /*
+   * Fewer and gentler, not none: keyframe decoration goes, and short colour/opacity
+   * transitions stay so state changes still read. Movement is removed below.
+   */
   *,
   *::before,
   *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
+    transition-duration: 120ms !important;
     scroll-behavior: auto !important;
+  }
+
+  .page-enter-from,
+  .page-leave-to,
+  .drawer-overlay-enter-from .drawer,
+  .drawer-overlay-leave-to .drawer {
+    transform: none !important;
   }
 }

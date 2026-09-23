@@ -561,8 +561,12 @@
 
 .meter__fill {
   height: 100%;
+  width: 100%;
   background: var(--accent);
-  transition: width 300ms ease;
+  /* Scale, not width: the fill then stays off the layout path. */
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 300ms ease-out;
 }
 
 .meter__fill--good {
@@ -648,6 +652,15 @@
   padding: var(--sp-3) var(--sp-4);
   font-size: var(--fs-base);
   box-shadow: 0 12px 30px rgb(0 0 0 / 45%);
+  /* Rare, feedback-only element: a short rise keeps it from appearing out of nowhere. */
+  animation: toast-in var(--dur-quick) var(--ease-out-strong);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
 }
 
 .toast--good {

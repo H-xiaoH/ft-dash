@@ -78,7 +78,8 @@ function levelClass(level: string): string {
     </div>
     <div class="panel__body panel__body--flush">
       <div v-if="!lines.length" class="empty">{{ t('logs.empty') }}</div>
-      <div v-else class="logs">
+      <!-- Keyboard users need a focus stop to scroll the log (WCAG 2.1.1). -->
+      <div v-else class="logs" tabindex="0" role="region" :aria-label="t('logs.title')">
         <div v-for="(line, index) in lines" :key="`${line[1]}-${index}`" class="logs__line">
           <span class="logs__time num">{{ format.dateTime(line[0]) }}</span>
           <span class="chip" :class="levelClass(line[3])">{{ line[3] }}</span>

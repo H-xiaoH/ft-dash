@@ -237,7 +237,14 @@ onMounted(() => {
         </div>
       </div>
 
-      <div v-if="tab === 'whitelist'" class="panel__body panel__body--flush market__scroll">
+      <!-- Keyboard users need a focus stop to scroll this list (WCAG 2.1.1). -->
+      <div
+        v-if="tab === 'whitelist'"
+        class="panel__body panel__body--flush market__scroll"
+        tabindex="0"
+        role="region"
+        :aria-label="t('market.whitelist')"
+      >
         <div v-if="!whitelistRows.length" class="empty">{{ t('empty.table') }}</div>
         <div v-else class="table-wrap u-desktop-only">
           <table class="table table--clickable">
