@@ -243,6 +243,14 @@ test('the rail keeps no hover plate behind the sliding indicator', async ({ page
   await expect(item).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
 })
 
+test('the tab bar fades its icons and labels instead of snapping', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 })
+  const item = page.locator('.tabbar__item').first()
+  // The icon is stroked with currentColor, so this one transition covers both.
+  await expect(item).toHaveCSS('transition-property', 'color')
+  await expect(item).toHaveCSS('transition-duration', '0.22s')
+})
+
 test('a page travels the way you navigated', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 })
   const host = page.locator('.page-host')

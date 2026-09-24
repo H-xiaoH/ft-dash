@@ -512,6 +512,11 @@ watch(
     gap: 2px;
     padding: 4px 0;
     color: var(--text-3);
+    /*
+     * Icon and label fade between muted and accent instead of snapping, in step with the
+     * block sliding underneath them (the icon inherits this colour change).
+     */
+    transition: color var(--dur-slide) ease;
     text-decoration: none;
     font-size: 10px;
     position: relative;
