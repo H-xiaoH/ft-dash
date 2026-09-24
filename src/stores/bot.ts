@@ -304,25 +304,37 @@ export const useBotStore = defineStore('bot', () => {
     }
   }
 
+  /** How often the hidden-tab watchdog may ask, regardless of the visible cadence. */
+  const BACKGROUND_CHECK_MS = 10_000
+
   /** Cheap slices refreshed on every poll tick. */
   async function pollTick() {
     // A slow round trip must not stack requests on the next tick.
     if (pollInFlight) return
     pollInFlight = true
+    const now = Date.now()
     try {
       if (document.visibilityState === 'hidden') {
         /*
          * Background tabs otherwise stop polling to save battery — but the point of
          * the alert is catching a stuck bot while you are elsewhere, so keep one
          * cheap request alive when notifications are enabled.
-         * ponytail: with the tab in the background the browser owns the clock — chrome
-         * keeps 1s timers for the first ~5 minutes hidden and clamps to ~1/min after
-         * that, and mobile Safari may freeze the page outright. So a stalled bot
-         * surfaces within roughly a minute of the next check rather than 30 seconds.
+         *
+         * That watchdog runs on its own slower cadence: an alert only has to notice a
+         * stall, and asking once a second for the first five minutes hidden cost ~300
+         * requests for a check whose answer changes once. Ten seconds still lands well
+         * inside the stale threshold.
+         *
+         * ponytail: past that the browser owns the clock — Chrome clamps hidden timers
+         * to ~1/min after ~5 minutes and mobile Safari may freeze the page outright, so
+         * a stalled bot surfaces within roughly a minute rather than 30 seconds.
          * Guaranteed 30s would need a push server, which this front-end-only app
          * deliberately does not have.
          */
-        if (settings.notifications) await checkHeartbeat()
+        if (settings.notifications && now - lastBackgroundCheck >= BACKGROUND_CHECK_MS) {
+          lastBackgroundCheck = now
+          await checkHeartbeat()
+        }
         return
       }
       tick += 1
@@ -344,6 +356,8 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   let heartbeatAlerted = false
+  /** When the hidden-tab watchdog last asked; see BACKGROUND_CHECK_MS. */
+  let lastBackgroundCheck = 0
 
   function evaluateHeartbeatAlert() {
     const age = heartbeatAgeMs.value
@@ -523,53 +537,62 @@ export const useBotStore = defineStore('bot', () => {
       }
       streamBlocked.value = false
       streamOpened = false
-      const socket = new WebSocket(websocketUrl(api.baseUrl, plan.token))
-      ws = socket
-      socket.addEventListener('open', () => {
-        wsRetry = 0
-        streamFailures = 0
-        streamOpened = true
-        streamPreferToken = false
-        streamReasonKey.value = null
-        events.setStatus('open')
-        socket.send(JSON.stringify({ type: 'subscribe', data: [...STREAM_TOPICS] }))
-      })
-      socket.addEventListener('message', (event) => {
-        handleStreamMessage(event.data)
-      })
-      socket.addEventListener('close', () => {
-        if (ws === socket) ws = null
-        events.setStatus('closed')
-        if (!streamOpened) {
-          // In auto mode a rejected JWT may just mean the bot wants its ws_token.
-          if (
-            settings.streamAuth === 'auto' &&
-            !streamPreferToken &&
-            settings.wsToken.trim() &&
-            streamAuthMode.value === 'jwt'
-          ) {
-            streamPreferToken = true
-            events.push({ type: 'stream.auth', subject: 'fallback', detail: '', severity: 'warn' })
-            scheduleReconnect()
-            return
-          }
-          streamFailures += 1
-          if (streamFailures >= STREAM_FAILURE_LIMIT) {
-            streamBlocked.value = true
-            streamReasonKey.value = 'errors.wsRejected'
-            return
-          }
-        }
-        scheduleReconnect()
-      })
-      socket.addEventListener('error', () => {
-        events.setStatus('error', 'socket-error')
-      })
+      openSocket(websocketUrl(api.baseUrl, plan.token))
     } catch (error) {
       events.setStatus('error', error instanceof ApiError ? error.kind : 'login-failed')
       streamReasonKey.value = 'errors.wsAuthUnavailable'
       scheduleReconnect()
     }
+  }
+
+  /** Wires one socket: subscribe on open, classify the close, surface errors. */
+  function openSocket(url: string) {
+    const socket = new WebSocket(url)
+    ws = socket
+    socket.addEventListener('open', () => onSocketOpen(socket))
+    socket.addEventListener('message', (event) => handleStreamMessage(event.data))
+    socket.addEventListener('close', () => onSocketClose(socket))
+    socket.addEventListener('error', () => events.setStatus('error', 'socket-error'))
+  }
+
+  function onSocketOpen(socket: WebSocket) {
+    wsRetry = 0
+    streamFailures = 0
+    streamOpened = true
+    streamPreferToken = false
+    streamReasonKey.value = null
+    events.setStatus('open')
+    socket.send(JSON.stringify({ type: 'subscribe', data: [...STREAM_TOPICS] }))
+  }
+
+  /**
+   * A socket that closed before it ever opened may simply want the bot's ws_token rather
+   * than the JWT we fetched. Returns true when that switch was made and a retry is due.
+   */
+  function fallBackToWsToken() {
+    if (settings.streamAuth !== 'auto' || streamPreferToken) return false
+    if (!settings.wsToken.trim() || streamAuthMode.value !== 'jwt') return false
+    streamPreferToken = true
+    events.push({ type: 'stream.auth', subject: 'fallback', detail: '', severity: 'warn' })
+    return true
+  }
+
+  function onSocketClose(socket: WebSocket) {
+    if (ws === socket) ws = null
+    events.setStatus('closed')
+    if (!streamOpened) {
+      if (fallBackToWsToken()) {
+        scheduleReconnect()
+        return
+      }
+      streamFailures += 1
+      if (streamFailures >= STREAM_FAILURE_LIMIT) {
+        streamBlocked.value = true
+        streamReasonKey.value = 'errors.wsRejected'
+        return
+      }
+    }
+    scheduleReconnect()
   }
 
   function handleStreamMessage(raw: unknown) {
