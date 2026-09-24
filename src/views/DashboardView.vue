@@ -164,7 +164,14 @@ async function confirmExit() {
         </div>
         <div class="panel__body panel__body--flush">
           <div v-if="!bot.openTrades.length" class="empty">{{ t('dashboard.noPositions') }}</div>
-          <div v-else class="table-wrap">
+          <!-- Scrolls sideways on phones: give keyboard users a focus stop (WCAG 2.1.1). -->
+          <div
+            v-else
+            class="table-wrap"
+            tabindex="0"
+            role="region"
+            :aria-label="t('kpi.openTrades')"
+          >
             <table class="table table--clickable">
               <thead>
                 <tr>
@@ -235,7 +242,14 @@ async function confirmExit() {
         </div>
         <div class="panel__body panel__body--flush">
           <div v-if="!bot.closedByRecency.length" class="empty">{{ t('trades.noClosed') }}</div>
-          <div v-else class="table-wrap">
+          <!-- Scrolls sideways on phones: give keyboard users a focus stop (WCAG 2.1.1). -->
+          <div
+            v-else
+            class="table-wrap"
+            tabindex="0"
+            role="region"
+            :aria-label="t('dashboard.recentTrades')"
+          >
             <table class="table">
               <thead>
                 <tr>
