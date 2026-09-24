@@ -370,43 +370,43 @@ onMounted(() => {
             </tbody>
           </table>
         </div>
-      </div>
 
-      <!-- Mobile: a card list beats a horizontally scrolling table. -->
-      <ul v-if="rows.length" class="cards u-mobile-only">
-        <li
-          v-for="trade in pagedRows"
-          :key="trade.trade_id"
-          class="card card--tappable"
-          @click="openTrade(trade)"
-        >
-          <div class="card__row">
-            <span
-              class="table__side"
-              :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
-            />
-            <span class="num card__pair">{{ trade.pair }}</span>
-            <span v-if="trade.is_open" class="chip chip--accent">{{ t('trades.open') }}</span>
-            <span class="spacer" />
-            <span
-              class="num card__pnl"
-              :class="format.toneClass(trade.profit_ratio ?? trade.close_profit)"
-            >
-              {{ format.signedMoney(trade.profit_abs ?? trade.close_profit_abs ?? null, stake) }}
-              <small>{{ format.ratio(trade.profit_ratio ?? trade.close_profit) }}</small>
-            </span>
-          </div>
-          <div class="card__row small muted">
-            <SideBadge :is-short="trade.is_short" />
-            <span class="num">
-              {{ format.price(trade.open_rate) }} →
-              {{ format.price(trade.current_rate ?? trade.close_rate ?? null) }}
-            </span>
-            <span class="spacer" />
-            <span class="num">{{ format.duration(durationOf(trade)) }}</span>
-          </div>
-        </li>
-      </ul>
+        <!-- Mobile: a card list beats a horizontally scrolling table. -->
+        <ul v-if="rows.length" class="cards u-mobile-only">
+          <li
+            v-for="trade in pagedRows"
+            :key="trade.trade_id"
+            class="card card--tappable"
+            @click="openTrade(trade)"
+          >
+            <div class="card__row">
+              <span
+                class="table__side"
+                :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
+              />
+              <span class="num card__pair">{{ trade.pair }}</span>
+              <span v-if="trade.is_open" class="chip chip--accent">{{ t('trades.open') }}</span>
+              <span class="spacer" />
+              <span
+                class="num card__pnl"
+                :class="format.toneClass(trade.profit_ratio ?? trade.close_profit)"
+              >
+                {{ format.signedMoney(trade.profit_abs ?? trade.close_profit_abs ?? null, stake) }}
+                <small>{{ format.ratio(trade.profit_ratio ?? trade.close_profit) }}</small>
+              </span>
+            </div>
+            <div class="card__row small muted">
+              <SideBadge :is-short="trade.is_short" />
+              <span class="num">
+                {{ format.price(trade.open_rate) }} →
+                {{ format.price(trade.current_rate ?? trade.close_rate ?? null) }}
+              </span>
+              <span class="spacer" />
+              <span class="num">{{ format.duration(durationOf(trade)) }}</span>
+            </div>
+          </li>
+        </ul>
+      </div>
 
       <div class="panel__head trades__more">
         <span class="panel__meta num">

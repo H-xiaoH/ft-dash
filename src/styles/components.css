@@ -753,6 +753,11 @@
     padding: var(--sp-3);
   }
 
+  /* Flush stays flush at every width — the mobile rule above would otherwise re-pad it. */
+  .panel__body--flush {
+    padding: 0;
+  }
+
   .panel__head {
     padding: var(--sp-2) var(--sp-3);
   }

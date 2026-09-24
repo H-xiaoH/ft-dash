@@ -295,32 +295,32 @@ function drawdownPercent(value: number | null | undefined) {
             </tbody>
           </table>
         </div>
-      </div>
 
-      <!-- Narrow screens get cards instead of a horizontally scrolling table. -->
-      <ul v-if="rows.length" class="cards u-mobile-only">
-        <li v-for="row in rows" :key="row.pair" class="card">
-          <div class="card__row">
-            <span class="num card__pair">{{ row.pair }}</span>
-            <span class="spacer" />
-            <span class="num card__pnl" :class="format.toneClass(row.profitAbs)">
-              {{ format.signedMoney(row.profitAbs, stake) }}
-            </span>
-          </div>
-          <div class="card__row small muted">
-            <span>{{ t('stats.count') }} {{ row.count }}</span>
-            <span>{{ t('stats.winRate') }} {{ format.percent(row.winRate) }}</span>
-            <span class="spacer" />
-            <span>{{ format.duration(row.avgDuration) }}</span>
-          </div>
-          <div class="card__row small muted">
-            <span>{{ t('trades.fees') }} {{ format.money(row.fees, stake, 4) }}</span>
-            <span>{{ t('kpi.tradingVolume') }} {{ format.money(row.volume, stake) }}</span>
-            <span class="spacer" />
-            <span>{{ format.day(row.lastTrade) }}</span>
-          </div>
-        </li>
-      </ul>
+        <!-- Narrow screens get cards instead of a horizontally scrolling table. -->
+        <ul v-if="rows.length" class="cards u-mobile-only">
+          <li v-for="row in rows" :key="row.pair" class="card">
+            <div class="card__row">
+              <span class="num card__pair">{{ row.pair }}</span>
+              <span class="spacer" />
+              <span class="num card__pnl" :class="format.toneClass(row.profitAbs)">
+                {{ format.signedMoney(row.profitAbs, stake) }}
+              </span>
+            </div>
+            <div class="card__row small muted">
+              <span>{{ t('stats.count') }} {{ row.count }}</span>
+              <span>{{ t('stats.winRate') }} {{ format.percent(row.winRate) }}</span>
+              <span class="spacer" />
+              <span>{{ format.duration(row.avgDuration) }}</span>
+            </div>
+            <div class="card__row small muted">
+              <span>{{ t('trades.fees') }} {{ format.money(row.fees, stake, 4) }}</span>
+              <span>{{ t('kpi.tradingVolume') }} {{ format.money(row.volume, stake) }}</span>
+              <span class="spacer" />
+              <span>{{ format.day(row.lastTrade) }}</span>
+            </div>
+          </li>
+        </ul>
+      </div>
     </section>
 
     <section class="panel">
@@ -389,25 +389,25 @@ function drawdownPercent(value: number | null | undefined) {
             </tbody>
           </table>
         </div>
-      </div>
 
-      <ul class="cards u-mobile-only">
-        <li v-for="entry in periodData.slice(0, PERIOD_ROWS)" :key="entry.date" class="card">
-          <div class="card__row">
-            <span class="num">{{ format.day(entry.date) }}</span>
-            <span class="spacer" />
-            <span class="num" :class="format.toneClass(entry.abs_profit)">
-              {{ format.signedMoney(entry.abs_profit, stake) }}
-            </span>
-          </div>
-          <div class="card__row small muted">
-            <span>{{ format.ratio(entry.rel_profit) }}</span>
-            <span>{{ t('stats.tradeCount') }} {{ entry.trade_count }}</span>
-            <span class="spacer" />
-            <span>{{ format.money(entry.starting_balance, stake) }}</span>
-          </div>
-        </li>
-      </ul>
+        <ul class="cards u-mobile-only">
+          <li v-for="entry in periodData.slice(0, PERIOD_ROWS)" :key="entry.date" class="card">
+            <div class="card__row">
+              <span class="num">{{ format.day(entry.date) }}</span>
+              <span class="spacer" />
+              <span class="num" :class="format.toneClass(entry.abs_profit)">
+                {{ format.signedMoney(entry.abs_profit, stake) }}
+              </span>
+            </div>
+            <div class="card__row small muted">
+              <span>{{ format.ratio(entry.rel_profit) }}</span>
+              <span>{{ t('stats.tradeCount') }} {{ entry.trade_count }}</span>
+              <span class="spacer" />
+              <span>{{ format.money(entry.starting_balance, stake) }}</span>
+            </div>
+          </li>
+        </ul>
+      </div>
     </section>
 
     <section class="panel">
