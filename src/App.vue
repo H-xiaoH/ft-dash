@@ -247,7 +247,7 @@ watch(
     </nav>
   </div>
 
-  <div class="toast-stack" aria-live="polite">
+  <TransitionGroup name="toast" tag="div" class="toast-stack" aria-live="polite">
     <div
       v-for="toast in toasts"
       :key="toast.id"
@@ -263,7 +263,7 @@ watch(
         :style="{ animationDuration: `${toast.ttlMs}ms` }"
       />
     </div>
-  </div>
+  </TransitionGroup>
 </template>
 
 <style scoped>

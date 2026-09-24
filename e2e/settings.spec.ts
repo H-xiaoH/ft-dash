@@ -69,6 +69,11 @@ test('enabling bot controls removes the acknowledgement button', async ({ page }
   await disable.click()
   await expect(enable).toBeVisible()
   await expect(disable).toHaveCount(0)
+
+  // Dismissing animates out: the toast stays on screen for its leave, then goes.
+  await page.locator('.toast').first().click()
+  await expect(page.locator('.toast')).toHaveCount(1)
+  await expect(page.locator('.toast')).toHaveCount(0, { timeout: 3000 })
 })
 
 test('the password stays out of localStorage unless you ask for it', async ({ page }) => {

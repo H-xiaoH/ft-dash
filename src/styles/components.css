@@ -655,8 +655,29 @@
   padding: var(--sp-3) var(--sp-4);
   font-size: var(--fs-base);
   box-shadow: 0 12px 30px rgb(0 0 0 / 45%);
-  /* Rare, feedback-only element: a short rise keeps it from appearing out of nowhere. */
-  animation: toast-in var(--dur-quick) var(--ease-out-strong);
+}
+
+/*
+ * Enter and leave are transitions rather than keyframes: keyframes are the first thing a
+ * reduced-motion preference switches off, and a toast that pops in with no motion reads as
+ * a rendering glitch. This way the fade survives at a shorter duration.
+ */
+.toast-enter-active,
+.toast-leave-active {
+  transition:
+    opacity var(--dur-quick) ease,
+    transform var(--dur-quick) var(--ease-out-strong);
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+/* The rest of the stack slides up as one leaves, instead of jumping. */
+.toast-move {
+  transition: transform var(--dur-quick) var(--ease-out-strong);
 }
 
 /* Counts down the time the toast has left, in step with its dismissal. */
@@ -688,13 +709,6 @@
   }
   to {
     transform: scaleX(0);
-  }
-}
-
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
   }
 }
 
