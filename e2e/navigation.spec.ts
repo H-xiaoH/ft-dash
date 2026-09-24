@@ -263,10 +263,14 @@ test('a page travels the way you navigated', async ({ page }) => {
   // Forward: the new page arrives from the right, the old one leaves to the left, and
   // both travel a full page — the same motion the finger produces.
   await page.locator('.tabbar__item').nth(3).click()
+  // Wait for the navigation to land first: the variables only say which way the *last*
+  // navigation went, so a second click while the first is still loading reads the old one.
+  await expect.poll(() => hash(page)).toBe('#/market')
   await expect.poll(travel).toEqual({ enter: '100%', leave: '-100%' })
 
   // Backward: both flip, so the outgoing page never slides against your finger.
   await page.locator('.tabbar__item').nth(1).click()
+  await expect.poll(() => hash(page)).toBe('#/trades')
   await expect.poll(travel).toEqual({ enter: '-100%', leave: '100%' })
 
   /*
