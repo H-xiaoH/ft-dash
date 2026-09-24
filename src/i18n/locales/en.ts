@@ -279,6 +279,7 @@ export default {
     wsTokenHint: 'Matches api_server.ws_token on the bot. Leave empty to fetch a JWT instead.',
     wsTokenPlaceholder: 'Empty = use auto login',
     retryStream: 'Retry live stream',
+    retryingStream: 'Reconnecting the live stream…',
     notifTitle: 'Notifications',
     notifHint:
       'Notify on fills, exceptions and a heartbeat silent for a minute. Needs the page or App open.',

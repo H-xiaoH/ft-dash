@@ -34,6 +34,18 @@ test('pair table derives win rate, fees, volume and last close from the trades',
 
 test('period tables, durations panel and KPI tiles render', async ({ page }) => {
   await expect(page.locator('.panel__title')).toHaveText(['交易对', '周期', '持仓时长'])
+  // The tile band is framed on all four sides: the grid draws the top and left hairlines,
+  // the tiles draw right and bottom.
+  await expect(page.locator('.metric-grid').first()).toHaveCSS('border-top-width', '1px')
+  await expect(page.locator('.metric-grid').first()).toHaveCSS('border-left-width', '1px')
+  await expect(page.locator('.metric-grid > .metric').first()).toHaveCSS(
+    'border-right-width',
+    '1px',
+  )
+  await expect(page.locator('.metric-grid > .metric').first()).toHaveCSS(
+    'border-bottom-width',
+    '1px',
+  )
   // The removed tiles stay gone, and the remaining KPIs are still there.
   await expect(page.locator('.metric__label', { hasText: '盈利 / 亏损' })).toHaveCount(1)
   await expect(page.locator('.metric__label', { hasText: '已平仓盈亏' })).toHaveCount(1)

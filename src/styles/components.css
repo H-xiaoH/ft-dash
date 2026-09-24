@@ -58,6 +58,12 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0;
   background: var(--ink-850);
+  /*
+   * The tiles draw hairlines on their right and bottom, which covers those two outer
+   * edges; these two close the band so it reads as one framed block.
+   */
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
   border-radius: var(--r-2);
   overflow: hidden;
 }

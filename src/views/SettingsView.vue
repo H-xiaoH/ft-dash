@@ -147,6 +147,12 @@ async function enableControls() {
   pushToast(t('common.saved'), 'good')
 }
 
+/** The chip above already reports the outcome; this only acknowledges the click. */
+function retryStream() {
+  bot.retryStream()
+  pushToast(t('settings.retryingStream'), 'info')
+}
+
 function disableControls() {
   settings.allowControls = false
   settings.controlsAcknowledged = false
@@ -288,7 +294,7 @@ async function install() {
                   v-if="settings.websocket"
                   type="button"
                   class="btn btn--sm"
-                  @click="bot.retryStream()"
+                  @click="retryStream"
                 >
                   <AppIcon name="refresh" />
                   {{ t('settings.retryStream') }}

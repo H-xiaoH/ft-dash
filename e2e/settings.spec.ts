@@ -86,3 +86,8 @@ test('the password stays out of localStorage unless you ask for it', async ({ pa
   expect(stored.local).toBeNull()
   expect(stored.session).toContain('tester')
 })
+
+test('retrying the live stream acknowledges the click', async ({ page }) => {
+  await page.locator('button', { hasText: '重试实时推送' }).click()
+  await expect(page.locator('.toast')).toContainText('正在重连实时推送')
+})
