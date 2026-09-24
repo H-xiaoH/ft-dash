@@ -45,7 +45,31 @@ const POLL_INTERVAL_SECONDS = 1
  * The bot processes every few seconds, so a minute of silence means it is stuck.
  * Also drives the lagging banner on the system page.
  */
-export const HEARTBEAT_STALE_MS = 60_000
+/*
+ * How long the bot's process loop may go quiet before we call it stalled. Freqtrade's
+ * process_throttle_secs defaults to 5s, so this tolerates six missed rounds — low enough
+ * to alert quickly, high enough not to cry wolf on a loaded box.
+ */
+export const HEARTBEAT_STALE_MS = 30_000
+
+/** Every event the bot can push that this dashboard shows; sent as one subscribe message. */
+const STREAM_TOPICS = [
+  'entry',
+  'entry_fill',
+  'entry_cancel',
+  'exit',
+  'exit_fill',
+  'exit_cancel',
+  'protection_trigger',
+  'protection_trigger_global',
+  'strategy_msg',
+  'warning',
+  'exception',
+  'startup',
+  'shutdown',
+  'status',
+  'whitelist',
+] as const
 
 export const useBotStore = defineStore('bot', () => {
   const settings = useSettingsStore()
@@ -291,9 +315,12 @@ export const useBotStore = defineStore('bot', () => {
          * Background tabs otherwise stop polling to save battery — but the point of
          * the alert is catching a stuck bot while you are elsewhere, so keep one
          * cheap request alive when notifications are enabled.
-         * ponytail: browsers throttle background timers to ~1/min, so a stale
-         * heartbeat surfaces within ~90s. Faster would need a push server, which
-         * this front-end-only app deliberately does not have.
+         * ponytail: with the tab in the background the browser owns the clock — chrome
+         * keeps 1s timers for the first ~5 minutes hidden and clamps to ~1/min after
+         * that, and mobile Safari may freeze the page outright. So a stalled bot
+         * surfaces within roughly a minute of the next check rather than 30 seconds.
+         * Guaranteed 30s would need a push server, which this front-end-only app
+         * deliberately does not have.
          */
         if (settings.notifications) await checkHeartbeat()
         return
@@ -505,28 +532,7 @@ export const useBotStore = defineStore('bot', () => {
         streamPreferToken = false
         streamReasonKey.value = null
         events.setStatus('open')
-        socket.send(
-          JSON.stringify({
-            type: 'subscribe',
-            data: [
-              'entry',
-              'entry_fill',
-              'entry_cancel',
-              'exit',
-              'exit_fill',
-              'exit_cancel',
-              'protection_trigger',
-              'protection_trigger_global',
-              'strategy_msg',
-              'warning',
-              'exception',
-              'startup',
-              'shutdown',
-              'status',
-              'whitelist',
-            ],
-          }),
-        )
+        socket.send(JSON.stringify({ type: 'subscribe', data: [...STREAM_TOPICS] }))
       })
       socket.addEventListener('message', (event) => {
         handleStreamMessage(event.data)

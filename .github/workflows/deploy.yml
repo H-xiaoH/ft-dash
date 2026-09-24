@@ -39,6 +39,7 @@ jobs:
         # Project sites are served from /<repo>/, so the base must match.
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
+          VITE_APP_LANG: zh-CN
         run: npm run build
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5

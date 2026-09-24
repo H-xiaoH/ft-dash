@@ -218,4 +218,9 @@ a {
   .drawer-overlay-leave-to .drawer {
     transform: none !important;
   }
+
+  /* Press feedback keeps its colour change, loses the scale. */
+  .btn:active:not(:disabled) {
+    transform: none !important;
+  }
 }

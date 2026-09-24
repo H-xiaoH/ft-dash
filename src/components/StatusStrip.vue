@@ -137,6 +137,7 @@ function onStreamClick() {
         @click="onStreamClick"
       >
         <span
+          :key="streamTone"
           class="dot"
           :class="[`dot--${streamTone}`, { 'dot--pulse': streamTone === 'good' }]"
         />
@@ -279,6 +280,8 @@ function onStreamClick() {
   display: flex;
   align-items: center;
   gap: 6px;
+  /* WCAG 2.2 target size: on phones the label is hidden and only the dot is left. */
+  min-height: 24px;
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--r-1);

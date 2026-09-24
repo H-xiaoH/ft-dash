@@ -233,7 +233,7 @@ function drawdownPercent(value: number | null | undefined) {
                 </th>
                 <th scope="col" class="num">
                   <SortHeader
-                    :label="t('stats.totalProfit')"
+                    :label="t('stats.pairProfit')"
                     :active="sortKey === 'profitAbs'"
                     :dir="sortDir"
                     @toggle="toggleSort('profitAbs')"

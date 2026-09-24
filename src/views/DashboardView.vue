@@ -154,7 +154,7 @@ async function confirmExit() {
 
       <section class="panel">
         <div class="panel__head">
-          <span class="panel__title">{{ t('dashboard.openPositions') }}</span>
+          <span class="panel__title">{{ t('kpi.openTrades') }}</span>
           <span class="chip">{{ bot.openTrades.length }}</span>
           <div class="panel__actions">
             <button type="button" class="link-btn small" @click="openTradesTab('open')">

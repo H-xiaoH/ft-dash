@@ -30,7 +30,7 @@ backend to host and nothing to trust in the middle.
 - **System** — CPU/RAM/load, heartbeat lag warning, process uptime, the effective config
   (strategy, exchange, trading mode, stake mode) and the live event tape.
 - **Alerts** — optional system notifications for fills, warnings, exceptions, a shutdown
-  event and a heartbeat that has been silent for a minute. They fire while the page or the
+  event and a heartbeat that has been silent for 30 seconds. They fire while the page or the
   installed app is open (background tabs included); a closed app cannot be reached without a
   push server, which this front-end-only design does not have.
 - **Live events** — a real-time tape fed by the Freqtrade websocket (entries, fills,

@@ -52,7 +52,7 @@ const {
 } = usePageDrag(() => showConnect.value)
 const connectionBanner = computed(() => {
   if (bot.connection === 'online') return null
-  if (bot.connection === 'connecting') return t('common.loading')
+  if (bot.connection === 'connecting') return t('connect.connecting')
   if (bot.connection === 'unauthorized') return t('errors.auth')
   if (bot.connection === 'unreachable') return t('errors.cors')
   return null

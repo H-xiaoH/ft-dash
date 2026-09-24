@@ -197,7 +197,9 @@
 }
 
 .dot--pulse {
-  animation: dot-pulse 2.4s ease-out infinite;
+  /* One beat, replayed by keying the dot on the stream state — a permanent loop on an
+     always-visible indicator is motion with nothing to say. */
+  animation: dot-pulse 1.6s ease-out;
 }
 
 @keyframes dot-pulse {
@@ -229,13 +231,19 @@
   transition:
     background-color 120ms ease,
     border-color 120ms ease,
-    color 120ms ease;
+    color 120ms ease,
+    transform 160ms ease-out;
   white-space: nowrap;
 }
 
 .btn:hover:not(:disabled) {
   background: var(--ink-700);
   border-color: var(--line-strong);
+}
+
+/* Press feedback: the button acknowledges the tap before anything else happens. */
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .btn:disabled {
@@ -808,6 +816,10 @@
   color: var(--accent);
   cursor: pointer;
   font-size: inherit;
+  /* WCAG 2.2 target size: the text stays small, the tap area does not. */
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .u-mobile-only {

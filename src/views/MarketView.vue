@@ -252,7 +252,7 @@ onMounted(() => {
               <tr>
                 <th scope="col">{{ t('market.pair') }}</th>
                 <th scope="col">{{ t('trades.open') }}</th>
-                <th scope="col" class="num">{{ t('stats.totalProfit') }}</th>
+                <th scope="col" class="num">{{ t('stats.pairProfit') }}</th>
               </tr>
             </thead>
             <tbody>

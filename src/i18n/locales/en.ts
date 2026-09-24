@@ -20,7 +20,6 @@ export default {
     confirm: 'Confirm',
     save: 'Save',
     saved: 'Saved',
-    loading: 'Loading',
     all: 'All',
     search: 'Search',
     filter: 'Filter',
@@ -90,7 +89,6 @@ export default {
     unrealized: 'Unrealized',
   },
   dashboard: {
-    openPositions: 'Open positions',
     noPositions: 'No open positions — the bot is waiting for an entry signal.',
     recentTrades: 'Recently closed',
     dailyPnl: 'Daily P&L',
@@ -192,7 +190,7 @@ export default {
     losses: 'Losses',
     draws: 'Draws',
     count: 'Trades',
-    totalProfit: 'Total P&L',
+    pairProfit: 'Pair P&L',
     winRate: 'Win rate',
     period: 'Period',
     daily: 'Daily',
@@ -282,7 +280,7 @@ export default {
     retryingStream: 'Reconnecting the live stream…',
     notifTitle: 'Notifications',
     notifHint:
-      'Notify on fills, exceptions and a heartbeat silent for a minute. Needs the page or App open.',
+      'Notify on fills, exceptions and a heartbeat silent for 30 seconds. Needs the page or App open.',
     notifPermission: 'Needs browser permission and the site running in the background.',
     dataTitle: 'On-device data',
     dataHint:

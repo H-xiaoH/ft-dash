@@ -18,7 +18,7 @@ test('pair table derives win rate, fees, volume and last close from the trades',
     '名称',
     '笔数',
     '胜率',
-    '总盈亏',
+    '本对盈亏',
     '平均持仓',
     '手续费',
     '成交额',
@@ -50,6 +50,7 @@ test('period tables, durations panel and KPI tiles render', async ({ page }) => 
   await expect(page.locator('.metric__label', { hasText: '盈利 / 亏损' })).toHaveCount(1)
   await expect(page.locator('.metric__label', { hasText: '已平仓盈亏' })).toHaveCount(1)
   await expect(page.locator('.metric__label', { hasText: '最佳交易对' })).toHaveCount(0)
+  // The account-level tiles stay removed; the pair column is a different thing.
   await expect(page.locator('.metric__label', { hasText: '总盈亏' })).toHaveCount(0)
   await expect(page.locator('.chart__tick').first()).toBeVisible()
   // The period table's first column is "date", not a repeat of the panel title.
@@ -62,9 +63,9 @@ test('column headers sort in both directions', async ({ page }) => {
   const table = page
     .locator('.panel', { has: page.locator('.panel__title', { hasText: '交易对' }) })
     .first()
-  const total = table.locator('thead th', { hasText: '总盈亏' }).locator('button')
+  const total = table.locator('thead th', { hasText: '本对盈亏' }).locator('button')
 
-  // Total P&L is the default sort (descending), so the first click flips to ascending.
+  // Per-pair P&L is the default sort (descending), so the first click flips to ascending.
   await total.click()
   await expect(table.locator('tbody tr').first()).toContainText('CCC/USDT')
 

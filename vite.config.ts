@@ -7,6 +7,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const base = env.VITE_BASE || '/'
   const devProxyTarget = env.FT_DEV_PROXY_TARGET
+  // The manifest cannot follow the browser the way the UI does, so the build decides it.
+  const appLang = env.VITE_APP_LANG || 'zh-CN'
 
   return {
     base,
@@ -24,7 +26,7 @@ export default defineConfig(({ mode }) => {
           short_name: 'FT Dash',
           description:
             'Live trading console for Freqtrade bots: positions, P&L, logs and system health.',
-          lang: 'en',
+          lang: appLang,
           start_url: base,
           scope: base,
           display: 'standalone',
