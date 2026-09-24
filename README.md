@@ -31,8 +31,11 @@ backend to host and nothing to trust in the middle.
   (strategy, exchange, trading mode, stake mode) and the live event tape.
 - **Alerts** — optional system notifications for fills, warnings, exceptions, a shutdown
   event and a heartbeat that has been silent for 30 seconds. They fire while the page or the
-  installed app is open (background tabs included); a closed app cannot be reached without a
-  push server, which this front-end-only design does not have.
+  installed app is open (background tabs included) — a background tab is checked on a slower
+  cadence (every 10 seconds) and the browser throttles it further once the tab has been
+  hidden for a few minutes, so a stall there is reported within about a minute rather than
+  30 seconds. A closed app cannot be reached at all without a push server, which this
+  front-end-only design does not have.
 - **Live events** — a real-time tape fed by the Freqtrade websocket (entries, fills,
   cancellations, protection triggers, warnings, exceptions), shown on the System page.
 - **Bot controls** — pause/resume entries, stop, reload config, close a position, edit the
