@@ -181,8 +181,8 @@ export default {
     showOnlyPositions: '仅看有持仓',
   },
   stats: {
-    pairs: '交易对',
-    name: '名称',
+    pairs: '交易对表现',
+    name: '交易对',
     date: '日期',
     durations: '持仓时长',
     wins: '盈利',

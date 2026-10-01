@@ -182,8 +182,8 @@ export default {
     showOnlyPositions: 'Positions only',
   },
   stats: {
-    pairs: 'Pairs',
-    name: 'Name',
+    pairs: 'Pair performance',
+    name: 'Pair',
     date: 'Date',
     durations: 'Durations',
     wins: 'Wins',

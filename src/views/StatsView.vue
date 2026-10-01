@@ -198,7 +198,7 @@ function drawdownPercent(value: number | null | undefined) {
         <span class="panel__title">{{ t('stats.pairs') }}</span>
         <span class="panel__meta num">{{ rows.length }} / {{ allRows.length }}</span>
         <div class="panel__actions row">
-          <SearchToggle v-model="search" :placeholder="t('stats.name')" />
+          <SearchToggle v-model="search" :placeholder="t('market.searchPairs')" />
         </div>
       </div>
       <div class="panel__body panel__body--flush">
