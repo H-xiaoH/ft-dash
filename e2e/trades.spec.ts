@@ -65,6 +65,21 @@ test('the overview "view all" links open the matching trades tab', async ({ page
   await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
 })
 
+test('the overview "recently closed" rows open that trade in the trades list', async ({ page }) => {
+  await page.goto('/#/')
+  const row = page
+    .locator('.panel')
+    .filter({ has: page.locator('.panel__title', { hasText: '最近平仓' }) })
+    .locator('table tbody tr')
+    .first()
+  const pair = await row.locator('.table__pair .num').innerText()
+
+  await row.click()
+  await expect(page).toHaveURL(/trade=\d+/)
+  // The drawer names the same pair the overview row shows.
+  await expect(page.locator('.overlay--drawer .drawer')).toContainText(pair)
+})
+
 test('the filter travels between the URL and the tabs', async ({ page }) => {
   const tabs = page.locator('.seg__item')
 

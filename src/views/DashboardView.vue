@@ -250,7 +250,7 @@ async function confirmExit() {
             role="region"
             :aria-label="t('dashboard.recentTrades')"
           >
-            <table class="table">
+            <table class="table table--clickable">
               <thead>
                 <tr>
                   <th scope="col">{{ t('trades.pair') }}</th>
@@ -264,6 +264,9 @@ async function confirmExit() {
                 <tr
                   v-for="trade in bot.closedByRecency.slice(0, OVERVIEW_CLOSED_ROWS)"
                   :key="trade.trade_id"
+                  @click="
+                    router.push({ path: '/trades', query: { trade: String(trade.trade_id) } })
+                  "
                 >
                   <td>
                     <div class="table__pair">
