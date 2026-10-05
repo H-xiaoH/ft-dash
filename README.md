@@ -74,6 +74,23 @@ Open the app, then enter your API base URL, username and password. Credentials a
 this browser only (localStorage, or sessionStorage if you turn "remember" off) and are used
 solely as an `Authorization` header toward the API you entered.
 
+### Several bots
+
+One ft-dash can manage several freqtrade instances: add, edit and delete them under
+**Settings → Bots**, and pick the one in use with "Switch". Exactly one bot is active — it is
+the only one polled and the only one with a live stream — so switching swaps the data source
+and resets page state such as search, filters, paging and open detail drawers.
+
+- Bots live in this browser only. Passwords stay in the current tab (sessionStorage) unless
+  "remember on this device" is on, which writes them to localStorage.
+- The UI never shows the active bot's name while you browse; only the confirmation dialogs of
+  **write actions** (force exit, start/stop) name the bot they are about to touch. The single
+  "bot controls" master switch still governs all of them.
+- Every row has "Test connection", which probes that bot on its own client without disturbing
+  the active connection.
+- Upgrading from the single-bot version clears the old credential blob, so the bot has to be
+  added once more.
+
 ### API address
 
 Any of these forms work and are normalised to `…/api/v1`:

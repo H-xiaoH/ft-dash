@@ -165,6 +165,9 @@ watch(
           <div>{{ connectionBanner }}</div>
         </div>
         <div class="spacer" />
+        <button type="button" class="btn btn--sm" @click="router.push('/settings')">
+          {{ t('bots.openSettings') }}
+        </button>
         <button type="button" class="btn btn--sm" @click="refresh">{{ t('common.retry') }}</button>
       </div>
 

@@ -12,14 +12,12 @@ import { useChartHeight } from '@/composables/useChartHeight'
 import { pushToast } from '@/composables/useToast'
 import type { Lock } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
-import { useSettingsStore } from '@/stores/settings'
 
 type Tab = 'whitelist' | 'blacklist' | 'locks'
 
 const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
-const settings = useSettingsStore()
 
 const tab = ref<Tab>('whitelist')
 const search = ref('')
@@ -314,7 +312,7 @@ onMounted(() => {
       </div>
 
       <div v-else-if="tab === 'blacklist'" class="panel__body stack">
-        <div v-if="settings.writesEnabled" class="row row--wrap">
+        <div v-if="bot.writesAllowed" class="row row--wrap">
           <input
             v-model="blacklistInput"
             class="input num"
@@ -331,7 +329,7 @@ onMounted(() => {
             {{ t('actions.blacklistAdd') }}
           </button>
         </div>
-        <p v-if="!settings.writesEnabled" class="small muted">
+        <p v-if="!bot.writesAllowed" class="small muted">
           {{ t('actions.controlsDisabledHint') }}
         </p>
         <div v-if="!blacklistRows.length" class="empty">{{ t('empty.table') }}</div>
@@ -339,7 +337,7 @@ onMounted(() => {
           <li v-for="entry in blacklistRows" :key="entry" class="blist__item">
             <span class="num blist__pattern">{{ entry }}</span>
             <button
-              v-if="settings.writesEnabled"
+              v-if="bot.writesAllowed"
               type="button"
               class="btn btn--sm btn--ghost"
               @click="blacklistTarget = entry"
@@ -367,7 +365,7 @@ onMounted(() => {
                 <th scope="col">{{ t('market.lockUntil') }}</th>
                 <th scope="col">{{ t('market.lockReason') }}</th>
                 <th scope="col">{{ t('market.locks') }}</th>
-                <th v-if="settings.writesEnabled" scope="col" />
+                <th v-if="bot.writesAllowed" scope="col" />
               </tr>
             </thead>
             <tbody>
@@ -380,7 +378,7 @@ onMounted(() => {
                     {{ lock.active ? t('market.lockActive') : t('market.lockInactive') }}
                   </span>
                 </td>
-                <td v-if="settings.writesEnabled">
+                <td v-if="bot.writesAllowed">
                   <button type="button" class="btn btn--sm btn--danger" @click="lockTarget = lock">
                     <AppIcon name="unlock" />
                     {{ t('actions.deleteLock') }}
@@ -400,7 +398,7 @@ onMounted(() => {
               </span>
               <span class="spacer" />
               <button
-                v-if="settings.writesEnabled"
+                v-if="bot.writesAllowed"
                 type="button"
                 class="btn btn--sm btn--danger"
                 @click="lockTarget = lock"
@@ -425,7 +423,7 @@ onMounted(() => {
     <ConfirmDialog
       :open="blacklistTarget !== null"
       tone="danger"
-      :title="t('actions.blacklistRemove')"
+      :title="bot.labelWithBot(t('actions.blacklistRemove'))"
       :body="blacklistTarget ?? ''"
       :confirm-label="t('actions.blacklistRemove')"
       :pending="bot.actionPending === 'blacklistDelete'"
@@ -436,7 +434,7 @@ onMounted(() => {
     <ConfirmDialog
       :open="lockTarget !== null"
       tone="danger"
-      :title="t('actions.deleteLock')"
+      :title="bot.labelWithBot(t('actions.deleteLock'))"
       :body="
         lockTarget ? `${lockTarget.pair} · ${format.dateTime(lockTarget.lock_end_timestamp)}` : ''
       "

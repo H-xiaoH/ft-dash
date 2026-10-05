@@ -5,7 +5,6 @@ import { useFormat } from '@/composables/useFormat'
 import { useModalFocus } from '@/composables/useModalFocus'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
-import { useSettingsStore } from '@/stores/settings'
 
 const props = defineProps<{ trade: Trade | null }>()
 const emit = defineEmits<{ close: []; forceExit: [trade: Trade] }>()
@@ -13,7 +12,6 @@ const emit = defineEmits<{ close: []; forceExit: [trade: Trade] }>()
 const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
-const settings = useSettingsStore()
 
 const panel = ref<HTMLElement | null>(null)
 
@@ -175,7 +173,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             </section>
           </div>
 
-          <footer v-if="trade.is_open && settings.writesEnabled" class="drawer__foot">
+          <footer v-if="trade.is_open && bot.writesAllowed" class="drawer__foot">
             <button type="button" class="btn btn--danger" @click="emit('forceExit', trade)">
               {{ t('actions.forceExit') }}
             </button>

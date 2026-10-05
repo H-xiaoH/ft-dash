@@ -2,9 +2,9 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
+import BotsPanel from '@/components/BotsPanel.vue'
 import { pushToast } from '@/composables/useToast'
 import { LOCALE_LABELS, SUPPORTED_LOCALES } from '@/i18n'
-import { normalizeBaseUrl } from '@/lib/api'
 import {
   applyUpdate,
   canInstall,
@@ -23,11 +23,6 @@ const settings = useSettingsStore()
 const bot = useBotStore()
 const events = useEventsStore()
 
-const baseUrl = ref(settings.baseUrl)
-const username = ref(settings.username)
-const password = ref('')
-const saving = ref(false)
-const tested = ref<null | 'ok' | 'fail'>(null)
 const clearConfirm = ref(false)
 const appVersion = __APP_VERSION__
 
@@ -55,79 +50,18 @@ const streamAuthTone = computed(() => {
   return 'chip--good'
 })
 
-const passwordPlaceholder = computed(() =>
-  settings.password ? t('settings.passwordKept') : '••••••••',
-)
-
 const notifState = computed(() => {
   if (typeof Notification === 'undefined') return 'unsupported'
   return Notification.permission
 })
 
-async function saveConnection() {
-  saving.value = true
-  settings.updateCredentialFields({
-    baseUrl: normalizeBaseUrl(baseUrl.value) || baseUrl.value.trim(),
-    username: username.value,
-    password: password.value || settings.password,
-  })
-  bot.rebuildClient()
-  const ok = await bot.connect()
-  saving.value = false
-  tested.value = ok ? 'ok' : 'fail'
-  pushToast(
-    ok ? t('settings.testOk') : t(bot.errorKey?.key ?? 'actions.failed'),
-    ok ? 'good' : 'bad',
-  )
-  if (ok) {
-    baseUrl.value = settings.baseUrl
-    password.value = ''
-  }
-}
-
-async function testConnection() {
-  saving.value = true
-  const probe = normalizeBaseUrl(baseUrl.value) || baseUrl.value.trim()
-  const previous = {
-    baseUrl: settings.baseUrl,
-    username: settings.username,
-    password: settings.password,
-  }
-  settings.updateCredentialFields({
-    baseUrl: probe,
-    username: username.value,
-    password: password.value || settings.password,
-  })
-  bot.rebuildClient()
-  const ok = await bot.connect()
-  tested.value = ok ? 'ok' : 'fail'
-  pushToast(
-    ok ? t('settings.testOk') : t(bot.errorKey?.key ?? 'actions.failed'),
-    ok ? 'good' : 'bad',
-  )
-  if (!ok) {
-    // Restore the working configuration when a test fails.
-    settings.updateCredentialFields(previous)
-    bot.rebuildClient()
-  }
-  saving.value = false
-}
-
-function disconnect() {
+async function clearData() {
+  settings.clearStoredData()
+  clearConfirm.value = false
   bot.cleanup()
   bot.resetData()
   events.clear()
   settings.disconnect()
-  baseUrl.value = ''
-  username.value = ''
-  password.value = ''
-  tested.value = null
-}
-
-async function clearData() {
-  settings.clearStoredData()
-  clearConfirm.value = false
-  disconnect()
   pushToast(t('actions.done'), 'good')
 }
 
@@ -166,88 +100,7 @@ async function install() {
 
 <template>
   <div class="stack settings">
-    <section class="panel">
-      <div class="panel__head">
-        <span class="panel__title">{{ t('settings.connection') }}</span>
-        <div class="panel__actions">
-          <span
-            class="chip"
-            :class="
-              bot.connection === 'online'
-                ? 'chip--good'
-                : bot.connection === 'idle'
-                  ? ''
-                  : 'chip--bad'
-            "
-          >
-            {{
-              bot.connection === 'online'
-                ? t('system.wsConnected')
-                : bot.connection === 'idle'
-                  ? t('common.unknown')
-                  : t('common.offline')
-            }}
-          </span>
-        </div>
-      </div>
-      <div class="panel__body stack">
-        <div class="settings__grid">
-          <label class="field">
-            <span class="field__label">{{ t('settings.apiBase') }}</span>
-            <input
-              v-model="baseUrl"
-              class="input num"
-              type="text"
-              inputmode="url"
-              spellcheck="false"
-              :placeholder="t('connect.baseUrlPlaceholder')"
-            />
-          </label>
-          <label class="field">
-            <span class="field__label">{{ t('settings.username') }}</span>
-            <input v-model="username" class="input" type="text" autocomplete="username" />
-          </label>
-          <label class="field">
-            <span class="field__label">{{ t('settings.password') }}</span>
-            <input
-              v-model="password"
-              class="input"
-              type="password"
-              autocomplete="current-password"
-              :placeholder="passwordPlaceholder"
-            />
-          </label>
-        </div>
-
-        <label class="switch">
-          <input v-model="settings.remember" type="checkbox" />
-          <span class="switch__track" />
-          <span class="switch__text">
-            <span class="switch__title">{{ t('connect.remember') }}</span>
-            <span class="switch__hint">{{ t('connect.rememberHint') }}</span>
-          </span>
-        </label>
-
-        <div class="row row--wrap">
-          <button type="button" class="btn btn--primary" :disabled="saving" @click="saveConnection">
-            <AppIcon name="check" />
-            {{ t('common.save') }}
-          </button>
-          <button type="button" class="btn" :disabled="saving" @click="testConnection">
-            <AppIcon name="wifi" />
-            {{ t('settings.testConnection') }}
-          </button>
-          <button type="button" class="btn btn--danger" @click="disconnect">
-            <AppIcon name="logout" />
-            {{ t('settings.disconnect') }}
-          </button>
-          <span v-if="tested === 'ok'" class="chip chip--good">{{ t('settings.testOk') }}</span>
-          <span v-else-if="tested === 'fail'" class="chip chip--bad">{{
-            t('connect.failed')
-          }}</span>
-        </div>
-      </div>
-    </section>
+    <BotsPanel />
 
     <div class="settings__columns">
       <div class="settings__col">

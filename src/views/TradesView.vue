@@ -450,7 +450,7 @@ onMounted(() => {
     <ConfirmDialog
       :open="exitTarget !== null"
       tone="danger"
-      :title="t('actions.forceExit')"
+      :title="bot.labelWithBot(t('actions.forceExit'))"
       :body="t('actions.forceExitHint')"
       :confirm-label="t('actions.forceExit')"
       :require-text="exitTarget?.pair ?? ''"

@@ -8,6 +8,9 @@ import type { Page } from '@playwright/test'
  */
 export const API_ORIGIN = 'https://api.example.test'
 export const API_BASE = `${API_ORIGIN}/api/v1`
+/** A second instance, used by the multi-bot tests. */
+export const SECOND_ORIGIN = 'https://second.example.test'
+export const SECOND_BASE = `${SECOND_ORIGIN}/api/v1`
 export const USERNAME = 'tester'
 export const PASSWORD = 'secret'
 
@@ -329,7 +332,12 @@ function bodyFor(url: URL, method: string): unknown | undefined {
 /** Answers every API call from the fixtures and stubs the websocket handshake. */
 export async function mockApi(
   page: Page,
-  options: { rejectAuth?: boolean; tradeCount?: number; staleHeartbeat?: boolean } = {},
+  options: {
+    rejectAuth?: boolean
+    tradeCount?: number
+    staleHeartbeat?: boolean
+    secondBot?: boolean
+  } = {},
 ) {
   const calls: string[] = []
   const { tradeCount } = options
@@ -395,6 +403,36 @@ export async function mockApi(
     })
   })
 
+  /*
+   * A stand-in for a second freqtrade instance. It answers the same fixtures with a
+   * distinct bot_name, which is how the switching tests tell the two apart.
+   */
+  if (options.secondBot) {
+    await page.route(`${SECOND_ORIGIN}/**`, async (route) => {
+      const url = new URL(route.request().url())
+      const path = url.pathname.replace('/api/v1/', '')
+      const body =
+        path === 'show_config'
+          ? { ...(RESPONSES.show_config as Record<string, unknown>), bot_name: 'SecondBot' }
+          : path === 'health'
+            ? healthPayload()
+            : bodyFor(url, route.request().method())
+      if (body === undefined) {
+        await route.fulfill({
+          status: 404,
+          contentType: 'application/json',
+          body: JSON.stringify({ detail: 'Not Found' }),
+        })
+        return
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(body),
+      })
+    })
+  }
+
   // The live stream is stubbed out: these tests cover the UI, not the socket.
   await page.routeWebSocket(/message\/ws/, (socket) => {
     socket.onMessage(() => {})
@@ -418,5 +456,5 @@ export const ROUTES: { path: string; marker: string }[] = [
   { path: '#/market', marker: 'K 线' },
   { path: '#/logs', marker: '日志' },
   { path: '#/system', marker: '系统' },
-  { path: '#/settings', marker: '连接' },
+  { path: '#/settings', marker: '机器人' },
 ]

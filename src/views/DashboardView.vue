@@ -14,12 +14,10 @@ import { useChartHeight } from '@/composables/useChartHeight'
 import { toIsoDate } from '@/lib/format'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
-import { useSettingsStore } from '@/stores/settings'
 
 const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
-const settings = useSettingsStore()
 const router = useRouter()
 
 const exitTarget = ref<Trade | null>(null)
@@ -182,7 +180,7 @@ async function confirmExit() {
                   <th scope="col" class="num u-hide-sm">{{ t('trades.stake') }}</th>
                   <th scope="col" class="num">{{ t('kpi.unrealized') }}</th>
                   <th scope="col" class="num">{{ t('trades.duration') }}</th>
-                  <th v-if="settings.writesEnabled" scope="col" />
+                  <th v-if="bot.writesAllowed" scope="col" />
                 </tr>
               </thead>
               <tbody>
@@ -215,7 +213,7 @@ async function confirmExit() {
                     <div class="small muted">{{ format.ratio(trade.profit_ratio) }}</div>
                   </td>
                   <td class="num">{{ format.duration(durationOf(trade)) }}</td>
-                  <td v-if="settings.writesEnabled">
+                  <td v-if="bot.writesAllowed">
                     <button
                       type="button"
                       class="btn btn--sm btn--danger"
@@ -296,7 +294,7 @@ async function confirmExit() {
     <ConfirmDialog
       :open="exitTarget !== null"
       tone="danger"
-      :title="t('actions.forceExit')"
+      :title="bot.labelWithBot(t('actions.forceExit'))"
       :body="t('actions.forceExitHint')"
       :confirm-label="t('actions.forceExit')"
       :require-text="exitTarget?.pair ?? ''"

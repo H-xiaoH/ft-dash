@@ -253,7 +253,7 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
             </button>
           </p>
 
-          <div v-if="settings.writesEnabled" class="row row--wrap" style="margin-top: var(--sp-4)">
+          <div v-if="bot.writesAllowed" class="row row--wrap" style="margin-top: var(--sp-4)">
             <button
               type="button"
               class="btn"
@@ -328,7 +328,7 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
     <ConfirmDialog
       :open="stopConfirm"
       tone="danger"
-      :title="t('actions.stop')"
+      :title="bot.labelWithBot(t('actions.stop'))"
       :body="t('actions.stopHint')"
       :confirm-label="t('actions.stop')"
       :pending="bot.actionPending === 'stop'"

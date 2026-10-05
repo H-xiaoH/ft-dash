@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { connect, mockApi } from './support/fixtures'
+import { API_BASE, SECOND_BASE, connect, mockApi } from './support/fixtures'
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
@@ -79,12 +79,54 @@ test('enabling bot controls removes the acknowledgement button', async ({ page }
 test('the password stays out of localStorage unless you ask for it', async ({ page }) => {
   // The connect helper never touches the "remember" toggle, so this is the default path.
   const stored = await page.evaluate(() => ({
-    local: localStorage.getItem('ftdash.credentials.v1'),
-    session: sessionStorage.getItem('ftdash.credentials.v1'),
+    local: localStorage.getItem('ftdash.bots.v1'),
+    session: sessionStorage.getItem('ftdash.bots.session.v1'),
   }))
 
-  expect(stored.local).toBeNull()
+  // The bot list itself is persisted; only the password is held back.
+  expect(stored.local).toContain('api.example.test')
+  expect(stored.local).not.toContain('secret')
   expect(stored.session).toContain('tester')
+  expect(stored.session).toContain('secret')
+})
+
+test('carries the default bot name over from the connect form', async ({ page }) => {
+  const bots = page.locator('.bots__row')
+  await expect(bots).toHaveCount(1)
+  await expect(bots.first()).toContainText('api.example.test')
+  await expect(bots.first()).toContainText('当前')
+})
+
+test('adding a second bot and switching moves the dashboard to it', async ({ page }) => {
+  // The second origin only exists for this test.
+  await mockApi(page, { secondBot: true })
+  const bots = page.locator('.bots__row')
+  await page.locator('button', { hasText: '添加机器人' }).click()
+  const editor = page.locator('.bots__editor')
+  await editor.locator('input[inputmode="url"]').fill(SECOND_BASE)
+  await editor.locator('input[autocomplete="username"]').fill('second')
+  await editor
+    .locator('input[type="password"][autocomplete="current-password"]')
+    .fill('second-secret')
+  await editor.locator('button[type="submit"]').click()
+
+  await expect(bots).toHaveCount(2)
+  // Adding does not steal the selection: the first bot is still the one in use.
+  await expect(bots.first()).toContainText('当前')
+
+  await bots.nth(1).locator('button', { hasText: '切换' }).click()
+  await expect(bots.nth(1)).toContainText('当前')
+  await expect(page.locator('.toast', { hasText: '已切换' })).toHaveCount(1)
+
+  // The system page reports the endpoint the dashboard is now polling.
+  await page.locator('.rail__item').nth(5).click()
+  await expect(page.locator('.panel', { hasText: '连接状态' })).toContainText(SECOND_BASE)
+
+  // Switching back restores the original bot and its address.
+  await page.locator('.rail__item').nth(6).click()
+  await bots.first().locator('button', { hasText: '切换' }).click()
+  await page.locator('.rail__item').nth(5).click()
+  await expect(page.locator('.panel', { hasText: '连接状态' })).toContainText(API_BASE)
 })
 
 test('retrying the live stream acknowledges the click', async ({ page }) => {

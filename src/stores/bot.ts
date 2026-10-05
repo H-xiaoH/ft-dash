@@ -122,6 +122,14 @@ export const useBotStore = defineStore('bot', () => {
   const streamReasonKey = ref<string | null>(null)
   const streamBlocked = ref(false)
 
+  /**
+   * Last figures of every bot this session has shown. Switching back paints instantly
+   * instead of flashing a skeleton; the first real response replaces the copy.
+   */
+  const snapshots = new Map<string, Snapshot>()
+  /** True while the page shows a snapshot nothing has confirmed yet. */
+  const snapshotStale = ref(false)
+
   const stakeCurrency = computed(() => showConfig.value?.stake_currency ?? 'USDT')
   const fiatCurrency = computed(() => balance.value?.symbol ?? 'USD')
   const isLiveAccount = computed(() => showConfig.value?.dry_run === false)
@@ -152,6 +160,10 @@ export const useBotStore = defineStore('bot', () => {
     return ts === null ? null : Date.now() - ts
   })
   const closedTrades = computed(() => trades.value.filter((trade) => !trade.is_open))
+
+  /** Writes need both the operator's go-ahead and data that is not a stale snapshot. */
+  const writesAllowed = computed(() => settings.writesEnabled && !snapshotStale.value)
+  const activeBotName = computed(() => settings.activeBotName)
   /** Every closed trade the app has loaded, newest first — no artificial cap. */
   const closedByRecency = computed(() =>
     [...closedTrades.value].sort((a, b) => (b.close_timestamp ?? 0) - (a.close_timestamp ?? 0)),
@@ -407,6 +419,9 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   function resetData() {
+    snapshotStale.value = false
+    connection.value = 'idle'
+    errorKey.value = null
     showConfig.value = null
     health.value = null
     sysinfo.value = null
@@ -429,6 +444,108 @@ export const useBotStore = defineStore('bot', () => {
     candleCache.value = {}
   }
 
+  /** Everything a page reads, minus the connection state that is rebuilt on switch. */
+  interface Snapshot {
+    showConfig: ShowConfigResponse | null
+    health: HealthResponse | null
+    sysinfo: SysInfoResponse | null
+    balance: BalanceResponse | null
+    profit: ProfitSummary | null
+    profitAll: ProfitAllResponse | null
+    openTrades: Trade[]
+    count: StatusCountResponse | null
+    trades: Trade[]
+    tradesTotal: number
+    tradeStats: TradeStats | null
+    performanceStats: PerformanceEntry[]
+    daily: DailyResponse | null
+    weekly: DailyResponse | null
+    monthly: DailyResponse | null
+    whitelist: WhitelistResponse | null
+    blacklist: BlacklistResponse | null
+    locks: LocksResponse | null
+    logs: LogsResponse | null
+  }
+
+  function captureSnapshot(): Snapshot {
+    return {
+      showConfig: showConfig.value,
+      health: health.value,
+      sysinfo: sysinfo.value,
+      balance: balance.value,
+      profit: profit.value,
+      profitAll: profitAll.value,
+      openTrades: openTrades.value,
+      count: count.value,
+      trades: trades.value,
+      tradesTotal: tradesTotal.value,
+      tradeStats: tradeStats.value,
+      performanceStats: performanceStats.value,
+      daily: daily.value,
+      weekly: weekly.value,
+      monthly: monthly.value,
+      whitelist: whitelist.value,
+      blacklist: blacklist.value,
+      locks: locks.value,
+      logs: logs.value,
+    }
+  }
+
+  function restoreSnapshot(snapshot: Snapshot) {
+    showConfig.value = snapshot.showConfig
+    health.value = snapshot.health
+    sysinfo.value = snapshot.sysinfo
+    balance.value = snapshot.balance
+    profit.value = snapshot.profit
+    profitAll.value = snapshot.profitAll
+    openTrades.value = snapshot.openTrades
+    count.value = snapshot.count
+    trades.value = snapshot.trades
+    tradesTotal.value = snapshot.tradesTotal
+    tradeStats.value = snapshot.tradeStats
+    performanceStats.value = snapshot.performanceStats
+    daily.value = snapshot.daily
+    weekly.value = snapshot.weekly
+    monthly.value = snapshot.monthly
+    whitelist.value = snapshot.whitelist
+    blacklist.value = snapshot.blacklist
+    locks.value = snapshot.locks
+    logs.value = snapshot.logs
+  }
+
+  /**
+   * Write dialogs are the one place the active bot has to name itself: everywhere else
+   * the page simply shows the current bot's data, but a forced exit or a start/stop
+   * must be unambiguous about which account it is about to touch.
+   */
+  function labelWithBot(label: string): string {
+    return activeBotName.value ? `${label} · ${activeBotName.value}` : label
+  }
+
+  /**
+   * Points the whole dashboard at another bot. The caller (settings) decides *when*;
+   * this keeps the connection, the cache and the polling timers in step with it.
+   */
+  async function switchBot(id: string): Promise<boolean> {
+    if (id === settings.activeBotId) return true
+    // A write in flight belongs to the bot you are looking at; never leave it behind.
+    if (actionPending.value !== null) return false
+    const previous = settings.activeBotId
+    if (previous) snapshots.set(previous, captureSnapshot())
+    cleanup()
+    settings.setActiveBot(id)
+    rebuildClient()
+    const snapshot = snapshots.get(id)
+    if (snapshot) {
+      restoreSnapshot(snapshot)
+      snapshotStale.value = true
+      // Paint from the snapshot, then let the real figures land on top.
+      return connect()
+    }
+    resetData()
+    return connect()
+  }
+
   // --- connection lifecycle ------------------------------------------------
 
   async function connect(): Promise<boolean> {
@@ -447,9 +564,11 @@ export const useBotStore = defineStore('bot', () => {
       const config = await api.showConfig()
       latencyMs.value = Math.round(performance.now() - started)
       showConfig.value = config
-      settings.persistCredentials()
+      settings.persistBots()
       connection.value = 'online'
       errorKey.value = null
+      // Real data is on its way in; anything shown before it is no longer a stale copy.
+      snapshotStale.value = false
       await refreshAll()
       startPolling()
       if (settings.websocket) retryStream()
@@ -763,9 +882,13 @@ export const useBotStore = defineStore('bot', () => {
     closedTrades,
     closedByRecency,
     tradesByPair,
+    writesAllowed,
+    activeBotName,
+    labelWithBot,
     // lifecycle
     connect,
     autoConnect,
+    switchBot,
     refreshAll,
     refreshCore,
     refreshTrades,

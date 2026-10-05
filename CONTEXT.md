@@ -47,6 +47,9 @@
 | 实时推送 | `stream` | Freqtrade 的 WebSocket 事件流；`wsDisabled` 等沿用 Freqtrade 的 `ws_token` 叫法。 |
 | 实时事件 | `events` | 推送里的事件条目（入场、成交、撤单、保护机制触发…）。 |
 | 机器人控制 | `allowControls` / `controlsAcknowledged` | 写操作总开关与风险确认，两者同时为真才算开启。 |
+| 机器人 | `bot` | 一个 freqtrade 实例（一个 API 地址 + 一套凭据），界面上叫「机器人」。**不要**写成「账户」或「实例」。 |
+| 当前机器人 | `activeBot` | 唯一在轮询与实时推送的那一个；切换它是换数据源，不是并行。 |
+| 机器人快照 | `snapshots` | 每个机器人最近一次的内存数据，仅在切换回来时先画一帧用；显示期间写操作禁用（`writesAllowed`）。 |
 | 交易锁 | `locks` | Freqtrade 的 pair lock。 |
 
 ## 界面

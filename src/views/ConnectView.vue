@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import { LOCALE_LABELS, SUPPORTED_LOCALES } from '@/i18n'
 import { normalizeBaseUrl } from '@/lib/api'
+import { botNameFromUrl } from '@/lib/bots'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
 
@@ -14,6 +15,9 @@ const bot = useBotStore()
 const baseUrl = ref(settings.baseUrl)
 const username = ref(settings.username)
 const password = ref(settings.password)
+/** Suggested label; the operator only has to touch it when the suggestion is wrong. */
+const name = ref(settings.activeBotName)
+const nameTouched = ref(false)
 const submitting = ref(false)
 
 const origin = computed(() => (typeof window === 'undefined' ? '' : window.location.origin))
@@ -24,14 +28,38 @@ const canSubmit = computed(
   () => baseUrl.value.trim().length > 0 && username.value.trim() && password.value.length > 0,
 )
 
+watch(baseUrl, (value) => {
+  if (!nameTouched.value) name.value = botNameFromUrl(value)
+})
+
 async function submit() {
   if (!canSubmit.value || submitting.value) return
   submitting.value = true
-  settings.updateCredentialFields({
-    baseUrl: normalizeBaseUrl(baseUrl.value) || baseUrl.value.trim(),
-    username: username.value,
-    password: password.value,
-  })
+  const normalized = normalizeBaseUrl(baseUrl.value) || baseUrl.value.trim()
+  const label = name.value.trim() || botNameFromUrl(normalized)
+  /*
+   * A failed sign-in leaves the bot in the list so the next attempt can correct it;
+   * matching on address plus username keeps that retry from stacking up duplicates.
+   */
+  const existing = settings.bots.find(
+    (entry) => entry.baseUrl === normalized && entry.username === username.value.trim(),
+  )
+  if (existing) {
+    settings.updateBot(existing.id, {
+      name: label,
+      baseUrl: normalized,
+      username: username.value,
+      password: password.value,
+    })
+    settings.setActiveBot(existing.id)
+  } else {
+    settings.addBot({
+      name: label,
+      baseUrl: normalized,
+      username: username.value,
+      password: password.value,
+    })
+  }
   bot.rebuildClient()
   const ok = await bot.connect()
   if (!ok) {
@@ -72,7 +100,23 @@ async function submit() {
 
       <p class="connect__subtitle">{{ t('connect.subtitle') }}</p>
 
+      <p v-if="settings.legacyCleared" class="banner banner--warn" role="status">
+        {{ t('bots.legacyCleared') }}
+      </p>
+
       <form class="connect__form" @submit.prevent="submit">
+        <label class="field">
+          <span class="field__label">{{ t('bots.name') }}</span>
+          <input
+            v-model="name"
+            class="input"
+            type="text"
+            autocomplete="off"
+            :placeholder="t('bots.namePlaceholder')"
+            @input="nameTouched = true"
+          />
+        </label>
+
         <label class="field">
           <span class="field__label">{{ t('connect.baseUrl') }}</span>
           <input
