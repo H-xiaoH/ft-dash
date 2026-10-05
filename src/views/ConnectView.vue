@@ -5,6 +5,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import { LOCALE_LABELS, SUPPORTED_LOCALES } from '@/i18n'
 import { normalizeBaseUrl } from '@/lib/api'
 import { botNameFromUrl } from '@/lib/bots'
+import { pushToast } from '@/composables/useToast'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
 
@@ -62,6 +63,7 @@ async function submit() {
   }
   bot.rebuildClient()
   const ok = await bot.connect()
+  if (ok) pushToast(t('bots.added', { name: label }), 'good')
   if (!ok) {
     // Keep what the operator typed so it can be corrected in place.
     baseUrl.value = settings.baseUrl || baseUrl.value

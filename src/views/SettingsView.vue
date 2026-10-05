@@ -381,11 +381,6 @@ async function install() {
   flex-basis: 100%;
 }
 
-.select--sm {
-  width: auto;
-  padding: 5px 8px;
-}
-
 .settings__danger {
   border-color: color-mix(in srgb, var(--short) 35%, var(--line));
 }

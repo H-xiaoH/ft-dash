@@ -305,24 +305,31 @@ test('tapping a tab slides the pages the way a swipe does', async ({ page }) => 
   await page.evaluate(() => {
     const frames: { leaving: number; entering: number }[] = []
     ;(window as unknown as { __frames?: unknown }).__frames = frames
-    const started = performance.now()
     const offset = (el: Element) => {
       const transform = getComputedStyle(el).transform
       return transform === 'none' ? 0 : Math.round(new DOMMatrixReadOnly(transform).m41)
     }
+    /*
+     * The budget starts when the two pages first share the track, not when this recorder
+     * is installed: the tap is dispatched by the test runner, and how long that takes is
+     * not what this test is about. Recording stops once the outgoing page is gone.
+     */
+    let deadline = 0
     const tick = () => {
       const pages = [...document.querySelectorAll('.page-track > *')]
       if (pages.length === 2) {
+        if (!deadline) deadline = performance.now() + 700
         frames.push({ leaving: offset(pages[0]), entering: offset(pages[1]) })
       }
-      if (performance.now() - started < 700) requestAnimationFrame(tick)
+      if (deadline && performance.now() > deadline) return
+      requestAnimationFrame(tick)
     }
     requestAnimationFrame(tick)
   })
 
   await page.locator('.tabbar__item').nth(1).click()
   await expect.poll(() => hash(page)).toBe('#/trades')
-  await page.waitForTimeout(700)
+  await page.waitForTimeout(900)
 
   const frames = await page.evaluate(
     () =>

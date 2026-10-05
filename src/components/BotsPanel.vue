@@ -134,10 +134,6 @@ async function testConnection(entry: Bot) {
 }
 
 async function switchTo(entry: Bot) {
-  if (bot.actionPending !== null) {
-    pushToast(t('bots.busy'), 'bad')
-    return
-  }
   if (entry.id === settings.activeBotId) return
   if (!entry.password) {
     passwordTarget.value = entry
@@ -148,6 +144,12 @@ async function switchTo(entry: Bot) {
 }
 
 async function runSwitch(entry: Bot) {
+  // A write in flight belongs to the bot on screen; leaving it behind mid-request is
+  // exactly the mix-up the single-active model exists to prevent.
+  if (bot.actionPending !== null) {
+    pushToast(t('bots.busy'), 'bad')
+    return
+  }
   const ok = await bot.switchBot(entry.id)
   pushToast(
     ok ? t('bots.switched', { name: entry.name }) : t(bot.errorKey?.key ?? 'actions.failed'),
@@ -155,23 +157,23 @@ async function runSwitch(entry: Bot) {
   )
 }
 
+/** The row currently asking for a password. */
+const passwordEntry = computed(
+  () => passwordTarget.value ?? (settings.needsPassword ? settings.activeBot : null),
+)
+
 async function submitPassword() {
-  const entry = passwordTarget.value
+  const entry = passwordEntry.value
   if (!entry || !passwordDraft.value) return
   settings.updateBot(entry.id, { password: passwordDraft.value })
+  const password = passwordDraft.value
   passwordTarget.value = null
   passwordDraft.value = ''
-  await runSwitch({ ...entry, password: passwordDraft.value })
-}
-
-/** Credentials for the bot that is already selected but has no password at hand. */
-const activePasswordDraft = ref('')
-
-async function connectActive() {
-  const entry = settings.activeBot
-  if (!entry || !activePasswordDraft.value) return
-  settings.updateBot(entry.id, { password: activePasswordDraft.value })
-  activePasswordDraft.value = ''
+  if (entry.id !== settings.activeBotId) {
+    await runSwitch({ ...entry, password })
+    return
+  }
+  // The bot on screen just needs its password before it can be polled again.
   bot.rebuildClient()
   const ok = await bot.connect()
   pushToast(ok ? t('bots.testOk') : t(bot.errorKey?.key ?? 'actions.failed'), ok ? 'good' : 'bad')
@@ -284,7 +286,7 @@ async function confirmRemove() {
           </div>
 
           <form
-            v-if="passwordTarget?.id === entry.id"
+            v-if="passwordEntry?.id === entry.id"
             class="bots__prompt"
             @submit.prevent="submitPassword"
           >
@@ -308,25 +310,6 @@ async function confirmRemove() {
           </form>
         </li>
       </ul>
-
-      <form v-if="settings.needsPassword" class="bots__prompt" @submit.prevent="connectActive">
-        <label class="field">
-          <span class="field__label">
-            {{ t('bots.needPassword', { name: settings.activeBotName }) }}
-          </span>
-          <input
-            v-model="activePasswordDraft"
-            class="input"
-            type="password"
-            autocomplete="current-password"
-          />
-        </label>
-        <div class="row">
-          <button type="submit" class="btn btn--sm btn--primary" :disabled="!activePasswordDraft">
-            {{ t('bots.connect') }}
-          </button>
-        </div>
-      </form>
 
       <form v-if="form" class="bots__editor" @submit.prevent="submit">
         <div class="bots__grid">

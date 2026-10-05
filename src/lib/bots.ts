@@ -49,7 +49,7 @@ export function botNameFromUrl(baseUrl: string): string {
 }
 
 /** Reads one stored entry; anything without a URL and a username is dropped. */
-export function parseBot(raw: unknown): Bot | null {
+function parseBot(raw: unknown): Bot | null {
   if (!raw || typeof raw !== 'object') return null
   const entry = raw as Record<string, unknown>
   const baseUrl = typeof entry.baseUrl === 'string' ? entry.baseUrl.trim() : ''

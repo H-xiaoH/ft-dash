@@ -113,6 +113,12 @@ export const useBotStore = defineStore('bot', () => {
   let wsRetry = 0
   let wsTimer: number | null = null
   let stopped = false
+  /**
+   * Bumped whenever the dashboard is pointed at another bot. Requests that were already
+   * in flight then belong to the previous bot, and their answers must not be painted over
+   * the new one's figures — dropping them is what keeps "one bot at a time" honest.
+   */
+  let botEpoch = 0
   let streamFailures = 0
   let streamOpened = false
   /** Set when a JWT handshake is rejected, so auto mode can fall back to ws_token. */
@@ -203,8 +209,11 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   async function track<T>(task: () => Promise<T>): Promise<T | null> {
+    const epoch = botEpoch
     try {
       const result = await task()
+      // A switch happened while this request was in flight: the answer is another bot's.
+      if (epoch !== botEpoch) return null
       lastFetchAt.value = Date.now()
       errorKey.value = null
       if (connection.value !== 'online') connection.value = 'online'
@@ -593,6 +602,7 @@ export const useBotStore = defineStore('bot', () => {
 
   function cleanup() {
     stopped = true
+    botEpoch += 1
     stopPolling()
     disconnectStream()
   }

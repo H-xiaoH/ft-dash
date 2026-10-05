@@ -239,30 +239,6 @@ export interface PerformanceEntry {
   profit: number
 }
 
-export interface EntryStats {
-  profit_ratio: number
-  profit_pct: number
-  profit_abs: number
-  count: number
-  enter_tag: string
-}
-
-export interface ExitStats {
-  profit_ratio: number
-  profit_pct: number
-  profit_abs: number
-  count: number
-  exit_reason: string
-}
-
-export interface MixTagStats {
-  profit_ratio: number
-  profit_pct: number
-  profit_abs: number
-  count: number
-  mix_tag: string
-}
-
 export interface TradeStats {
   exit_reasons: Record<string, { wins: number; losses: number; draws: number }>
   durations: { wins: number | null; draws: number | null; losses: number | null }
@@ -379,11 +355,6 @@ export interface ForceEnterPayload {
   stakeamount?: number
   entry_tag?: string
   leverage?: number
-}
-
-export interface ApiErrorBody {
-  detail?: string | { msg: string; type: string }[]
-  error?: string
 }
 
 export interface AccessToken {

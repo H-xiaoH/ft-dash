@@ -37,7 +37,8 @@ test.describe('navigation', () => {
     }
     await page.goto('/#/settings')
 
-    await expect(page.locator('.toast')).toContainText('页面加载失败')
+    // Filtered: the "bot added" toast may still be counting down from the connect step.
+    await expect(page.locator('.toast', { hasText: '页面加载失败' })).toHaveCount(1)
   })
 
   test('every route renders its content without console errors', async ({ page }) => {

@@ -76,7 +76,7 @@ solely as an `Authorization` header toward the API you entered.
 
 ### Several bots
 
-One ft-dash can manage several freqtrade instances: add, edit and delete them under
+One ft-dash can manage several bots: add, edit and delete them under
 **Settings → Bots**, and pick the one in use with "Switch". Exactly one bot is active — it is
 the only one polled and the only one with a live stream — so switching swaps the data source
 and resets page state such as search, filters, paging and open detail drawers.

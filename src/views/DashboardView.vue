@@ -304,11 +304,3 @@ async function confirmExit() {
     />
   </div>
 </template>
-
-<style scoped>
-@media (max-width: 1080px) {
-  .dash__grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

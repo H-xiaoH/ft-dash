@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Page, Route } from '@playwright/test'
 
 /**
  * Offline fixtures for the end-to-end suite.
@@ -366,57 +366,31 @@ export async function mockApi(
       }
     : RESPONSES.trades
 
-  await page.route(`${API_ORIGIN}/**`, async (route) => {
-    const request = route.request()
-    const url = new URL(request.url())
-    const path = url.pathname.replace('/api/v1/', '')
-    calls.push(path)
-
-    if (options.rejectAuth && !path.startsWith('token')) {
-      await route.fulfill({
-        status: 401,
-        contentType: 'application/json',
-        body: JSON.stringify({ detail: 'Incorrect username or password' }),
-      })
-      return
-    }
-
-    // `tradeCount` lets a test page through a longer history than the default fixture.
-    const body =
-      tradeCount && path.startsWith('trades')
-        ? tradesPayload
-        : path === 'health'
-          ? healthPayload()
-          : bodyFor(url, request.method())
-    if (body === undefined) {
-      await route.fulfill({
-        status: 404,
-        contentType: 'application/json',
-        body: JSON.stringify({ detail: 'Not Found' }),
-      })
-      return
-    }
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(body),
-    })
-  })
-
-  /*
-   * A stand-in for a second freqtrade instance. It answers the same fixtures with a
-   * distinct bot_name, which is how the switching tests tell the two apart.
-   */
-  if (options.secondBot) {
-    await page.route(`${SECOND_ORIGIN}/**`, async (route) => {
-      const url = new URL(route.request().url())
+  /** One answerer per origin; `overrides` swaps individual payloads per instance. */
+  const serve =
+    (overrides: Record<string, unknown> = {}, rejectAuth = false) =>
+    async (route: Route) => {
+      const request = route.request()
+      const url = new URL(request.url())
       const path = url.pathname.replace('/api/v1/', '')
+      calls.push(path)
+
+      if (rejectAuth && !path.startsWith('token')) {
+        await route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: JSON.stringify({ detail: 'Incorrect username or password' }),
+        })
+        return
+      }
+
+      // `tradeCount` lets a test page through a longer history than the default fixture.
       const body =
-        path === 'show_config'
-          ? { ...(RESPONSES.show_config as Record<string, unknown>), bot_name: 'SecondBot' }
+        tradeCount && path.startsWith('trades')
+          ? tradesPayload
           : path === 'health'
             ? healthPayload()
-            : bodyFor(url, route.request().method())
+            : (overrides[path] ?? bodyFor(url, request.method()))
       if (body === undefined) {
         await route.fulfill({
           status: 404,
@@ -430,7 +404,19 @@ export async function mockApi(
         contentType: 'application/json',
         body: JSON.stringify(body),
       })
-    })
+    }
+
+  await page.route(`${API_ORIGIN}/**`, serve({}, Boolean(options.rejectAuth)))
+
+  /*
+   * A stand-in for a second freqtrade instance. It answers the same fixtures with a
+   * distinct bot_name, which is how the switching tests tell the two apart.
+   */
+  if (options.secondBot) {
+    await page.route(
+      `${SECOND_ORIGIN}/**`,
+      serve({ show_config: { ...(RESPONSES.show_config as object), bot_name: 'SecondBot' } }),
+    )
   }
 
   // The live stream is stubbed out: these tests cover the UI, not the socket.

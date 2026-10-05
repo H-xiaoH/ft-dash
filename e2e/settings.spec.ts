@@ -131,5 +131,6 @@ test('adding a second bot and switching moves the dashboard to it', async ({ pag
 
 test('retrying the live stream acknowledges the click', async ({ page }) => {
   await page.locator('button', { hasText: '重试实时推送' }).click()
-  await expect(page.locator('.toast')).toContainText('正在重连实时推送')
+  // Filtered: the "bot added" toast from the connect step may still be on screen.
+  await expect(page.locator('.toast', { hasText: '正在重连实时推送' })).toHaveCount(1)
 })
