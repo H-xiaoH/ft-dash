@@ -39,6 +39,8 @@ export default {
     paused: '已暂停入场',
     stopped: '已停止',
     starting: '启动中',
+    unavailable: '不可用',
+    unauthorized: '未授权',
     unknown: '状态未知',
   },
   connect: {

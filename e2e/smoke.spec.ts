@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ROUTES, connect, mockApi } from './support/fixtures'
+import { API_ORIGIN, ROUTES, connect, mockApi } from './support/fixtures'
 
 test.describe('connect screen', () => {
   test('refuses bad credentials with a readable message', async ({ page }) => {
@@ -44,6 +44,20 @@ test.describe('connect screen', () => {
       JSON.parse(localStorage.getItem('ftdash.settings.v1') ?? '{}'),
     )
     expect(stored.locale).toBe('en')
+  })
+
+  test('a lost connection shows a state word, not a sentence, in the top bar', async ({ page }) => {
+    await mockApi(page)
+    await page.goto('/')
+    await connect(page)
+    await expect(page.locator('.strip__state-label')).toHaveText('运行中')
+
+    // The bot goes away: every later request fails at the network level.
+    await page.route(`${API_ORIGIN}/**`, (route) => route.abort())
+
+    await expect(page.locator('.strip__state-label')).toHaveText('不可用')
+    // The sentence still exists — in the banner that can act on it.
+    await expect(page.locator('.shell__banner')).toContainText('请求被浏览器拦截')
   })
 })
 

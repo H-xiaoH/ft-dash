@@ -39,6 +39,8 @@ export default {
     paused: 'Entries paused',
     stopped: 'Stopped',
     starting: 'Starting',
+    unavailable: 'Unavailable',
+    unauthorized: 'Unauthorized',
     unknown: 'Unknown state',
   },
   connect: {

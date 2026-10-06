@@ -14,8 +14,10 @@ const emit = defineEmits<{ refresh: []; openTape: [] }>()
 
 const stateKey = computed(() => {
   if (bot.connection === 'connecting') return 'status.starting'
-  if (bot.connection === 'unauthorized') return 'errors.auth'
-  if (bot.connection === 'unreachable') return 'errors.cors'
+  // State words, not sentences: this is a one-line bar, and the banner underneath carries
+  // the explanation together with the buttons that can act on it.
+  if (bot.connection === 'unauthorized') return 'status.unauthorized'
+  if (bot.connection === 'unreachable') return 'status.unavailable'
   const state = bot.showConfig?.state
   if (state === 'running') return 'status.running'
   if (state === 'paused') return 'status.paused'
