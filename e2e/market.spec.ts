@@ -50,6 +50,21 @@ test('an open position puts its cost basis on the chart, tagged with its P&L', a
   // Profit tints the line as well as the tag.
   await expect(entry.locator('line')).toHaveAttribute('stroke', 'var(--long)')
 
+  /*
+   * Painted colour, not just a class: the tag used to render in the axis grey because a
+   * CSS `fill` on the shared axis rule beat the per-tone fill attribute.
+   */
+  const tag = page.locator('.candles__entry-label')
+  expect(await tag.evaluate((node) => getComputedStyle(node).stroke)).toBe('rgb(36, 201, 138)')
+  expect(await tag.evaluate((node) => getComputedStyle(node).fill)).toBe('rgb(0, 0, 0)')
+
+  // Tucked into the right gutter: the tag ends at the chart's right edge, past the plot.
+  const [chart, tagBox] = await Promise.all([
+    page.locator('.candles svg').boundingBox(),
+    tag.boundingBox(),
+  ])
+  expect(tagBox!.x + tagBox!.width).toBeGreaterThan(chart!.x + chart!.width * 0.85)
+
   // The line is horizontal and lives inside the plot.
   const line = entry.locator('line')
   const [x1, x2, y1, y2] = await line.evaluate((node) => [

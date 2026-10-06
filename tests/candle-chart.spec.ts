@@ -60,11 +60,14 @@ describe('candle chart entry line', () => {
   it('colours the line and the tag by profit and loss', () => {
     const up = mountChart({ price: 1, label: '+1.23', tone: 'good' })
     expect(line(up).stroke).toBe('var(--long)')
-    expect(up.find('.candles__entry-label').attributes('fill')).toBe('var(--long)')
+    // The tag paints its tone through a CSS class: an SVG fill attribute loses to the
+    // shared axis rule, which is exactly the bug this replaced.
+    expect(up.find('.candles__entry-label').classes()).toContain('candles__entry-label--good')
+    expect(up.find('.candles__entry-label').attributes('fill')).toBeUndefined()
 
     const down = mountChart({ price: 1, label: '-0.45', tone: 'bad' })
     expect(line(down).stroke).toBe('var(--short)')
-    expect(down.find('.candles__entry-label').attributes('fill')).toBe('var(--short)')
+    expect(down.find('.candles__entry-label').classes()).toContain('candles__entry-label--bad')
 
     const unknown = mountChart({ price: 1, label: '', tone: 'flat' })
     expect(line(unknown).stroke).toBe('var(--text-3)')
@@ -84,5 +87,40 @@ describe('candle chart entry line', () => {
     // Inside the plot area rather than clamped to an edge or drawn off-canvas.
     expect(line(wrapper).y1).toBeGreaterThan(12)
     expect(line(wrapper).y1).toBeLessThan(height - 8)
+  })
+
+  it('keeps axis numbers from printing underneath the P&L tag', () => {
+    /*
+     * The tag shares the right gutter with the axis, so a label within its height has to go.
+     * A range of 1.0–2.0 puts the 25% gridline at 1.22; an entry filled exactly there would
+     * otherwise print a tick number inside the tag.
+     */
+    const wrapper = mount(CandleChart, {
+      props: {
+        candles: Array.from({ length: 40 }, () => ({
+          open: 1.5,
+          high: 2,
+          low: 1,
+          close: 1.5,
+          time: null,
+        })),
+        height: 260,
+        formatters,
+        entry: { price: 1.22, label: '+1.23', tone: 'good' },
+      },
+      global,
+    })
+
+    const tagBaseline = Number(
+      (wrapper.find('.candles__entry-label').element as SVGTextElement).getAttribute('y'),
+    )
+    const labels = wrapper
+      .findAll('.candles__axis')
+      .map((node) => Number((node.element as SVGTextElement).getAttribute('y')))
+
+    expect(labels.length).toBeGreaterThan(0)
+    for (const y of labels) {
+      expect(Math.abs(y - tagBaseline), `axis label at y=${y}`).toBeGreaterThan(11)
+    }
   })
 })

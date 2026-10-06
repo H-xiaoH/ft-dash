@@ -98,11 +98,12 @@ const gridLines = computed(() => {
     const value = min + ((max - min) * i) / 4
     lines.push({ y: scaleY(value), value })
   }
-  const active = activeCandle.value
-  if (!active) return lines
-  // Drop the axis label that would collide with the active price marker.
-  const markerY = scaleY(active.close)
-  return lines.filter((line) => Math.abs(line.y - markerY) > 11)
+  // Drop the axis labels that would print under the price markers already in the gutter:
+  // the scrubbed candle's close, and the position's P&L tag.
+  const occupied = [markerY.value, entryLine.value?.y].filter(
+    (y): y is number => typeof y === 'number',
+  )
+  return lines.filter((line) => occupied.every((y) => Math.abs(line.y - y) > 11))
 })
 
 const activeCandle = computed(() => {
@@ -321,10 +322,10 @@ function onKeydown(event: KeyboardEvent) {
         />
         <text
           v-if="entryLine.label"
-          :x="width - padding.right - 4"
-          :y="entryLine.y + 3"
-          :fill="entryLine.color"
-          class="candles__axis candles__entry-label"
+          :x="width - 2"
+          :y="entryLine.y + 3.5"
+          class="candles__entry-label"
+          :class="`candles__entry-label--${entryLine.tone}`"
         >
           {{ entryLine.label }}
         </text>
@@ -398,16 +399,33 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 /*
- * The tag sits inside the plot, anchored to the right edge: the axis gutter is only wide
- * enough for a bare price, and text that grows leftwards never gets clipped. The halo keeps
- * it readable where it crosses candles. Its colour is the P&L tone, set per render.
+ * The P&L tag lives in the right gutter, tucked against the edge and growing leftwards, so
+ * it never covers candles. It is styled entirely here rather than via `.candles__axis`:
+ * a CSS declaration beats an SVG presentation attribute, and the shared axis rule was
+ * quietly overriding the per-tone `fill` attribute. The tone is carried by a thick round
+ * stroke that paints behind the text — a filled tag without measuring the text.
  */
 .candles__entry-label {
+  font-family: var(--font-data);
+  font-size: 10px;
   text-anchor: end;
   paint-order: stroke fill;
-  stroke: var(--ink-900);
-  stroke-width: 3px;
+  stroke-width: 7px;
   stroke-linejoin: round;
+  stroke-linecap: round;
+  fill: var(--ink-900);
+}
+
+.candles__entry-label--good {
+  stroke: var(--long);
+}
+
+.candles__entry-label--bad {
+  stroke: var(--short);
+}
+
+.candles__entry-label--flat {
+  stroke: var(--text-3);
 }
 
 .candles__readout {
