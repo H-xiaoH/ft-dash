@@ -41,3 +41,27 @@ test('pair list switches the chart to another pair', async ({ page }) => {
   await page.locator('.filter-menu__item', { hasText: 'BBB/USDT' }).click()
   await expect(selector).toContainText('BBB/USDT')
 })
+
+test('an open position puts its entry price on the chart', async ({ page }) => {
+  // The fixture's open position is OPEN/USDT at 1.0, which the chart selects first.
+  const entry = page.locator('.candles__entry')
+  await expect(entry).toHaveCount(1)
+  // The app's price formatter trims trailing zeros: 1 → "1".
+  await expect(page.locator('.candles__entry-label')).toContainText('入场 1')
+
+  // The line is horizontal and lives inside the plot.
+  const line = entry.locator('line')
+  const [x1, x2, y1, y2] = await line.evaluate((node) => [
+    Number(node.getAttribute('x1')),
+    Number(node.getAttribute('x2')),
+    Number(node.getAttribute('y1')),
+    Number(node.getAttribute('y2')),
+  ])
+  expect(x2).toBeGreaterThan(x1)
+  expect(y1).toBe(y2)
+
+  // A pair without a position gets no line at all.
+  await page.locator('.panel').first().locator('.filter-menu__button').click()
+  await page.locator('.filter-menu__item', { hasText: 'BBB/USDT' }).click()
+  await expect(page.locator('.candles__entry')).toHaveCount(0)
+})

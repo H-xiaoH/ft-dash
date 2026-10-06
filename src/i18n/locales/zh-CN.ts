@@ -366,6 +366,7 @@ export default {
       'WebSocket 握手被拒绝（403）：令牌无效，或反向代理未转发 Upgrade 请求（可改用 ws_token 或检查代理配置）。',
   },
   chart: {
+    entry: '入场',
     open: '开',
     high: '高',
     low: '低',

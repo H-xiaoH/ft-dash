@@ -27,3 +27,9 @@ export interface CandleFormatters {
   volume?: (value: number) => string
   change?: (ratio: number) => string
 }
+
+/** An open position's entry price, drawn as a reference line on the candle chart. */
+export interface CandleEntry {
+  price: number
+  isShort?: boolean
+}

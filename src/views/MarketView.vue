@@ -6,7 +6,7 @@ import CandleChart from '@/components/CandleChart.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
-import type { Candle, CandleFormatters } from '@/components/charts'
+import type { Candle, CandleEntry, CandleFormatters } from '@/components/charts'
 import { useFormat } from '@/composables/useFormat'
 import { useChartHeight } from '@/composables/useChartHeight'
 import { pushToast } from '@/composables/useToast'
@@ -88,6 +88,13 @@ const candles = computed<Candle[]>(() => {
 
 const candleMeta = computed(
   () => bot.candleCache[`${selectedPair.value}|${timeframe.value}`] ?? null,
+)
+
+/** Entry prices of the open positions on the pair being charted; empty when flat. */
+const entries = computed<CandleEntry[]>(() =>
+  bot.openTrades
+    .filter((trade) => trade.pair === selectedPair.value)
+    .map((trade) => ({ price: trade.open_rate, isShort: trade.is_short })),
 )
 
 async function loadCandles() {
@@ -179,7 +186,13 @@ onMounted(() => {
           :style="{ height: `${candleHeight}px`, width: '100%' }"
         />
         <p v-else-if="candleError || !candles.length" class="empty">{{ t('market.noCandles') }}</p>
-        <CandleChart v-else :candles="candles" :height="candleHeight" :formatters="formatters" />
+        <CandleChart
+          v-else
+          :candles="candles"
+          :entries="entries"
+          :height="candleHeight"
+          :formatters="formatters"
+        />
         <div v-if="candleMeta" class="row row--wrap small muted" style="margin-top: 8px">
           <span>{{ candleMeta.strategy }}</span>
           <span v-if="candleMeta.buy_signals !== undefined">

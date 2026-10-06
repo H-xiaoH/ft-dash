@@ -370,6 +370,7 @@ export default {
       'WebSocket handshake rejected (403): the token was refused, or your reverse proxy does not forward Upgrade requests. Try a ws_token or check the proxy config.',
   },
   chart: {
+    entry: 'Entry',
     open: 'O',
     high: 'H',
     low: 'L',

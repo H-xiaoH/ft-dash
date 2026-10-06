@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { Candle, CandleFormatters } from './charts'
+import type { Candle, CandleEntry, CandleFormatters } from './charts'
 
 const props = withDefaults(
   defineProps<{
     candles: Candle[]
+    /** Entry prices of the open positions on this pair, if any. */
+    entries?: CandleEntry[]
     height?: number
     formatters: CandleFormatters
   }>(),
-  { height: 260 },
+  { height: 260, entries: () => [] },
 )
 
 const { t } = useI18n()
@@ -39,13 +41,24 @@ onBeforeUnmount(() => {
 const padding = { top: 12, right: 58, bottom: 8, left: 4 }
 
 const priceBounds = computed(() => {
-  const highs = props.candles.map((candle) => candle.high)
-  const lows = props.candles.map((candle) => candle.low)
-  const max = highs.length ? Math.max(...highs) : 1
-  const min = lows.length ? Math.min(...lows) : 0
+  /*
+   * Entry prices join the range: a position whose price has moved away is exactly when the
+   * line matters, and it would otherwise sit off-screen.
+   */
+  const values = [
+    ...props.candles.map((candle) => candle.high),
+    ...props.candles.map((candle) => candle.low),
+    ...validEntries.value.map((entry) => entry.price),
+  ]
+  const max = values.length ? Math.max(...values) : 1
+  const min = values.length ? Math.min(...values) : 0
   const pad = (max - min) * 0.06 || Math.abs(max) * 0.01 || 1
   return { min: min - pad, max: max + pad }
 })
+
+const validEntries = computed(() =>
+  (props.entries ?? []).filter((entry) => Number.isFinite(entry.price) && entry.price > 0),
+)
 
 const plotHeight = computed(() => props.height - padding.top - padding.bottom)
 const plotWidth = computed(() => Math.max(60, width.value - padding.left - padding.right))
@@ -105,6 +118,18 @@ const markerX = computed(() => {
   if (index === null) return null
   return padding.left + step.value * (index + 0.5)
 })
+
+/** One line per open position, tinted by its side and tagged with its price. */
+const entryLines = computed(() =>
+  validEntries.value.map((entry, index) => {
+    return {
+      key: `${index}-${entry.price}`,
+      y: scaleY(entry.price),
+      price: entry.price,
+      isShort: Boolean(entry.isShort),
+    }
+  }),
+)
 
 /** Change against the previous close, the way an exchange readout shows it. */
 const activeChange = computed(() => {
@@ -282,6 +307,26 @@ function onKeydown(event: KeyboardEvent) {
           {{ formatters.price(activeCandle?.close ?? 0) }}
         </text>
       </g>
+
+      <g v-for="entry in entryLines" :key="`entry-${entry.key}`" class="candles__entry">
+        <line
+          :x1="padding.left"
+          :x2="width - padding.right"
+          :y1="entry.y"
+          :y2="entry.y"
+          :stroke="entry.isShort ? 'var(--short)' : 'var(--long)'"
+          stroke-width="1"
+          stroke-dasharray="6 3"
+        />
+        <text
+          :x="width - padding.right - 4"
+          :y="entry.y + 3"
+          class="candles__axis candles__entry-label"
+          :class="entry.isShort ? 'candles__entry-label--short' : 'candles__entry-label--long'"
+        >
+          {{ `${t('chart.entry')} ${formatters.price(entry.price)}` }}
+        </text>
+      </g>
     </svg>
 
     <div v-if="activeCandle" class="candles__readout">
@@ -348,6 +393,27 @@ function onKeydown(event: KeyboardEvent) {
 
 .candles__axis--accent {
   fill: var(--accent);
+}
+
+/*
+ * Entry tags sit inside the plot, anchored to the right edge: the axis gutter is only wide
+ * enough for a bare price, and text that grows leftwards never gets clipped. The halo keeps
+ * it readable where it crosses candles.
+ */
+.candles__entry-label {
+  text-anchor: end;
+  paint-order: stroke fill;
+  stroke: var(--ink-900);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.candles__entry-label--long {
+  fill: var(--long);
+}
+
+.candles__entry-label--short {
+  fill: var(--short);
 }
 
 .candles__readout {
