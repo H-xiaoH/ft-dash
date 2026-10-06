@@ -46,7 +46,6 @@ export default {
     subtitle:
       'Enter the Freqtrade API address and credentials. They stay in this browser and are never uploaded.',
     baseUrl: 'API address',
-    baseUrlHint: 'For example https://bot.example.com or https://bot.example.com/api/v1',
     baseUrlPlaceholder: 'https://bot.example.com',
     username: 'Username',
     password: 'Password',
@@ -80,7 +79,7 @@ export default {
     busy: 'An action is in flight, try again in a moment',
     switched: 'Switched to {name}',
     removed: 'Deleted bot {name}',
-    name: 'Name',
+    name: 'Bot name',
     namePlaceholder: 'e.g. Main account',
     duplicateName: 'Another bot already uses this name',
     needPassword: '“{name}” has no stored password — enter it to connect',

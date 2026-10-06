@@ -124,9 +124,7 @@ async function submit() {
             inputmode="url"
             autocomplete="url"
             spellcheck="false"
-            :placeholder="t('connect.baseUrlPlaceholder')"
           />
-          <span class="field__hint">{{ t('connect.baseUrlHint') }}</span>
         </label>
 
         <div class="connect__row">
@@ -167,7 +165,6 @@ async function submit() {
           class="btn btn--primary connect__submit"
           :disabled="!canSubmit || submitting"
         >
-          <AppIcon name="key" />
           {{ submitting ? t('connect.connecting') : t('connect.connect') }}
         </button>
       </form>
