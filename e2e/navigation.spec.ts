@@ -202,11 +202,16 @@ test('a drag with nowhere to go resists and never switches', async ({ page }) =>
 test('a horizontal drag on a scrubbable chart stays with the chart', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 })
   await page.goto('/#/market')
-  const chart = page.locator('[data-scrub]').first()
+  /*
+   * Scoped to the candle chart on purpose: two `[data-scrub]` regions exist (this one and
+   * the overview's bar chart), and during the page transition the overview is still mounted.
+   * A bare `.first()` could latch onto that one and measure a node that is about to leave.
+   */
+  const chart = page.locator('.candles[data-scrub]')
   await expect(chart).toBeVisible()
 
   const box = (await chart.boundingBox())!
-  const selector = '[data-scrub]'
+  const selector = '.candles[data-scrub]'
   await touchAt(
     page,
     'touchstart',
