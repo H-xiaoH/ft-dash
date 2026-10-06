@@ -82,3 +82,18 @@ test('an open position puts its cost basis on the chart, tagged with its P&L', a
   await page.locator('.filter-menu__item', { hasText: 'BBB/USDT' }).click()
   await expect(page.locator('.candles__entry')).toHaveCount(0)
 })
+
+test('the pair popup stays inside a phone-width viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 740 })
+  await page.locator('.panel').first().locator('.filter-menu__button').click()
+
+  const [list, viewport] = await Promise.all([
+    page.locator('.filter-menu__list').boundingBox(),
+    page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight })),
+  ])
+  expect(list).not.toBeNull()
+  expect(list!.x).toBeGreaterThanOrEqual(0)
+  expect(list!.x + list!.width).toBeLessThanOrEqual(viewport.width)
+  expect(list!.y).toBeGreaterThanOrEqual(0)
+  expect(list!.y + list!.height).toBeLessThanOrEqual(viewport.height)
+})

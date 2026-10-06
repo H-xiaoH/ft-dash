@@ -196,8 +196,8 @@ test('the settings language picker offers following the system', async ({ page }
   await expect(page.locator('.panel__title', { hasText: '语言' })).toHaveCount(1)
   // Located by structure, not by the panel title: switching the language renames the title.
   const trigger = page.locator('.settings__columns .filter-menu__button')
-  // Same control as the connect screen, but the value stays readable inside a titled panel.
-  await expect(trigger).toContainText('🌐')
+  // Same control as the connect screen, but the panel is already titled — no emoji here.
+  await expect(trigger).not.toContainText('🌐')
   await expect(trigger).toContainText('跟随系统')
 
   await trigger.click()
@@ -205,4 +205,21 @@ test('the settings language picker offers following the system', async ({ page }
   await expect(page.locator('.filter-menu__item.is-active')).toHaveText('跟随系统')
   await page.locator('.filter-menu__item', { hasText: 'English' }).click()
   await expect(trigger).toContainText('English')
+})
+
+test('the language popup stays inside a phone-width viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 740 })
+  const trigger = page.locator('.settings__columns .filter-menu__button')
+  await trigger.click()
+
+  const [list, viewport] = await Promise.all([
+    page.locator('.filter-menu__list').boundingBox(),
+    page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight })),
+  ])
+  expect(list).not.toBeNull()
+  // The whole panel has to be reachable: it used to hang off the left edge of a phone.
+  expect(list!.x).toBeGreaterThanOrEqual(0)
+  expect(list!.x + list!.width).toBeLessThanOrEqual(viewport.width)
+  expect(list!.y).toBeGreaterThanOrEqual(0)
+  expect(list!.y + list!.height).toBeLessThanOrEqual(viewport.height)
 })

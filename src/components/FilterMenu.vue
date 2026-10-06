@@ -26,7 +26,8 @@ const model = defineModel<T>()
 const { t } = useI18n()
 const open = ref(false)
 const trigger = ref<HTMLElement | null>(null)
-const anchor = ref<{ top: number; left?: number; right?: number }>({ top: 0, right: 0 })
+const list = ref<HTMLElement | null>(null)
+const anchor = ref({ top: 0, left: 0 })
 
 const current = computed(
   () =>
@@ -40,27 +41,34 @@ function choose(value: T) {
 
 /**
  * The popup is teleported, because a scrollable table wrapper would clip it.
- * Positioning is measured from the trigger on open.
+ * Positioning is measured on open — the trigger for where it should sit, and the list
+ * itself for how big it is. Estimating either one puts the panel off-screen on a phone,
+ * where the trigger can be anywhere and the viewport is only a few hundred pixels wide.
  */
 async function toggle() {
   open.value = !open.value
   if (!open.value) return
   await nextTick()
   const rect = trigger.value?.getBoundingClientRect()
-  if (!rect || typeof window === 'undefined') return
-  const estimated = 260
-  const flip = rect.bottom + estimated > window.innerHeight
+  const size = list.value?.getBoundingClientRect()
+  if (!rect || !size || typeof window === 'undefined') return
+  const margin = 8
+  // Below the trigger when it fits, above it otherwise.
+  const below = rect.bottom + 4
+  const top =
+    below + size.height <= window.innerHeight - margin
+      ? below
+      : Math.max(margin, rect.top - size.height - 4)
+  // Aligned to the trigger's edge first, then pulled back inside the viewport.
+  const aligned = props.align === 'end' ? rect.right - size.width : rect.left
+  const maxLeft = Math.max(margin, window.innerWidth - size.width - margin)
   anchor.value = {
-    top: flip ? rect.top - estimated : rect.bottom + 4,
-    ...(props.align === 'end' ? { right: window.innerWidth - rect.right } : { left: rect.left }),
+    top,
+    left: Math.min(Math.max(aligned, margin), maxLeft),
   }
 }
 
-const listStyle = computed(() => ({
-  top: `${anchor.value.top}px`,
-  left: anchor.value.left === undefined ? 'auto' : `${anchor.value.left}px`,
-  right: anchor.value.right === undefined ? 'auto' : `${anchor.value.right}px`,
-}))
+const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${anchor.value.left}px` }))
 </script>
 
 <template>
@@ -81,7 +89,7 @@ const listStyle = computed(() => ({
     <Teleport to="body">
       <template v-if="open">
         <div class="filter-menu__backdrop" @click="open = false" />
-        <div class="filter-menu__list" :style="listStyle" role="listbox">
+        <div ref="list" class="filter-menu__list" :style="listStyle" role="listbox">
           <span class="filter-menu__title">{{ label || t('common.filter') }}</span>
           <button
             v-for="option in options"

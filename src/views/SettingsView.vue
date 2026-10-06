@@ -120,7 +120,6 @@ async function install() {
                 v-model="settings.localePreference"
                 :options="languageOptions"
                 :label="t('settings.language')"
-                prefix="🌐"
               />
             </div>
           </div>

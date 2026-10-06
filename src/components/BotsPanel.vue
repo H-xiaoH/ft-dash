@@ -328,8 +328,8 @@ async function confirmRemove() {
               class="input"
               type="password"
               autocomplete="current-password"
+              :placeholder="form.id ? t('settings.passwordKept') : ''"
             />
-            <span v-if="form.id" class="field__hint">{{ t('settings.passwordKept') }}</span>
           </label>
           <label class="field">
             <span class="field__label">{{ t('settings.wsToken') }}</span>
