@@ -323,7 +323,6 @@ export default {
   events: {
     title: '实时事件',
     empty: '等待事件…',
-    entry: '入场',
     entryFill: '入场成交',
     entryCancel: '入场取消',
     exit: '出场',

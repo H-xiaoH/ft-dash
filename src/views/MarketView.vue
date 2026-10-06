@@ -11,6 +11,7 @@ import { useFormat } from '@/composables/useFormat'
 import { useChartHeight } from '@/composables/useChartHeight'
 import { pushToast } from '@/composables/useToast'
 import type { Lock } from '@/lib/types'
+import { buildEntryMarker } from '@/lib/positions'
 import { useBotStore } from '@/stores/bot'
 
 type Tab = 'whitelist' | 'blacklist' | 'locks'
@@ -90,12 +91,22 @@ const candleMeta = computed(
   () => bot.candleCache[`${selectedPair.value}|${timeframe.value}`] ?? null,
 )
 
-/** Entry prices of the open positions on the pair being charted; empty when flat. */
-const entries = computed<CandleEntry[]>(() =>
-  bot.openTrades
-    .filter((trade) => trade.pair === selectedPair.value)
-    .map((trade) => ({ price: trade.open_rate, isShort: trade.is_short })),
-)
+/**
+ * The chart's cost-basis line: where the open position was filled on average, tagged with
+ * its floating P&L (the same figure the positions table shows). Null when the pair is flat.
+ */
+const chartEntry = computed<CandleEntry | null>(() => {
+  const marker = buildEntryMarker(
+    bot.openTrades.filter((trade) => trade.pair === selectedPair.value),
+    candles.value.at(-1)?.close ?? null,
+  )
+  if (!marker) return null
+  return {
+    price: marker.price,
+    label: marker.profit === null ? '' : format.signedMoney(marker.profit, ''),
+    tone: marker.tone,
+  }
+})
 
 async function loadCandles() {
   if (!selectedPair.value) return
@@ -189,7 +200,7 @@ onMounted(() => {
         <CandleChart
           v-else
           :candles="candles"
-          :entries="entries"
+          :entry="chartEntry"
           :height="candleHeight"
           :formatters="formatters"
         />

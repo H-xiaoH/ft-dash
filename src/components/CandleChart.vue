@@ -6,12 +6,12 @@ import type { Candle, CandleEntry, CandleFormatters } from './charts'
 const props = withDefaults(
   defineProps<{
     candles: Candle[]
-    /** Entry prices of the open positions on this pair, if any. */
-    entries?: CandleEntry[]
+    /** Cost basis of the open position on this pair, if any. */
+    entry?: CandleEntry | null
     height?: number
     formatters: CandleFormatters
   }>(),
-  { height: 260, entries: () => [] },
+  { height: 260, entry: null },
 )
 
 const { t } = useI18n()
@@ -48,7 +48,7 @@ const priceBounds = computed(() => {
   const values = [
     ...props.candles.map((candle) => candle.high),
     ...props.candles.map((candle) => candle.low),
-    ...validEntries.value.map((entry) => entry.price),
+    ...(validEntry.value ? [validEntry.value.price] : []),
   ]
   const max = values.length ? Math.max(...values) : 1
   const min = values.length ? Math.min(...values) : 0
@@ -56,9 +56,10 @@ const priceBounds = computed(() => {
   return { min: min - pad, max: max + pad }
 })
 
-const validEntries = computed(() =>
-  (props.entries ?? []).filter((entry) => Number.isFinite(entry.price) && entry.price > 0),
-)
+const validEntry = computed(() => {
+  const entry = props.entry
+  return entry && Number.isFinite(entry.price) && entry.price > 0 ? entry : null
+})
 
 const plotHeight = computed(() => props.height - padding.top - padding.bottom)
 const plotWidth = computed(() => Math.max(60, width.value - padding.left - padding.right))
@@ -119,17 +120,17 @@ const markerX = computed(() => {
   return padding.left + step.value * (index + 0.5)
 })
 
-/** One line per open position, tinted by its side and tagged with its price. */
-const entryLines = computed(() =>
-  validEntries.value.map((entry, index) => {
-    return {
-      key: `${index}-${entry.price}`,
-      y: scaleY(entry.price),
-      price: entry.price,
-      isShort: Boolean(entry.isShort),
-    }
-  }),
-)
+/** Profit is green, loss is red, and an unknown P&L stays neutral. */
+function toneColor(tone: CandleEntry['tone']): string {
+  if (tone === 'good') return 'var(--long)'
+  if (tone === 'bad') return 'var(--short)'
+  return 'var(--text-3)'
+}
+
+const entryLine = computed(() => {
+  const entry = validEntry.value
+  return entry ? { y: scaleY(entry.price), ...entry, color: toneColor(entry.tone) } : null
+})
 
 /** Change against the previous close, the way an exchange readout shows it. */
 const activeChange = computed(() => {
@@ -308,23 +309,24 @@ function onKeydown(event: KeyboardEvent) {
         </text>
       </g>
 
-      <g v-for="entry in entryLines" :key="`entry-${entry.key}`" class="candles__entry">
+      <g v-if="entryLine" class="candles__entry">
         <line
           :x1="padding.left"
           :x2="width - padding.right"
-          :y1="entry.y"
-          :y2="entry.y"
-          :stroke="entry.isShort ? 'var(--short)' : 'var(--long)'"
+          :y1="entryLine.y"
+          :y2="entryLine.y"
+          :stroke="entryLine.color"
           stroke-width="1"
           stroke-dasharray="6 3"
         />
         <text
+          v-if="entryLine.label"
           :x="width - padding.right - 4"
-          :y="entry.y + 3"
+          :y="entryLine.y + 3"
+          :fill="entryLine.color"
           class="candles__axis candles__entry-label"
-          :class="entry.isShort ? 'candles__entry-label--short' : 'candles__entry-label--long'"
         >
-          {{ `${t('chart.entry')} ${formatters.price(entry.price)}` }}
+          {{ entryLine.label }}
         </text>
       </g>
     </svg>
@@ -396,9 +398,9 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 /*
- * Entry tags sit inside the plot, anchored to the right edge: the axis gutter is only wide
+ * The tag sits inside the plot, anchored to the right edge: the axis gutter is only wide
  * enough for a bare price, and text that grows leftwards never gets clipped. The halo keeps
- * it readable where it crosses candles.
+ * it readable where it crosses candles. Its colour is the P&L tone, set per render.
  */
 .candles__entry-label {
   text-anchor: end;
@@ -406,14 +408,6 @@ function onKeydown(event: KeyboardEvent) {
   stroke: var(--ink-900);
   stroke-width: 3px;
   stroke-linejoin: round;
-}
-
-.candles__entry-label--long {
-  fill: var(--long);
-}
-
-.candles__entry-label--short {
-  fill: var(--short);
 }
 
 .candles__readout {

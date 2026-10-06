@@ -327,7 +327,6 @@ export default {
   events: {
     title: 'Live events',
     empty: 'Waiting for events…',
-    entry: 'Entry',
     entryFill: 'Entry filled',
     entryCancel: 'Entry cancelled',
     exit: 'Exit',

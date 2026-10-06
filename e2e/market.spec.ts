@@ -42,12 +42,13 @@ test('pair list switches the chart to another pair', async ({ page }) => {
   await expect(selector).toContainText('BBB/USDT')
 })
 
-test('an open position puts its entry price on the chart', async ({ page }) => {
-  // The fixture's open position is OPEN/USDT at 1.0, which the chart selects first.
+test('an open position puts its cost basis on the chart, tagged with its P&L', async ({ page }) => {
+  // The fixture's open position is OPEN/USDT: filled at 1.0, +0.2 in profit so far.
   const entry = page.locator('.candles__entry')
   await expect(entry).toHaveCount(1)
-  // The app's price formatter trims trailing zeros: 1 → "1".
-  await expect(page.locator('.candles__entry-label')).toContainText('入场 1')
+  await expect(page.locator('.candles__entry-label')).toHaveText('+0.2000')
+  // Profit tints the line as well as the tag.
+  await expect(entry.locator('line')).toHaveAttribute('stroke', 'var(--long)')
 
   // The line is horizontal and lives inside the plot.
   const line = entry.locator('line')

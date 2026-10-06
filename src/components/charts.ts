@@ -28,8 +28,12 @@ export interface CandleFormatters {
   change?: (ratio: number) => string
 }
 
-/** An open position's entry price, drawn as a reference line on the candle chart. */
+/**
+ * The open position's cost basis, drawn as a reference line on the candle chart. The tag is
+ * pre-formatted by the view: the chart stays out of money semantics.
+ */
 export interface CandleEntry {
   price: number
-  isShort?: boolean
+  label: string
+  tone: 'good' | 'bad' | 'flat'
 }

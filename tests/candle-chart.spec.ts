@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import CandleChart from '@/components/CandleChart.vue'
-import type { Candle, CandleFormatters } from '@/components/charts'
+import type { Candle, CandleEntry, CandleFormatters } from '@/components/charts'
 import { i18n } from '@/i18n'
 
 const formatters: CandleFormatters = { price: (value) => value.toFixed(4) }
@@ -19,7 +19,7 @@ beforeEach(() => {
   )
 })
 
-/** A flat series around `base`; the entry line has to land relative to this range. */
+/** A flat series around `base`, so the entry line lands relative to a known range. */
 function candles(base = 1, count = 40): Candle[] {
   return Array.from({ length: count }, (_, index) => ({
     open: base,
@@ -30,80 +30,59 @@ function candles(base = 1, count = 40): Candle[] {
   }))
 }
 
-interface Line {
-  x1: number
-  x2: number
-  y1: number
-  y2: number
+const mountChart = (entry: CandleEntry | null, height = 260) =>
+  mount(CandleChart, {
+    props: { candles: candles(), height, formatters, entry },
+    global,
+  })
+
+const line = (wrapper: ReturnType<typeof mountChart>) => {
+  const node = wrapper.find('.candles__entry line').element as SVGLineElement
+  return {
+    x1: Number(node.getAttribute('x1')),
+    x2: Number(node.getAttribute('x2')),
+    y1: Number(node.getAttribute('y1')),
+    y2: Number(node.getAttribute('y2')),
+    stroke: node.getAttribute('stroke'),
+  }
 }
 
-const entryLines = (wrapper: ReturnType<typeof mount>): Line[] =>
-  wrapper
-    .findAll('.candles__entry line')
-    .map((node) => node.element as unknown as SVGLineElement)
-    .map((line) => ({
-      x1: Number(line.getAttribute('x1')),
-      x2: Number(line.getAttribute('x2')),
-      y1: Number(line.getAttribute('y1')),
-      y2: Number(line.getAttribute('y2')),
-    }))
+describe('candle chart entry line', () => {
+  it('draws a horizontal line tagged with the floating P&L', () => {
+    const wrapper = mountChart({ price: 1, label: '+1.23', tone: 'good' })
 
-describe('candle chart entry lines', () => {
-  it('draws a horizontal line and a labelled tag for an open position', () => {
-    const wrapper = mount(CandleChart, {
-      props: { candles: candles(), height: 260, formatters, entries: [{ price: 1 }] },
-      global,
-    })
-
-    const lines = entryLines(wrapper)
-    expect(lines).toHaveLength(1)
     // Horizontal: the whole point is a price level, not a marker.
-    expect(lines[0].y1).toBe(lines[0].y2)
-    expect(lines[0].x1).toBeLessThan(lines[0].x2)
+    expect(line(wrapper).y1).toBe(line(wrapper).y2)
+    expect(line(wrapper).x1).toBeLessThan(line(wrapper).x2)
+    expect(wrapper.find('.candles__entry-label').text()).toBe('+1.23')
+  })
 
-    // Locale-proof: the prefix comes from the same key the component uses.
-    expect(wrapper.find('.candles__entry-label').text()).toContain('1.0000')
-    expect(wrapper.find('.candles__entry-label').text()).toContain(i18n.global.t('chart.entry'))
+  it('colours the line and the tag by profit and loss', () => {
+    const up = mountChart({ price: 1, label: '+1.23', tone: 'good' })
+    expect(line(up).stroke).toBe('var(--long)')
+    expect(up.find('.candles__entry-label').attributes('fill')).toBe('var(--long)')
+
+    const down = mountChart({ price: 1, label: '-0.45', tone: 'bad' })
+    expect(line(down).stroke).toBe('var(--short)')
+    expect(down.find('.candles__entry-label').attributes('fill')).toBe('var(--short)')
+
+    const unknown = mountChart({ price: 1, label: '', tone: 'flat' })
+    expect(line(unknown).stroke).toBe('var(--text-3)')
+    // No number to show, so no tag.
+    expect(unknown.find('.candles__entry-label').exists()).toBe(false)
   })
 
   it('stays out of the way when the pair has no position', () => {
-    const wrapper = mount(CandleChart, {
-      props: { candles: candles(), height: 260, formatters },
-      global,
-    })
-    expect(entryLines(wrapper)).toHaveLength(0)
-    expect(wrapper.find('.candles__entry-label').exists()).toBe(false)
+    const wrapper = mountChart(null)
+    expect(wrapper.find('.candles__entry').exists()).toBe(false)
   })
 
   it('widens the price range so an entry far from the candles is still visible', () => {
     const height = 260
-    const wrapper = mount(CandleChart, {
-      props: { candles: candles(), height, formatters, entries: [{ price: 1.5 }] },
-      global,
-    })
+    const wrapper = mountChart({ price: 1.5, label: '+1.00', tone: 'good' }, height)
 
-    const [line] = entryLines(wrapper)
     // Inside the plot area rather than clamped to an edge or drawn off-canvas.
-    expect(line.y1).toBeGreaterThan(12)
-    expect(line.y1).toBeLessThan(height - 8)
-  })
-
-  it('draws one line per open position and sizes the tag by side', () => {
-    const wrapper = mount(CandleChart, {
-      props: {
-        candles: candles(),
-        height: 260,
-        formatters,
-        entries: [
-          { price: 1.0, isShort: false },
-          { price: 1.01, isShort: true },
-        ],
-      },
-      global,
-    })
-
-    expect(entryLines(wrapper)).toHaveLength(2)
-    expect(wrapper.findAll('.candles__entry-label--long')).toHaveLength(1)
-    expect(wrapper.findAll('.candles__entry-label--short')).toHaveLength(1)
+    expect(line(wrapper).y1).toBeGreaterThan(12)
+    expect(line(wrapper).y1).toBeLessThan(height - 8)
   })
 })
