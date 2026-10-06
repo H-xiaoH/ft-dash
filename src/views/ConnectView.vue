@@ -2,7 +2,8 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
-import { LOCALE_LABELS, SUPPORTED_LOCALES } from '@/i18n'
+import FilterMenu from '@/components/FilterMenu.vue'
+import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from '@/i18n'
 import { normalizeBaseUrl } from '@/lib/api'
 import { botNameFromUrl } from '@/lib/bots'
 import { pushToast } from '@/composables/useToast'
@@ -22,6 +23,10 @@ const nameTouched = ref(false)
 const submitting = ref(false)
 
 const origin = computed(() => (typeof window === 'undefined' ? '' : window.location.origin))
+const languageOptions = computed(() => [
+  { value: 'system' as LocalePreference, label: t('settings.languageSystem') },
+  ...SUPPORTED_LOCALES.map((code) => ({ value: code, label: LOCALE_LABELS[code] })),
+])
 const errorMessage = computed(() =>
   bot.errorKey ? t(bot.errorKey.key, bot.errorKey.params ?? {}) : '',
 )
@@ -75,18 +80,12 @@ async function submit() {
 <template>
   <div class="connect">
     <div class="connect__lang">
-      <div class="seg">
-        <button
-          v-for="code in SUPPORTED_LOCALES"
-          :key="code"
-          type="button"
-          class="seg__item"
-          :aria-pressed="settings.locale === code"
-          @click="settings.locale = code"
-        >
-          {{ LOCALE_LABELS[code] }}
-        </button>
-      </div>
+      <FilterMenu
+        v-model="settings.localePreference"
+        :options="languageOptions"
+        :label="t('settings.language')"
+        trigger-label="🌐"
+      />
     </div>
 
     <div class="connect__card">
@@ -110,7 +109,6 @@ async function submit() {
             class="input"
             type="text"
             autocomplete="off"
-            :placeholder="t('bots.namePlaceholder')"
             @input="nameTouched = true"
           />
         </label>

@@ -190,3 +190,18 @@ test('retrying the live stream acknowledges the click', async ({ page }) => {
   // Filtered: the "bot added" toast from the connect step may still be on screen.
   await expect(page.locator('.toast', { hasText: '正在重连实时推送' })).toHaveCount(1)
 })
+
+test('the settings language picker offers following the system', async ({ page }) => {
+  await expect(page.locator('.panel__title', { hasText: '语言' })).toHaveCount(1)
+  // Located by structure, not by the panel title: switching the language renames the title.
+  const trigger = page.locator('.settings__columns .filter-menu__button')
+  // Same control as the connect screen, but the value stays readable inside a titled panel.
+  await expect(trigger).toContainText('🌐')
+  await expect(trigger).toContainText('跟随系统')
+
+  await trigger.click()
+  await expect(page.locator('.filter-menu__item')).toHaveText(['跟随系统', '简体中文', 'English'])
+  await expect(page.locator('.filter-menu__item.is-active')).toHaveText('跟随系统')
+  await page.locator('.filter-menu__item', { hasText: 'English' }).click()
+  await expect(trigger).toContainText('English')
+})

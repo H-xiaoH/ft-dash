@@ -1,6 +1,12 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-import { detectLocale, isSupportedLocale, type AppLocale } from '@/i18n'
+import {
+  detectLocale,
+  isLocalePreference,
+  resolveLocalePreference,
+  type AppLocale,
+  type LocalePreference,
+} from '@/i18n'
 import {
   ACTIVE_BOT_KEY,
   BOTS_KEY,
@@ -18,7 +24,7 @@ import type { StreamAuthPreference } from '@/lib/stream'
 const SETTINGS_KEY = 'ftdash.settings.v1'
 
 interface StoredSettings {
-  locale: AppLocale | null
+  locale: LocalePreference | null
   websocket: boolean
   streamAuth: StreamAuthPreference
   wsToken: string
@@ -28,8 +34,11 @@ interface StoredSettings {
   controlsAcknowledged: boolean
 }
 
+/** Nothing picked yet means "follow the browser", which is what the app did at boot. */
+const DEFAULT_LOCALE: LocalePreference = 'system'
+
 const DEFAULT_SETTINGS: StoredSettings = {
-  locale: null,
+  locale: DEFAULT_LOCALE,
   websocket: true,
   streamAuth: 'auto',
   wsToken: '',
@@ -82,9 +91,24 @@ export const useSettingsStore = defineStore('settings', () => {
   const baseUrl = ref(activeBot.value?.baseUrl ?? import.meta.env.VITE_API_BASE_DEFAULT ?? '')
   const username = ref(activeBot.value?.username ?? '')
   const password = ref(activeBot.value?.password ?? '')
-  const locale = ref<AppLocale>(
-    isSupportedLocale(persisted.locale) ? persisted.locale : detectLocale(),
+  /**
+   * The pick is a preference, not a resolved language: "follow the system" has to keep
+   * following it across reloads and across a system language change.
+   */
+  const localePreference = ref<LocalePreference>(
+    isLocalePreference(persisted.locale) ? persisted.locale : DEFAULT_LOCALE,
   )
+  const systemLocale = ref<AppLocale>(detectLocale())
+  const locale = computed<AppLocale>(() =>
+    localePreference.value === 'system'
+      ? systemLocale.value
+      : resolveLocalePreference(localePreference.value),
+  )
+  if (typeof window !== 'undefined') {
+    window.addEventListener('languagechange', () => {
+      systemLocale.value = detectLocale()
+    })
+  }
   const websocket = ref(persisted.websocket ?? DEFAULT_SETTINGS.websocket)
   const streamAuth = ref(resolveStreamAuth(persisted.streamAuth))
   const wsToken = ref(
@@ -106,7 +130,8 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function persist() {
     writeJson(SETTINGS_KEY, {
-      locale: locale.value,
+      // The preference is what gets stored; the resolved language is derived from it.
+      locale: localePreference.value,
       websocket: websocket.value,
       streamAuth: streamAuth.value,
       wsToken: wsToken.value,
@@ -213,7 +238,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   watch(
     [
-      locale,
+      localePreference,
       websocket,
       streamAuth,
       wsToken,
@@ -238,6 +263,7 @@ export const useSettingsStore = defineStore('settings', () => {
     username,
     password,
     locale,
+    localePreference,
     websocket,
     streamAuth,
     wsToken,

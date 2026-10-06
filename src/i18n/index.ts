@@ -5,8 +5,22 @@ import zhCN from './locales/zh-CN'
 export const SUPPORTED_LOCALES = ['zh-CN', 'en'] as const
 export type AppLocale = (typeof SUPPORTED_LOCALES)[number]
 
+/**
+ * What the operator picked. `system` follows the browser, so it stays a preference instead
+ * of being resolved once and pinned; the resolved language lives in the settings store.
+ */
+export type LocalePreference = 'system' | AppLocale
+
 export function isSupportedLocale(value: string | null | undefined): value is AppLocale {
   return !!value && (SUPPORTED_LOCALES as readonly string[]).includes(value)
+}
+
+export function isLocalePreference(value: unknown): value is LocalePreference {
+  return value === 'system' || isSupportedLocale(value as string)
+}
+
+export function resolveLocalePreference(preference: LocalePreference): AppLocale {
+  return preference === 'system' ? detectLocale() : preference
 }
 
 export function detectLocale(): AppLocale {

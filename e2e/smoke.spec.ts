@@ -21,6 +21,30 @@ test.describe('connect screen', () => {
     await expect(page.locator('.strip__metric').first()).toContainText('100.00')
     await expect(page.locator('.metric__label').first()).toHaveText('账户净值')
   })
+
+  test('the language menu is an emoji button that opens a highlighted picker', async ({ page }) => {
+    await mockApi(page)
+    await page.goto('/')
+
+    // Collapsed to a single emoji, so the connect card keeps the corner to itself.
+    const trigger = page.locator('.connect__lang .filter-menu__button')
+    await expect(trigger).toHaveText('🌐')
+
+    await trigger.click()
+    const options = page.locator('.filter-menu__item')
+    await expect(options).toHaveText(['跟随系统', '简体中文', 'English'])
+    // The current pick is the highlighted one, and the list says so to screen readers.
+    await expect(page.locator('.filter-menu__item.is-active')).toHaveText('跟随系统')
+    await expect(page.locator('.filter-menu__item[aria-selected="true"]')).toHaveText('跟随系统')
+
+    await page.locator('.filter-menu__item', { hasText: 'English' }).click()
+    await expect(page.locator('.connect__title')).toHaveText('Connect to your bot')
+    // The pick is stored as a preference, not as the language it resolved to.
+    const stored = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem('ftdash.settings.v1') ?? '{}'),
+    )
+    expect(stored.locale).toBe('en')
+  })
 })
 
 test.describe('navigation', () => {

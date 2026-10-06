@@ -1,26 +1,28 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="T extends string">
 import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from './AppIcon.vue'
 
-export interface FilterOption {
-  value: string
+export interface FilterOption<T extends string = string> {
+  value: T
   label: string
 }
 
 /** A compact dropdown: the current choice stays visible on the button. */
 const props = withDefaults(
   defineProps<{
-    options: FilterOption[]
+    options: FilterOption<T>[]
     label?: string
     /** Shown before the value, e.g. "Level". */
     prefix?: string
+    /** Replaces the value on the button, e.g. an emoji where the button is self-explanatory. */
+    triggerLabel?: string
     align?: 'start' | 'end'
   }>(),
-  { label: '', prefix: '', align: 'end' },
+  { label: '', prefix: '', triggerLabel: '', align: 'end' },
 )
 
-const model = defineModel<string>({ default: '' })
+const model = defineModel<T>()
 const { t } = useI18n()
 const open = ref(false)
 const trigger = ref<HTMLElement | null>(null)
@@ -31,7 +33,7 @@ const current = computed(
     props.options.find((option) => option.value === model.value)?.label ?? props.options[0]?.label,
 )
 
-function choose(value: string) {
+function choose(value: T) {
   model.value = value
   open.value = false
 }
@@ -72,7 +74,7 @@ const listStyle = computed(() => ({
       @click="toggle"
     >
       <span v-if="prefix" class="filter-menu__prefix">{{ prefix }}</span>
-      <span>{{ current }}</span>
+      <span>{{ triggerLabel || current }}</span>
       <AppIcon :name="open ? 'chevronUp' : 'chevronDown'" :size="12" />
     </button>
 

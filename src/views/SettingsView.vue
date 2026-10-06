@@ -3,8 +3,9 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import BotsPanel from '@/components/BotsPanel.vue'
+import FilterMenu from '@/components/FilterMenu.vue'
 import { pushToast } from '@/composables/useToast'
-import { LOCALE_LABELS, SUPPORTED_LOCALES } from '@/i18n'
+import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from '@/i18n'
 import {
   applyUpdate,
   canInstall,
@@ -25,6 +26,11 @@ const events = useEventsStore()
 
 const clearConfirm = ref(false)
 const appVersion = __APP_VERSION__
+
+const languageOptions = computed(() => [
+  { value: 'system' as LocalePreference, label: t('settings.languageSystem') },
+  ...SUPPORTED_LOCALES.map((code) => ({ value: code, label: LOCALE_LABELS[code] })),
+])
 
 const STREAM_AUTH_CHOICES: { value: StreamAuthPreference; label: string }[] = [
   { value: 'auto', label: 'settings.streamAuthAuto' },
@@ -110,18 +116,12 @@ async function install() {
           </div>
           <div class="panel__body">
             <div class="field">
-              <div class="seg">
-                <button
-                  v-for="code in SUPPORTED_LOCALES"
-                  :key="code"
-                  type="button"
-                  class="seg__item"
-                  :aria-pressed="settings.locale === code"
-                  @click="settings.locale = code"
-                >
-                  {{ LOCALE_LABELS[code] }}
-                </button>
-              </div>
+              <FilterMenu
+                v-model="settings.localePreference"
+                :options="languageOptions"
+                :label="t('settings.language')"
+                prefix="🌐"
+              />
             </div>
           </div>
         </section>

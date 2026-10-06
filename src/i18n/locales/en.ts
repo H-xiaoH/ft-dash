@@ -288,6 +288,7 @@ export default {
     password: 'Password',
     passwordKept: 'Saved — leave empty to keep it',
     language: 'Language',
+    languageSystem: 'Follow system',
     push: 'Push',
     websocket: 'WebSocket live updates',
     websocketHint: 'Stream entries, exits and warnings as they happen.',
