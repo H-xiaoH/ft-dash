@@ -5,7 +5,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import { pushToast } from '@/composables/useToast'
 import { describeError, FreqtradeApi, normalizeBaseUrl } from '@/lib/api'
-import { botNameFromUrl, type Bot } from '@/lib/bots'
+import { defaultBotName, type Bot } from '@/lib/bots'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
 
@@ -76,7 +76,7 @@ async function submit() {
   if (!entry || !canSave.value || saving.value) return
   saving.value = true
   const baseUrl = normalizeBaseUrl(entry.baseUrl) || entry.baseUrl.trim()
-  const name = entry.name.trim() || botNameFromUrl(baseUrl)
+  const name = entry.name.trim() || defaultBotName(entry.username, baseUrl)
   if (entry.id) {
     settings.updateBot(entry.id, {
       name,
@@ -304,12 +304,7 @@ async function confirmRemove() {
         <div class="bots__grid">
           <label class="field">
             <span class="field__label">{{ t('bots.name') }}</span>
-            <input
-              v-model="form.name"
-              class="input"
-              type="text"
-              :placeholder="t('bots.namePlaceholder')"
-            />
+            <input v-model="form.name" class="input" type="text" />
             <span v-if="duplicateName" class="field__hint">{{ t('bots.duplicateName') }}</span>
           </label>
           <label class="field">
@@ -320,7 +315,6 @@ async function confirmRemove() {
               type="text"
               inputmode="url"
               spellcheck="false"
-              :placeholder="t('connect.baseUrlPlaceholder')"
             />
           </label>
           <label class="field">
@@ -334,8 +328,8 @@ async function confirmRemove() {
               class="input"
               type="password"
               autocomplete="current-password"
-              :placeholder="form.id ? t('settings.passwordKept') : '••••••••'"
             />
+            <span v-if="form.id" class="field__hint">{{ t('settings.passwordKept') }}</span>
           </label>
           <label class="field">
             <span class="field__label">{{ t('settings.wsToken') }}</span>

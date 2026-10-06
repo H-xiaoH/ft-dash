@@ -48,6 +48,14 @@ export function botNameFromUrl(baseUrl: string): string {
   }
 }
 
+/**
+ * Name for a bot that was left unnamed: the username, which is the thing the operator
+ * typed and will recognise. The host is a last resort, for a record that has neither.
+ */
+export function defaultBotName(username: string, baseUrl: string): string {
+  return username.trim() || botNameFromUrl(baseUrl)
+}
+
 /** Reads one stored entry; anything without a URL and a username is dropped. */
 function parseBot(raw: unknown): Bot | null {
   if (!raw || typeof raw !== 'object') return null
@@ -58,7 +66,7 @@ function parseBot(raw: unknown): Bot | null {
   const name = typeof entry.name === 'string' ? entry.name.trim() : ''
   return {
     id: typeof entry.id === 'string' && entry.id ? entry.id : newBotId(),
-    name: name || botNameFromUrl(baseUrl),
+    name: name || defaultBotName(username, baseUrl),
     baseUrl,
     username,
     password: typeof entry.password === 'string' ? entry.password : '',

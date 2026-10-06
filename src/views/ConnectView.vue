@@ -5,7 +5,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import FilterMenu from '@/components/FilterMenu.vue'
 import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from '@/i18n'
 import { normalizeBaseUrl } from '@/lib/api'
-import { botNameFromUrl } from '@/lib/bots'
+import { defaultBotName } from '@/lib/bots'
 import { pushToast } from '@/composables/useToast'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
@@ -34,15 +34,16 @@ const canSubmit = computed(
   () => baseUrl.value.trim().length > 0 && username.value.trim() && password.value.length > 0,
 )
 
-watch(baseUrl, (value) => {
-  if (!nameTouched.value) name.value = botNameFromUrl(value)
+// Suggest the name the bot would get anyway (the username); edit it only if it is wrong.
+watch(username, (value) => {
+  if (!nameTouched.value) name.value = value.trim()
 })
 
 async function submit() {
   if (!canSubmit.value || submitting.value) return
   submitting.value = true
   const normalized = normalizeBaseUrl(baseUrl.value) || baseUrl.value.trim()
-  const label = name.value.trim() || botNameFromUrl(normalized)
+  const label = name.value.trim() || defaultBotName(username.value, normalized)
   /*
    * A failed sign-in leaves the bot in the list so the next attempt can correct it;
    * matching on address plus username keeps that retry from stacking up duplicates.

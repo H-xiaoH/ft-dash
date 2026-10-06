@@ -11,7 +11,7 @@ import {
   ACTIVE_BOT_KEY,
   BOTS_KEY,
   BOTS_SESSION_KEY,
-  botNameFromUrl,
+  defaultBotName,
   newBotId,
   parseBots,
   serializeBots,
@@ -176,11 +176,13 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function addBot(input: BotInput): Bot {
+    const username = input.username.trim()
+    const baseUrl = input.baseUrl.trim()
     const bot: Bot = {
       id: newBotId(),
-      name: input.name?.trim() || botNameFromUrl(input.baseUrl),
-      baseUrl: input.baseUrl.trim(),
-      username: input.username.trim(),
+      name: input.name?.trim() || defaultBotName(username, baseUrl),
+      baseUrl,
+      username,
       password: input.password,
       wsToken: input.wsToken?.trim() ?? wsToken.value,
       lastUsedAt: null,
@@ -196,14 +198,16 @@ export const useSettingsStore = defineStore('settings', () => {
     const index = bots.value.findIndex((bot) => bot.id === id)
     if (index < 0) return
     const current = bots.value[index]
+    const baseUrl = patch.baseUrl?.trim() ?? current.baseUrl
+    const username = patch.username?.trim() ?? current.username
     const next: Bot = {
       ...current,
       name:
         patch.name !== undefined
-          ? patch.name.trim() || botNameFromUrl(patch.baseUrl ?? current.baseUrl)
+          ? patch.name.trim() || defaultBotName(username, baseUrl)
           : current.name,
-      baseUrl: patch.baseUrl?.trim() ?? current.baseUrl,
-      username: patch.username?.trim() ?? current.username,
+      baseUrl,
+      username,
       password: patch.password ?? current.password,
       wsToken: patch.wsToken?.trim() ?? current.wsToken,
     }

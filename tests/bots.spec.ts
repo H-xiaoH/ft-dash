@@ -6,6 +6,7 @@ import {
   BOTS_KEY,
   BOTS_SESSION_KEY,
   botNameFromUrl,
+  defaultBotName,
   parseBots,
   serializeBots,
   type Bot,
@@ -30,6 +31,13 @@ describe('bot helpers', () => {
     expect(botNameFromUrl('')).toBe('')
   })
 
+  it('names an unnamed bot after its username, not after the host', () => {
+    expect(defaultBotName('freqtrader', 'https://ft.example.com/api/v1')).toBe('freqtrader')
+    expect(defaultBotName('  ricky  ', 'https://ft.example.com/api/v1')).toBe('ricky')
+    // Only a record with no username at all falls back to the host.
+    expect(defaultBotName('', 'https://ft.example.com/api/v1')).toBe('ft.example.com')
+  })
+
   it('drops entries that carry no address or no username', () => {
     const parsed = parseBots([
       { baseUrl: 'https://a.example/api/v1', username: 'a' },
@@ -38,7 +46,8 @@ describe('bot helpers', () => {
       'nonsense',
     ])
     expect(parsed).toHaveLength(1)
-    expect(parsed[0].name).toBe('a.example')
+    // A stored entry with no name is named after its username.
+    expect(parsed[0].name).toBe('a')
   })
 
   it('writes passwords to storage only when asked to', () => {

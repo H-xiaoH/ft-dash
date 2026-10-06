@@ -93,7 +93,8 @@ test('the password stays out of localStorage unless you ask for it', async ({ pa
 test('carries the default bot name over from the connect form', async ({ page }) => {
   const bots = page.locator('.bots__row')
   await expect(bots).toHaveCount(1)
-  await expect(bots.first()).toContainText('api.example.test')
+  // The connect form never asked for a name, so the bot is named after its username.
+  await expect(bots.first()).toContainText('tester')
   await expect(bots.first()).toContainText('当前')
 })
 
