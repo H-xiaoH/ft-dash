@@ -102,10 +102,6 @@ async function submit() {
 
       <p class="connect__subtitle">{{ t('connect.subtitle') }}</p>
 
-      <p v-if="settings.legacyCleared" class="banner banner--warn" role="status">
-        {{ t('bots.legacyCleared') }}
-      </p>
-
       <form class="connect__form" @submit.prevent="submit">
         <label class="field">
           <span class="field__label">{{ t('bots.name') }}</span>

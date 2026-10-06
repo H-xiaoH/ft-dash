@@ -123,17 +123,6 @@ describe('bots store', () => {
     expect(settings.hasCredentials).toBe(false)
   })
 
-  it('drops the pre-multi-bot credential blob instead of migrating it', () => {
-    localStorage.setItem(
-      'ftdash.credentials.v1',
-      JSON.stringify({ baseUrl: 'https://old.example/api/v1', username: 'old', password: 'x' }),
-    )
-    const settings = useSettingsStore()
-    expect(settings.legacyCleared).toBe(true)
-    expect(localStorage.getItem('ftdash.credentials.v1')).toBeNull()
-    expect(settings.bots).toHaveLength(0)
-  })
-
   it('restores the remembered bot on the next visit', () => {
     const settings = useSettingsStore()
     settings.remember = true

@@ -129,6 +129,62 @@ test('adding a second bot and switching moves the dashboard to it', async ({ pag
   await expect(page.locator('.panel', { hasText: '连接状态' })).toContainText(API_BASE)
 })
 
+test('switching bots never bounces through the connect screen', async ({ page }) => {
+  await mockApi(page, { secondBot: true })
+  await page.locator('button', { hasText: '添加机器人' }).click()
+  const editor = page.locator('.bots__editor')
+  await editor.getByLabel('名称').fill('second')
+  await editor.getByLabel('API 地址').fill(SECOND_BASE)
+  await editor.getByLabel('用户名').fill('second')
+  await editor.getByLabel('密码', { exact: true }).fill('second-secret')
+  await editor.locator('button[type="submit"]').click()
+  await expect(page.locator('.bots__row')).toHaveCount(2)
+
+  /*
+   * The defect was a flash, so sample the DOM instead of asserting at one instant: while
+   * the new bot connected, the shell was replaced by the connect form — whose red banner
+   * is titled "connection failed" — and stayed there if the attempt failed.
+   */
+  await page.evaluate(() => {
+    const states: { shell: boolean; connect: boolean; failed: boolean }[] = []
+    ;(window as unknown as { __states?: unknown }).__states = states
+    const timer = setInterval(() => {
+      states.push({
+        shell: Boolean(document.querySelector('.shell')),
+        connect: Boolean(document.querySelector('.connect__card')),
+        failed: [...document.querySelectorAll('.banner')].some((node) =>
+          (node.textContent ?? '').includes('连接失败'),
+        ),
+      })
+    }, 10)
+    ;(window as unknown as { __stop?: () => void }).__stop = () => clearInterval(timer)
+  })
+
+  await page.locator('.bots__row').nth(1).locator('button', { hasText: '切换' }).click()
+  await expect(page.locator('.toast', { hasText: '已切换' })).toHaveCount(1)
+  await page.waitForTimeout(600)
+
+  const states = await page.evaluate(() => {
+    ;(window as unknown as { __stop?: () => void }).__stop?.()
+    const seen =
+      (window as unknown as { __states?: { shell: boolean; connect: boolean; failed: boolean }[] })
+        .__states ?? []
+    return {
+      samples: seen.length,
+      shells: seen.filter((state) => state.shell).length,
+      connects: seen.filter((state) => state.connect).length,
+      failures: seen.filter((state) => state.failed).length,
+    }
+  })
+  // Enough samples that a multi-frame flash could not hide between them.
+  expect(states.samples).toBeGreaterThan(20)
+  // The switch keeps the shell up the whole time; it never falls back to the connect form
+  // (that only happens when the picked bot genuinely cannot be reached).
+  expect(states.shells, 'shell was replaced during the switch').toBe(states.samples)
+  expect(states.connects, 'connect screen flashed during the switch').toBe(0)
+  expect(states.failures, 'connection failed banner flashed during the switch').toBe(0)
+})
+
 test('retrying the live stream acknowledges the click', async ({ page }) => {
   await page.locator('button', { hasText: '重试实时推送' }).click()
   // Filtered: the "bot added" toast from the connect step may still be on screen.

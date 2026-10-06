@@ -88,8 +88,6 @@ and resets page state such as search, filters, paging and open detail drawers.
   "bot controls" master switch still governs all of them.
 - Every row has "Test connection", which probes that bot on its own client without disturbing
   the active connection.
-- Upgrading from the single-bot version clears the old credential blob, so the bot has to be
-  added once more.
 
 ### API address
 

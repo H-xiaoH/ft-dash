@@ -35,8 +35,18 @@ const restoring = computed(
     bot.connection !== 'unauthorized' &&
     bot.connection !== 'unreachable',
 )
+/**
+ * The connect screen is for "there is nobody to talk to yet", not for "a request is in
+ * flight". Leaving the shell mounted while a connection attempt runs is what keeps a bot
+ * switch from flashing the connect form — and from stranding the operator on an error
+ * banner when that attempt happens to fail.
+ */
 const showConnect = computed(
-  () => !restoring.value && bot.connection !== 'online' && !bot.showConfig,
+  () =>
+    !restoring.value &&
+    bot.connection !== 'online' &&
+    bot.connection !== 'connecting' &&
+    !bot.showConfig,
 )
 
 /** Page-to-page swiping; it also owns the tab block's travel. */
@@ -51,8 +61,11 @@ const {
   warmPageChunks,
 } = usePageDrag(() => showConnect.value)
 const connectionBanner = computed(() => {
-  if (bot.connection === 'online') return null
-  if (bot.connection === 'connecting') return t('connect.connecting')
+  /*
+   * Failures only. A connect in flight is not news — the status strip already shows it —
+   * and this banner is titled "connection failed", so rendering it mid-switch told the
+   * operator that the bot they had just picked was broken.
+   */
   if (bot.connection === 'unauthorized') return t('errors.auth')
   if (bot.connection === 'unreachable') return t('errors.cors')
   return null

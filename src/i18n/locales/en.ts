@@ -86,7 +86,6 @@ export default {
     needPassword: '“{name}” has no stored password — enter it to connect',
     connect: 'Connect',
     empty: 'No bots yet — add one.',
-    legacyCleared: 'The old connection details were removed — add your bot again.',
     openSettings: 'Open settings',
   },
   kpi: {

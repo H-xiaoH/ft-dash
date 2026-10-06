@@ -32,9 +32,7 @@ const removeTarget = ref<Bot | null>(null)
 /** Set when switching to a bot whose password is not at hand. */
 const passwordTarget = ref<Bot | null>(null)
 const passwordDraft = ref('')
-const noticeDismissed = ref(false)
 
-const showLegacyNotice = computed(() => settings.legacyCleared && !noticeDismissed.value)
 const canSave = computed(() => {
   const entry = form.value
   if (!entry) return false
@@ -226,15 +224,6 @@ async function confirmRemove() {
     </div>
 
     <div class="panel__body stack">
-      <div v-if="showLegacyNotice" class="banner banner--warn" role="status">
-        <AppIcon name="alert" :size="18" />
-        <div>{{ t('bots.legacyCleared') }}</div>
-        <div class="spacer" />
-        <button type="button" class="btn btn--sm" @click="noticeDismissed = true">
-          {{ t('common.close') }}
-        </button>
-      </div>
-
       <p v-if="!settings.bots.length" class="empty">{{ t('bots.empty') }}</p>
 
       <ul v-else class="bots">

@@ -16,14 +16,6 @@ import { readJson, removeKey, safeSessionStorage, writeJson } from '@/lib/storag
 import type { StreamAuthPreference } from '@/lib/stream'
 
 const SETTINGS_KEY = 'ftdash.settings.v1'
-/** Pre-multi-bot single-credential blob; read only to clean it up. */
-const CREDENTIALS_KEY = 'ftdash.credentials.v1'
-
-export interface StoredCredentials {
-  baseUrl: string
-  username: string
-  password: string
-}
 
 interface StoredSettings {
   locale: AppLocale | null
@@ -75,12 +67,6 @@ function loadBots(): Bot[] {
   })
 }
 
-function readLegacyCredentials(): Partial<StoredCredentials> {
-  const local = readJson<Partial<StoredCredentials>>(CREDENTIALS_KEY, {})
-  if (local.baseUrl) return local
-  return readJson<Partial<StoredCredentials>>(CREDENTIALS_KEY, {}, safeSessionStorage())
-}
-
 export const useSettingsStore = defineStore('settings', () => {
   const persisted = readJson<Partial<StoredSettings>>(SETTINGS_KEY, {})
 
@@ -92,17 +78,6 @@ export const useSettingsStore = defineStore('settings', () => {
       : (bots.value[0]?.id ?? ''),
   )
   const activeBot = computed(() => bots.value.find((bot) => bot.id === activeBotId.value) ?? null)
-
-  /**
-   * The single-credential blob from before multi-bot support is dropped rather than
-   * migrated: guessing at a half-migrated state is worse than asking once.
-   */
-  const hadLegacyCredentials = Boolean(readLegacyCredentials().baseUrl)
-  if (hadLegacyCredentials) {
-    removeKey(CREDENTIALS_KEY)
-    removeKey(CREDENTIALS_KEY, safeSessionStorage())
-  }
-  const legacyCleared = ref(hadLegacyCredentials && bots.value.length === 0)
 
   const baseUrl = ref(activeBot.value?.baseUrl ?? import.meta.env.VITE_API_BASE_DEFAULT ?? '')
   const username = ref(activeBot.value?.username ?? '')
@@ -150,8 +125,6 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function clearStoredData() {
     removeKey(SETTINGS_KEY)
-    removeKey(CREDENTIALS_KEY)
-    removeKey(CREDENTIALS_KEY, safeSessionStorage())
     removeKey(BOTS_KEY)
     removeKey(BOTS_SESSION_KEY, safeSessionStorage())
     removeKey(ACTIVE_BOT_KEY)
@@ -260,7 +233,6 @@ export const useSettingsStore = defineStore('settings', () => {
     activeBot,
     activeBotId,
     activeBotName,
-    legacyCleared,
     needsPassword,
     baseUrl,
     username,

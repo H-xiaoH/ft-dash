@@ -85,7 +85,6 @@ export default {
     needPassword: '「{name}」没有保存的密码，输入后即可连接',
     connect: '连接',
     empty: '还没有机器人，先添加一个。',
-    legacyCleared: '旧版本的连接信息已移除，请重新添加机器人。',
     openSettings: '去设置',
   },
   kpi: {
