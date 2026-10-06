@@ -55,8 +55,9 @@ test('an open position puts its cost basis on the chart, tagged with its P&L', a
    * CSS `fill` on the shared axis rule beat the per-tone fill attribute.
    */
   const tag = page.locator('.candles__entry-label')
-  expect(await tag.evaluate((node) => getComputedStyle(node).stroke)).toBe('rgb(36, 201, 138)')
-  expect(await tag.evaluate((node) => getComputedStyle(node).fill)).toBe('rgb(0, 0, 0)')
+  expect(await tag.evaluate((node) => getComputedStyle(node).fill)).toBe('rgb(36, 201, 138)')
+  // Hairline outline, not the filled block it used to be.
+  expect(await tag.evaluate((node) => getComputedStyle(node).strokeWidth)).toBe('1px')
 
   // Tucked into the right gutter: the tag ends at the chart's right edge, past the plot.
   const [chart, tagBox] = await Promise.all([

@@ -402,30 +402,31 @@ function onKeydown(event: KeyboardEvent) {
  * The P&L tag lives in the right gutter, tucked against the edge and growing leftwards, so
  * it never covers candles. It is styled entirely here rather than via `.candles__axis`:
  * a CSS declaration beats an SVG presentation attribute, and the shared axis rule was
- * quietly overriding the per-tone `fill` attribute. The tone is carried by a thick round
- * stroke that paints behind the text — a filled tag without measuring the text.
+ * quietly overriding the per-tone `fill` attribute. The tone is carried by the text
+ * colour, over a 1px outline that keeps it readable against candles behind it.
  */
 .candles__entry-label {
   font-family: var(--font-data);
   font-size: 10px;
   text-anchor: end;
   paint-order: stroke fill;
-  stroke-width: 7px;
+  /* Hairline outline only: a 1px stroke cannot carry a filled block, so the tone is the
+     text itself. */
+  stroke: var(--ink-900);
+  stroke-width: 1px;
   stroke-linejoin: round;
-  stroke-linecap: round;
-  fill: var(--ink-900);
 }
 
 .candles__entry-label--good {
-  stroke: var(--long);
+  fill: var(--long);
 }
 
 .candles__entry-label--bad {
-  stroke: var(--short);
+  fill: var(--short);
 }
 
 .candles__entry-label--flat {
-  stroke: var(--text-3);
+  fill: var(--text-3);
 }
 
 .candles__readout {
