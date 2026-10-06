@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends string">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from './AppIcon.vue'
 
@@ -39,16 +39,21 @@ function choose(value: T) {
   open.value = false
 }
 
-/**
- * The popup is teleported, because a scrollable table wrapper would clip it.
- * Positioning is measured on open — the trigger for where it should sit, and the list
- * itself for how big it is. Estimating either one puts the panel off-screen on a phone,
- * where the trigger can be anywhere and the viewport is only a few hundred pixels wide.
- */
 async function toggle() {
   open.value = !open.value
   if (!open.value) return
   await nextTick()
+  place()
+  follow()
+}
+
+/**
+ * Where the teleported, fixed popup goes: measured from the trigger and from the list itself.
+ * Estimating either puts the panel off-screen on a phone, where the trigger can be anywhere
+ * and the viewport is only a few hundred pixels wide. It also re-runs as the page moves —
+ * placed once, it would hang in place while the trigger scrolled away underneath it.
+ */
+function place() {
   const rect = trigger.value?.getBoundingClientRect()
   const size = list.value?.getBoundingClientRect()
   if (!rect || !size || typeof window === 'undefined') return
@@ -67,6 +72,28 @@ async function toggle() {
     left: Math.min(Math.max(aligned, margin), maxLeft),
   }
 }
+
+/** Scrolling the list itself must not move it. */
+function onScroll(event: Event) {
+  if (event.target === list.value) return
+  place()
+}
+
+function follow() {
+  window.addEventListener('scroll', onScroll, { capture: true, passive: true })
+  window.addEventListener('resize', place)
+}
+
+function unfollow() {
+  window.removeEventListener('scroll', onScroll, true)
+  window.removeEventListener('resize', place)
+}
+
+watch(open, (isOpen) => {
+  if (!isOpen) unfollow()
+})
+
+onBeforeUnmount(unfollow)
 
 const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${anchor.value.left}px` }))
 </script>

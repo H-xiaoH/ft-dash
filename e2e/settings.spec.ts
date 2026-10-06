@@ -223,3 +223,23 @@ test('the language popup stays inside a phone-width viewport', async ({ page }) 
   expect(list!.y).toBeGreaterThanOrEqual(0)
   expect(list!.y + list!.height).toBeLessThanOrEqual(viewport.height)
 })
+
+test('the language popup travels with its trigger while the page scrolls', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 640 })
+  const trigger = page.locator('.settings__columns .filter-menu__button')
+  const list = page.locator('.filter-menu__list')
+  await trigger.click()
+  await list.waitFor()
+
+  /** Distance from the trigger's box to the popup's — constant while it stays attached. */
+  const offset = async () => {
+    const [t, l] = await Promise.all([trigger.boundingBox(), list.boundingBox()])
+    return Math.round(l!.y - t!.y)
+  }
+  const before = await offset()
+
+  await page.evaluate(() => window.scrollBy(0, 160))
+  // The popup used to be placed once: it stayed put and the trigger slid away from it.
+  await expect.poll(async () => Math.abs((await offset()) - before)).toBeLessThanOrEqual(2)
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(100)
+})
