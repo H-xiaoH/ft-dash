@@ -17,6 +17,22 @@ export const PASSWORD = 'secret'
 const DAY = 86_400_000
 const NOW = Date.parse('2026-09-20T12:00:00Z')
 
+/**
+ * A real Freqtrade API answers with CORS headers; these fixtures have to do the same, or an
+ * engine that enforces them strictly (WebKit) rejects the authenticated calls and the app
+ * looks broken for a reason the fixtures invented.
+ */
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, PATCH, PUT, OPTIONS',
+  /*
+   * Authorization has to be named: the `*` wildcard deliberately does not cover it, and
+   * WebKit enforces that while Chromium is lenient. Every authenticated request the app
+   * makes is preflighted, so a wildcard here rejects the lot.
+   */
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+}
+
 function trade(id: number, pair: string, overrides: Record<string, unknown> = {}) {
   const open = NOW - 6 * 3_600_000
   const close = NOW - 3_600_000
@@ -375,10 +391,17 @@ export async function mockApi(
       const path = url.pathname.replace('/api/v1/', '')
       calls.push(path)
 
+      // The preflight for anything sending Authorization.
+      if (request.method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: CORS_HEADERS })
+        return
+      }
+
       if (rejectAuth && !path.startsWith('token')) {
         await route.fulfill({
           status: 401,
           contentType: 'application/json',
+          headers: CORS_HEADERS,
           body: JSON.stringify({ detail: 'Incorrect username or password' }),
         })
         return
@@ -395,6 +418,7 @@ export async function mockApi(
         await route.fulfill({
           status: 404,
           contentType: 'application/json',
+          headers: CORS_HEADERS,
           body: JSON.stringify({ detail: 'Not Found' }),
         })
         return
@@ -402,6 +426,7 @@ export async function mockApi(
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
+        headers: CORS_HEADERS,
         body: JSON.stringify(body),
       })
     }

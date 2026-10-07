@@ -376,7 +376,12 @@ watch(
   width: 46px;
   height: 46px;
   border-radius: var(--r-1);
-  background: color-mix(in srgb, var(--accent) 14%, var(--ink-800));
+  /*
+   * A token, not a mix: at 14% accent the block was #333, and a rail label sliding over it
+   * dropped to 3.88:1 — under the 4.5:1 AA floor for those 10px labels. ink-700 keeps the
+   * block visible while the label stays above 4.6:1 even mid-slide.
+   */
+  background: var(--ink-700);
   transition: transform var(--dur-slide) var(--ease-out-strong);
   pointer-events: none;
   /* Its own layer, so following the finger stays on whole device pixels. */

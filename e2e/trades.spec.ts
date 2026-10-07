@@ -80,6 +80,18 @@ test('the overview "recently closed" rows open that trade in the trades list', a
   await expect(page.locator('.overlay--drawer .drawer')).toContainText(pair)
 })
 
+test('a deep link opens its trade even when the page boots empty', async ({ page }) => {
+  /*
+   * Reloading is the case that used to break: the URL asks for a trade, the lists are still
+   * empty, and the resolved trade never arrived afterwards. Closed trades are the interesting
+   * ones — they come from `/trades`, not from the faster `/status` burst.
+   */
+  await page.goto('/#/trades?trade=1')
+  await page.reload()
+  await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
+  await expect(page.locator('.overlay--drawer .drawer')).toContainText('AAA/USDT')
+})
+
 test('the filter travels between the URL and the tabs', async ({ page }) => {
   const tabs = page.locator('.seg__item')
 

@@ -32,7 +32,8 @@ jobs:
       - name: Unit tests
         run: npm test
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        # WebKit is the Safari engine: the e2e project runs the smoke and a11y specs on it.
+        run: npx playwright install --with-deps chromium webkit
       - name: End-to-end tests
         run: npm run e2e
       - name: Build

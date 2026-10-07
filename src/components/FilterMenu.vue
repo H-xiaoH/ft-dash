@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends string">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from './AppIcon.vue'
 
@@ -33,6 +33,8 @@ const current = computed(
   () =>
     props.options.find((option) => option.value === model.value)?.label ?? props.options[0]?.label,
 )
+/** Ties the listbox to its visible title, which axe requires for a named input field. */
+const titleId = `filter-menu-title-${useId()}`
 
 function choose(value: T) {
   model.value = value
@@ -116,20 +118,23 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
     <Teleport to="body">
       <template v-if="open">
         <div class="filter-menu__backdrop" @click="open = false" />
-        <div ref="list" class="filter-menu__list" :style="listStyle" role="listbox">
-          <span class="filter-menu__title">{{ label || t('common.filter') }}</span>
-          <button
-            v-for="option in options"
-            :key="option.value"
-            type="button"
-            class="filter-menu__item"
-            role="option"
-            :aria-selected="option.value === model"
-            :class="{ 'is-active': option.value === model }"
-            @click="choose(option.value)"
-          >
-            {{ option.label }}
-          </button>
+        <div ref="list" class="filter-menu__list" :style="listStyle">
+          <!-- The title sits outside the listbox: a listbox may only contain options. -->
+          <span :id="titleId" class="filter-menu__title">{{ label || t('common.filter') }}</span>
+          <div class="filter-menu__options" role="listbox" :aria-labelledby="titleId">
+            <button
+              v-for="option in options"
+              :key="option.value"
+              type="button"
+              class="filter-menu__item"
+              role="option"
+              :aria-selected="option.value === model"
+              :class="{ 'is-active': option.value === model }"
+              @click="choose(option.value)"
+            >
+              {{ option.label }}
+            </button>
+          </div>
         </div>
       </template>
     </Teleport>
@@ -168,6 +173,9 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
   border-radius: var(--r-2);
   background: var(--ink-800);
   box-shadow: 0 12px 28px rgb(0 0 0 / 65%);
+}
+
+.filter-menu__options {
   display: flex;
   flex-direction: column;
   gap: 1px;

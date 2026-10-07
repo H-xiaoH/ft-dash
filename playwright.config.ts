@@ -25,7 +25,21 @@ export default defineConfig({
     // The offline shell is verified by hand; blocked here to keep runs deterministic.
     serviceWorkers: 'block',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      /*
+       * Safari's engine at a phone viewport, on the two specs that carry the broadest
+       * coverage. It is not a substitute for a real iPhone — it cannot see safe-area insets,
+       * the PWA install path or iOS scrolling — but it does catch engine-level differences
+       * in the layout, the fixed-position popups, and the CSS this app leans on
+       * (paint-order, color-mix, env()).
+       */
+      name: 'webkit',
+      testMatch: [/a11y\.spec\.ts$/, /smoke\.spec\.ts$/],
+      use: { ...devices['iPhone 13'] },
+    },
+  ],
   webServer: {
     command: devServer ? 'npm run dev' : 'npm run preview -- --port 4173',
     port: devServer ? 5173 : 4173,

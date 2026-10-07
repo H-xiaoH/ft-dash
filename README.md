@@ -68,7 +68,25 @@ npm run build        # type-check + production build in dist/
 
 The end-to-end suite never touches a real bot: it points the app at a fake API origin and
 answers every request from fixtures in `e2e/support/fixtures.ts`, so it runs offline and needs
-no credentials. First run needs `npx playwright install chromium` to fetch the browser.
+no credentials. First run needs `npx playwright install chromium webkit` to fetch the browsers
+(WebKit is Safari's engine; the `webkit` project runs the smoke and accessibility specs on it).
+
+Automation covers rendering, interaction and accessibility rules. These few things can only be
+checked on a real device — worth two minutes in Safari with the PWA installed:
+
+1. **Installed mode**: launching from the home screen shows no address bar; the notch and rounded
+   corners do not cover content; rotation and window resizing stay aligned.
+2. **Cache**: if a fresh deploy still looks like the previous version, cold-start the app once —
+   the service worker keeps one build behind.
+3. **Page gestures**: sideways swipes track the finger and do not flicker; the bottom-bar
+   selection follows along; tapping a tab matches what a swipe does.
+4. **Candles**: dragging scrubs the readout; a dropdown follows its button while the page
+   scrolls; the P&L tag stays pinned to the right.
+5. **Language**: switching applies immediately; with "follow system" selected, changing the
+   system language changes the app when you return to it.
+6. **Live stream**: foreground updates tick every second; backgrounding and returning resumes;
+   **a fully closed app receives no alerts** — a known limit of a frontend-only app.
+7. **Cross-device**: acting on the bot elsewhere shows up here within seconds.
 
 Open the app, then enter your API base URL, username and password. Credentials are stored in
 this browser only (localStorage, or sessionStorage if you turn "remember" off) and are used

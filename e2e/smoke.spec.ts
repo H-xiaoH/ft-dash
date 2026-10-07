@@ -86,7 +86,18 @@ test.describe('navigation', () => {
     await expect(page.locator('.toast', { hasText: '页面加载失败' })).toHaveCount(1)
   })
 
-  test('every route renders its content without console errors', async ({ page }) => {
+  test('every route renders its content without console errors', async ({ page, browserName }) => {
+    test.skip(
+      browserName === 'webkit',
+      /*
+       * Harness limit, not an app limit: WebKit rejects Playwright's fulfilled cross-origin
+       * responses with an "access control checks" error even when they carry a valid
+       * Access-Control-Allow-Origin (verified by logging the response). The app itself loads
+       * data under WebKit — see "connects and shows live figures from the API" — so this
+       * console-error sweep stays on Chromium until the fixtures are served by a real HTTP
+       * server instead of interception.
+       */
+    )
     const errors: string[] = []
     page.on('pageerror', (error) => errors.push(String(error)))
     page.on('console', (message) => {

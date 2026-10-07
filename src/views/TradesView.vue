@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
@@ -202,27 +202,25 @@ async function loadMore() {
   await bot.fetchTrades(limit.value)
 }
 
-watch(
-  () => route.query.trade,
-  (value) => {
-    if (typeof value === 'string') {
-      const id = Number(value)
-      const found = bot.trades.find((trade) => trade.trade_id === id)
-      if (found) selected.value = found
-    }
-  },
-  { immediate: true },
-)
-
-onMounted(() => {
+/**
+ * The trade named by `?trade=`: derived from the URL *and* from the loaded trades, so a cold
+ * start or a reload on such a link opens the drawer once the data arrives. Resolving it once
+ * (on mount, or when the query changes) missed every deep link that booted with empty lists.
+ */
+const linkedTrade = computed(() => {
   const value = route.query.trade
-  if (typeof value === 'string') {
-    const id = Number(value)
-    const found =
-      bot.trades.find((trade) => trade.trade_id === id) ??
-      bot.openTrades.find((trade) => trade.trade_id === id)
-    if (found) selected.value = found
-  }
+  if (typeof value !== 'string') return null
+  const id = Number(value)
+  if (!Number.isFinite(id)) return null
+  return (
+    bot.trades.find((trade) => trade.trade_id === id) ??
+    bot.openTrades.find((trade) => trade.trade_id === id) ??
+    null
+  )
+})
+
+watch(linkedTrade, (trade) => {
+  if (trade) selected.value = trade
 })
 </script>
 
