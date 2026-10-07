@@ -110,6 +110,7 @@ async function submit() {
             class="input"
             type="text"
             autocomplete="off"
+            :placeholder="t('bots.nameOptional')"
             @input="nameTouched = true"
           />
         </label>

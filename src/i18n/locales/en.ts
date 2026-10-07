@@ -81,6 +81,7 @@ export default {
     switched: 'Switched to {name}',
     removed: 'Deleted bot {name}',
     name: 'Bot name',
+    nameOptional: 'Optional',
     duplicateName: 'Another bot already uses this name',
     needPassword: '“{name}” has no stored password — enter it to connect',
     connect: 'Connect',

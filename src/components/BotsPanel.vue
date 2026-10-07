@@ -304,7 +304,12 @@ async function confirmRemove() {
         <div class="bots__grid">
           <label class="field">
             <span class="field__label">{{ t('bots.name') }}</span>
-            <input v-model="form.name" class="input" type="text" />
+            <input
+              v-model="form.name"
+              class="input"
+              type="text"
+              :placeholder="t('bots.nameOptional')"
+            />
             <span v-if="duplicateName" class="field__hint">{{ t('bots.duplicateName') }}</span>
           </label>
           <label class="field">

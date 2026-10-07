@@ -80,6 +80,7 @@ export default {
     switched: '已切换到 {name}',
     removed: '已删除机器人 {name}',
     name: '机器人名称',
+    nameOptional: '可选',
     duplicateName: '已有同名机器人，列表里会分不清',
     needPassword: '「{name}」没有保存的密码，输入后即可连接',
     connect: '连接',

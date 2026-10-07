@@ -46,6 +46,13 @@ test.describe('connect screen', () => {
     expect(stored.locale).toBe('en')
   })
 
+  test('the bot name field says it can be left empty', async ({ page }) => {
+    await mockApi(page)
+    await page.goto('/')
+    // Unnamed bots take the username, so the field says what leaving it blank means.
+    await expect(page.getByLabel('机器人名称')).toHaveAttribute('placeholder', '可选')
+  })
+
   test('a lost connection shows a state word, not a sentence, in the top bar', async ({ page }) => {
     await mockApi(page)
     await page.goto('/')

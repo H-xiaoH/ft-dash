@@ -104,6 +104,7 @@ test('adding a second bot and switching moves the dashboard to it', async ({ pag
   const bots = page.locator('.bots__row')
   await page.locator('button', { hasText: '添加机器人' }).click()
   const editor = page.locator('.bots__editor')
+  await expect(editor.getByLabel('机器人名称')).toHaveAttribute('placeholder', '可选')
   await editor.locator('input[inputmode="url"]').fill(SECOND_BASE)
   await editor.locator('input[autocomplete="username"]').fill('second')
   await editor
