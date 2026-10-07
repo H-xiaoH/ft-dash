@@ -60,12 +60,28 @@ async function settle(page: Page) {
     .catch(() => {})
 }
 
+/**
+ * Toasts are transient overlays; a scan has to run on a page they are not fading across
+ * (mid-leave the text measured 3.33:1, while its settled state is 18:1). The connect flow
+ * toasts the new bot a beat after the shell appears, so this waits for it to show up and then
+ * to expire on its own — clicking at that moment would race the same way.
+ */
+async function dismissToasts(page: Page) {
+  const toast = page.locator('.toast')
+  await toast
+    .first()
+    .waitFor({ state: 'visible', timeout: 2500 })
+    .catch(() => {})
+  await expect(toast).toHaveCount(0, { timeout: 8000 })
+}
+
 test.describe('accessibility', () => {
   test.beforeEach(async ({ page }) => {
     await mockApi(page)
     await page.goto('/')
     await connect(page)
     await expect(page.locator('.shell')).toBeVisible()
+    await dismissToasts(page)
   })
 
   test('every route is free of automated WCAG A/AA violations', async ({ page }) => {

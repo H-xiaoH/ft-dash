@@ -24,6 +24,8 @@ export function usePageDrag(isBlocked: () => boolean) {
     target: EventTarget | null
     startX: number
     startY: number
+    /** Started on the tab bar: that drags the block, it does not push the pages. */
+    bar: boolean
     claimed: boolean
     lastX: number
     lastAt: number
@@ -31,6 +33,20 @@ export function usePageDrag(isBlocked: () => boolean) {
   } | null = null
   /** The neighbour's code, in flight from the moment the gesture is claimed. */
   let neighborLoad: Promise<{ side: DragSide; component: unknown } | null> | null = null
+
+  /**
+   * Which page a horizontal drag brings in. Pushing a page right reveals the one before it;
+   * dragging the block right walks forward to the next tab, so the sides are mirrored.
+   */
+  function sideOf(bar: boolean, dx: number): DragSide {
+    return (bar ? dx > 0 : dx < 0) ? 1 : -1
+  }
+
+  /** Width of one tab slot: how far the block travels per tab, and the bar's drag scale. */
+  function tabSlotWidth(): number {
+    const bar = document.querySelector('.tabbar')
+    return (bar?.clientWidth ?? window.innerWidth) / (NAV_ROUTES.length || 1)
+  }
 
   /** A gesture that belongs to a dialog, or to a component that owns horizontal drags. */
   function gestureIsTaken(target: EventTarget | null) {
@@ -56,6 +72,7 @@ export function usePageDrag(isBlocked: () => boolean) {
       target: event.target,
       startX: touch.clientX,
       startY: touch.clientY,
+      bar: event.target instanceof Element && event.target.closest('.tabbar') !== null,
       claimed: false,
       lastX: touch.clientX,
       lastAt: performance.now(),
@@ -80,7 +97,7 @@ export function usePageDrag(isBlocked: () => boolean) {
       }
       current.claimed = true
       track.begin()
-      neighborLoad = track.loadPage(dx < 0 ? 1 : -1)
+      neighborLoad = track.loadPage(sideOf(current.bar, dx))
       void neighborLoad
         .then((loaded) => {
           // A chunk that lands after the finger left must not resurrect the drag.
@@ -98,7 +115,20 @@ export function usePageDrag(isBlocked: () => boolean) {
     current.lastX = touch.clientX
     current.lastAt = now
 
-    const side = dx < 0 ? 1 : -1
+    const side = sideOf(current.bar, dx)
+    if (current.bar) {
+      /*
+       * Dragging the block moves it the way the finger goes, with the pages previewing
+       * underneath — the opposite mapping from pushing a page aside. One tab per gesture,
+       * like one page per swipe: past the neighbour the block stops instead of sliding past
+       * the tab it would land on. The rails clamp it too, or the block would walk off the
+       * bar at either end.
+       */
+      const index = track.routeIndex()
+      const slots = Math.max(-index, Math.min(NAV_ROUTES.length - 1 - index, dx / tabSlotWidth()))
+      track.moveTo(-slots * (track.width.value || window.innerWidth))
+      return
+    }
     // One page per drag: follow the finger, and resist only where the rail ends.
     track.moveTo(NAV_ROUTES[track.routeIndex() + side] ? dx : dx * 0.25)
   }
@@ -110,13 +140,15 @@ export function usePageDrag(isBlocked: () => boolean) {
 
     const touch = event.changedTouches[0]
     const dx = touch ? touch.clientX - current.startX : track.offset.value
-    const side: DragSide = dx < 0 ? 1 : -1
+    const side = sideOf(current.bar, dx)
     const width = track.width.value || window.innerWidth
     const route = NAV_ROUTES[track.routeIndex() + side]
     const flicked =
       Math.sign(current.velocity) === Math.sign(dx) &&
       Math.abs(current.velocity) > DRAG_FLICK_PX_PER_MS
-    const committed = !!route && (Math.abs(dx) > width * DRAG_COMMIT_RATIO || flicked)
+    // A tab slot is far narrower than a page, so the bar's threshold is measured in tabs.
+    const travelled = current.bar ? Math.abs(dx) / tabSlotWidth() : Math.abs(dx) / width
+    const committed = !!route && (travelled > DRAG_COMMIT_RATIO || flicked)
 
     if (committed && route) void track.commit(side, route.path, neighborLoad ?? Promise.resolve())
     else track.cancel()

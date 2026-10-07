@@ -199,6 +199,57 @@ test('a drag with nowhere to go resists and never switches', async ({ page }) =>
   expect(await trackX(page)).toBe(0)
 })
 
+test('dragging the tab block walks the block along the bar', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 })
+  await page.locator('.tabbar__item').nth(1).click()
+  await expect.poll(() => hash(page)).toBe('#/trades')
+
+  const slots = await page
+    .locator('.tabbar__item')
+    .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().x)))
+  const blockX = () =>
+    page.locator('.tabbar__indicator').evaluate((el) => Math.round(el.getBoundingClientRect().x))
+  const bar = (await page.locator('.tabbar').boundingBox())!
+  const y = Math.round(bar.y + bar.height / 2)
+
+  // Press the block itself: 交易 sits at slots[1].
+  await touchAt(page, 'touchstart', slots[1] + 27, y, '.tabbar')
+  await touchAt(page, 'touchmove', slots[1] + 57, y, '.tabbar')
+
+  /*
+   * The block follows the finger to the right — the opposite of pushing a page aside, where
+   * dragging right walks back a tab — and the next page previews underneath it.
+   */
+  expect(await blockX()).toBeGreaterThan(slots[1])
+  expect(await trackX(page)).toBeLessThan(-100)
+
+  await touchAt(page, 'touchend', slots[1] + 57, y, '.tabbar')
+  await expect.poll(() => hash(page)).toBe('#/stats')
+  await expect.poll(blockX).toBe(slots[2])
+})
+
+test('the tab block stops at the end of the bar', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 })
+  // Already on the first tab: dragging the block left has nowhere to go.
+  const slots = await page
+    .locator('.tabbar__item')
+    .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().x)))
+  const blockX = () =>
+    page.locator('.tabbar__indicator').evaluate((el) => Math.round(el.getBoundingClientRect().x))
+  const bar = (await page.locator('.tabbar').boundingBox())!
+  const y = Math.round(bar.y + bar.height / 2)
+  const start = await blockX()
+
+  await touchAt(page, 'touchstart', slots[0] + 27, y, '.tabbar')
+  await touchAt(page, 'touchmove', slots[0] - 60, y, '.tabbar')
+  expect(await blockX()).toBe(start)
+  expect(await trackX(page)).toBe(0)
+
+  await touchAt(page, 'touchend', slots[0] - 60, y, '.tabbar')
+  await page.waitForTimeout(300)
+  expect(hash(page)).toBe('#/')
+})
+
 test('a horizontal drag on a scrubbable chart stays with the chart', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 })
   await page.goto('/#/market')
