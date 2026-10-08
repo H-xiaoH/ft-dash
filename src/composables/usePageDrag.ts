@@ -3,7 +3,7 @@ import { NAV_ROUTES } from '@/router'
 import { usePageTrack } from './usePageTrack'
 
 /** Which way a gesture walks the rail: forward is the next tab, back the one before. */
-export type DragSide = 1 | -1
+type DragSide = 1 | -1
 
 /**
  * The input side of moving between pages: when a touch counts as a sideways drag, where it

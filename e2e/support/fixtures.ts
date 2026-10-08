@@ -452,7 +452,6 @@ export async function mockApi(
   return { calls }
 }
 
-/** Types the fake credentials into the connect screen and waits for the shell. */
 /**
  * The page the router is showing. Every other page is held on the track as well — they are
  * what a finger drags across and a wheel walks — so anything that means "this page" has to
@@ -467,6 +466,7 @@ export function heldSlot(page: Page, slot: number) {
   return page.locator(`.page-neighbor[data-slot="${slot}"]`)
 }
 
+/** Types the fake credentials into the connect screen and waits for the shell. */
 export async function connect(page: Page) {
   await page.locator('input[inputmode="url"]').fill(API_BASE)
   await page.locator('input[autocomplete="username"]').fill(USERNAME)

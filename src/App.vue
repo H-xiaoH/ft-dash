@@ -250,9 +250,11 @@ watch(
               <!--
                 Every other page, held on the track in its own slot: the finger drags
                 across them and a wheel walks them, so none of them is ever still loading
-                when the strip reaches it. Keyed by rail index, so a page keeps its
-                instance for as long as the app is up, and inert, so a page that is off
-                screen stays out of the tab order and the accessibility tree.
+                when the strip reaches it. The key is the rail index, which keeps every
+                page a switch does not touch on its own instance — the one you leave and
+                the one you enter are rebuilt, and that costs nothing because their code
+                is already resolved. Inert, so a page that is off screen stays out of the
+                tab order and the accessibility tree.
               -->
               <div
                 v-for="page in neighbors"

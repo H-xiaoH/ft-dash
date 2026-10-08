@@ -4,7 +4,10 @@ import { NAV_ROUTES } from '@/router'
 
 /** A page held on the track, ready to be slid into view. */
 export interface TrackPage {
-  /** Its rail index. The track holds the page by this, so a switch never remounts it. */
+  /**
+   * Its rail index, and the key the track holds the page by: a switch leaves every page it
+   * does not touch on its own instance, while the one it leaves is rebuilt as a held page.
+   */
   index: number
   /** Its place on the track, in pages from the current one: 2 is two pages to the right. */
   slot: number
