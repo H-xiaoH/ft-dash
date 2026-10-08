@@ -51,10 +51,12 @@ quicker way along it — the block sits *under your finger* (press a tab and the
 it), the pages ride along one per tab, and letting go lands on the page the block is over.
 A quick flick is one step along even when the block never left its own tab — the same rule a
 fast page swipe follows. Every other page is held on the track the whole time, so a switch
-never shows a blank or a loading state, and the data behind the page is refreshed once the
-pages stop changing — a walk across several tabs fetches once, for the page it lands on. A
-sideways swipe still moves one page at a time. The candle chart is the exception to the
-pre-loading: its candles are fetched only while the market page is the one on screen.
+shows no blank and no loading state as soon as that page's code has arrived — the one page
+whose code cannot be fetched at all is the exception, and it says so instead of hanging. The
+data behind the page is refreshed once the pages stop changing, so a walk across several tabs
+fetches once, for the page it lands on. A sideways swipe still moves one page at a time. The
+candle chart is the exception to the pre-loading: its candles are fetched only while the
+market page is the one on screen.
 
 Wide screens swap instantly, and the wheel over the left rail walks pages: one notch is one
 page, a trackpad's stream keeps walking as you scroll, and the page behind the rail does not
