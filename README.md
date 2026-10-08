@@ -46,7 +46,10 @@ Interface languages: **简体中文** and **English** (follows the browser by de
 
 On phones you also move between pages by swiping sideways: the page follows your finger, the
 neighbour slides in beside it, and releasing past a third of the screen (or a quick flick)
-completes the move. Tapping a tab plays the same full-page slide. On wide screens pages swap
+completes the move. Tapping a tab plays the same full-page slide. Holding the tab bar's
+selection and carrying it is the quicker way along the bar — the block follows your finger and
+the pages preview with it, loading the ones you walk past, and letting go lands on the page the
+block is over. A sideways swipe still moves one page at a time. On wide screens pages swap
 instantly.
 
 Data refreshes on a fixed 1-second cadence while the tab is visible (balance, positions,
@@ -79,7 +82,9 @@ checked on a real device — worth two minutes in Safari with the PWA installed:
 2. **Cache**: if a fresh deploy still looks like the previous version, cold-start the app once —
    the service worker keeps one build behind.
 3. **Page gestures**: sideways swipes track the finger and do not flicker; the bottom-bar
-   selection follows along; tapping a tab matches what a swipe does.
+   selection follows along; tapping a tab matches what a swipe does. Carrying the block along
+   the bar keeps it under the finger, never leaves a blank page behind, and lands on the page
+   the block was left over.
 4. **Candles**: dragging scrubs the readout; a dropdown follows its button while the page
    scrolls; the P&L tag stays pinned to the right.
 5. **Language**: switching applies immediately; with "follow system" selected, changing the

@@ -56,7 +56,7 @@ const {
   indicatorFraction,
   indicatorTransition,
   handoff,
-  neighbor,
+  neighbors,
   finishHandoff,
   warmPageChunks,
 } = usePageDrag(() => showConnect.value)
@@ -227,12 +227,19 @@ watch(
                   <component :is="Component" />
                 </Transition>
               </RouterView>
+              <!--
+                The pages the finger has uncovered, parked in their own slots: a swipe
+                needs the one next door, carrying the tab block can need the ones it
+                passes. Keyed by slot, so a page keeps its instance while the strip holds
+                it and lets go only when the finger has moved past.
+              -->
               <div
-                v-if="neighbor"
+                v-for="page in neighbors"
+                :key="page.slot"
                 class="page-neighbor"
-                :style="{ transform: `translateX(${neighbor.side * 100}%)` }"
+                :style="{ transform: `translateX(${page.slot * 100}%)` }"
               >
-                <component :is="neighbor.component" />
+                <component :is="page.component" />
               </div>
             </div>
           </div>
@@ -429,7 +436,7 @@ watch(
   overflow-x: clip;
 }
 
-/* The page and its neighbour ride this track, moved only by the finger. */
+/* The current page and the parked ones ride this track, moved only by the finger. */
 .page-track {
   position: relative;
   min-width: 0;
@@ -437,8 +444,8 @@ watch(
 }
 
 /*
- * The neighbour is absolutely placed so it never adds to the document height — the real
- * page keeps defining the layout while the pair slides.
+ * Parked pages are absolutely placed so they never add to the document height — the real
+ * page keeps defining the layout while the strip slides across it.
  */
 .page-neighbor {
   position: absolute;
