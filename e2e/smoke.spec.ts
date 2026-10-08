@@ -19,7 +19,7 @@ test.describe('connect screen', () => {
     await expect(page.locator('.shell')).toBeVisible()
     await expect(page.locator('.strip__state-label')).toHaveText('运行中')
     await expect(page.locator('.strip__metric').first()).toContainText('100.00')
-    await expect(page.locator('.metric__label').first()).toHaveText('账户净值')
+    await expect(livePage(page).locator('.metric__label').first()).toHaveText('账户净值')
   })
 
   test('the language menu is an emoji button that opens a highlighted picker', async ({ page }) => {
@@ -159,10 +159,10 @@ test.describe('navigation', () => {
 
     for (const route of ['#/trades', '#/stats', '#/market']) {
       await page.goto(`/${route}`)
-      await expect(page.locator('.card').first()).toBeVisible()
+      await expect(livePage(page).locator('.card').first()).toBeVisible()
       // A hash change slides the previous page out; wait for it to leave before judging
       // this page's layout.
-      await expect(page.locator('.page-track > :not(.page-neighbor)')).toHaveCount(1)
+      await expect(livePage(page)).toHaveCount(1)
       // Nothing on the page may still require sideways scrolling.
       const scrollable = await page.evaluate(() =>
         [...document.querySelectorAll('.page-track > :not(.page-neighbor) .table-wrap')]

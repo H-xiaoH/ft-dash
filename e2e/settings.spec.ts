@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { API_BASE, SECOND_BASE, connect, mockApi } from './support/fixtures'
+import { API_BASE, SECOND_BASE, connect, livePage, mockApi } from './support/fixtures'
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
@@ -8,11 +8,13 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('.shell')).toBeVisible()
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.locator('.rail__item').nth(6).click()
-  await expect(page.locator('.settings__columns')).toBeVisible()
+  await expect(livePage(page).locator('.settings__columns')).toBeVisible()
 })
 
 const panel = (page: Page, title: string) =>
-  page.locator('.panel').filter({ has: page.locator('.panel__title', { hasText: title }) })
+  livePage(page)
+    .locator('.panel')
+    .filter({ has: page.locator('.panel__title', { hasText: title }) })
 
 /** Distance between two boxes, measured from the bottom of one to the top of the next. */
 const gapBetween = async (above: Awaited<ReturnType<typeof panel>>, below: typeof above) => {
@@ -23,8 +25,15 @@ const gapBetween = async (above: Awaited<ReturnType<typeof panel>>, below: typeo
 test('the cards form two even columns with an even gap before the full-width card', async ({
   page,
 }) => {
-  const columns = page.locator('.settings__col')
+  const columns = livePage(page).locator('.settings__col')
   await expect(columns).toHaveCount(2)
+  /*
+   * Measured through Playwright, which reads null for a box it cannot see — a held page's
+   * copy of these columns is one such box. Both waits are on the live page, so a measure
+   * can neither catch the swap mid-flight nor an unlaid-out column.
+   */
+  await expect(columns.nth(0)).toBeVisible()
+  await expect(columns.nth(1)).toBeVisible()
 
   // Both stacks start on the same line; neither is pushed down by balancing.
   const [left, right] = await Promise.all([
@@ -35,13 +44,16 @@ test('the cards form two even columns with an even gap before the full-width car
 
   // The gap inside a column and the gap before the full-width card are the same.
   const insideColumn = await gapBetween(panel(page, '语言'), panel(page, '推送'))
-  const beforeData = await gapBetween(page.locator('.settings__columns'), panel(page, '本机数据'))
+  const beforeData = await gapBetween(
+    livePage(page).locator('.settings__columns'),
+    panel(page, '本机数据'),
+  )
   expect(insideColumn).toBe(16)
   expect(beforeData).toBe(16)
 
   // The local-data card spans the whole width, outside the two stacks.
   expect(Math.round((await panel(page, '本机数据').boundingBox())!.width)).toBe(
-    Math.round((await page.locator('.settings__columns').boundingBox())!.width),
+    Math.round((await livePage(page).locator('.settings__columns').boundingBox())!.width),
   )
 })
 
@@ -91,7 +103,7 @@ test('the password stays out of localStorage unless you ask for it', async ({ pa
 })
 
 test('carries the default bot name over from the connect form', async ({ page }) => {
-  const bots = page.locator('.bots__row')
+  const bots = livePage(page).locator('.bots__row')
   await expect(bots).toHaveCount(1)
   // The connect form never asked for a name, so the bot is named after its username.
   await expect(bots.first()).toContainText('tester')
@@ -101,9 +113,9 @@ test('carries the default bot name over from the connect form', async ({ page })
 test('adding a second bot and switching moves the dashboard to it', async ({ page }) => {
   // The second origin only exists for this test.
   await mockApi(page, { secondBot: true })
-  const bots = page.locator('.bots__row')
-  await page.locator('button', { hasText: '添加机器人' }).click()
-  const editor = page.locator('.bots__editor')
+  const bots = livePage(page).locator('.bots__row')
+  await livePage(page).locator('button', { hasText: '添加机器人' }).click()
+  const editor = livePage(page).locator('.bots__editor')
   await expect(editor.getByLabel('机器人名称')).toHaveAttribute('placeholder', '可选')
   await editor.locator('input[inputmode="url"]').fill(SECOND_BASE)
   await editor.locator('input[autocomplete="username"]').fill('second')
@@ -122,25 +134,25 @@ test('adding a second bot and switching moves the dashboard to it', async ({ pag
 
   // The system page reports the endpoint the dashboard is now polling.
   await page.locator('.rail__item').nth(5).click()
-  await expect(page.locator('.panel', { hasText: '连接状态' })).toContainText(SECOND_BASE)
+  await expect(livePage(page).locator('.panel', { hasText: '连接状态' })).toContainText(SECOND_BASE)
 
   // Switching back restores the original bot and its address.
   await page.locator('.rail__item').nth(6).click()
   await bots.first().locator('button', { hasText: '切换' }).click()
   await page.locator('.rail__item').nth(5).click()
-  await expect(page.locator('.panel', { hasText: '连接状态' })).toContainText(API_BASE)
+  await expect(livePage(page).locator('.panel', { hasText: '连接状态' })).toContainText(API_BASE)
 })
 
 test('switching bots never bounces through the connect screen', async ({ page }) => {
   await mockApi(page, { secondBot: true })
-  await page.locator('button', { hasText: '添加机器人' }).click()
-  const editor = page.locator('.bots__editor')
+  await livePage(page).locator('button', { hasText: '添加机器人' }).click()
+  const editor = livePage(page).locator('.bots__editor')
   await editor.getByLabel('名称').fill('second')
   await editor.getByLabel('API 地址').fill(SECOND_BASE)
   await editor.getByLabel('用户名').fill('second')
   await editor.getByLabel('密码', { exact: true }).fill('second-secret')
   await editor.locator('button[type="submit"]').click()
-  await expect(page.locator('.bots__row')).toHaveCount(2)
+  await expect(livePage(page).locator('.bots__row')).toHaveCount(2)
 
   /*
    * The defect was a flash, so sample the DOM instead of asserting at one instant: while
@@ -162,7 +174,7 @@ test('switching bots never bounces through the connect screen', async ({ page })
     ;(window as unknown as { __stop?: () => void }).__stop = () => clearInterval(timer)
   })
 
-  await page.locator('.bots__row').nth(1).locator('button', { hasText: '切换' }).click()
+  await livePage(page).locator('.bots__row').nth(1).locator('button', { hasText: '切换' }).click()
   await expect(page.locator('.toast', { hasText: '已切换' })).toHaveCount(1)
   await page.waitForTimeout(600)
 
@@ -188,15 +200,15 @@ test('switching bots never bounces through the connect screen', async ({ page })
 })
 
 test('retrying the live stream acknowledges the click', async ({ page }) => {
-  await page.locator('button', { hasText: '重试实时推送' }).click()
+  await livePage(page).locator('button', { hasText: '重试实时推送' }).click()
   // Filtered: the "bot added" toast from the connect step may still be on screen.
   await expect(page.locator('.toast', { hasText: '正在重连实时推送' })).toHaveCount(1)
 })
 
 test('the settings language picker offers following the system', async ({ page }) => {
-  await expect(page.locator('.panel__title', { hasText: '语言' })).toHaveCount(1)
+  await expect(livePage(page).locator('.panel__title', { hasText: '语言' })).toHaveCount(1)
   // Located by structure, not by the panel title: switching the language renames the title.
-  const trigger = page.locator('.settings__columns .filter-menu__button')
+  const trigger = livePage(page).locator('.settings__columns .filter-menu__button')
   // Same control as the connect screen, but the panel is already titled — no emoji here.
   await expect(trigger).not.toContainText('🌐')
   await expect(trigger).toContainText('跟随系统')
@@ -210,7 +222,7 @@ test('the settings language picker offers following the system', async ({ page }
 
 test('the language popup stays inside a phone-width viewport', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 })
-  const trigger = page.locator('.settings__columns .filter-menu__button')
+  const trigger = livePage(page).locator('.settings__columns .filter-menu__button')
   await trigger.click()
 
   const [list, viewport] = await Promise.all([
@@ -227,7 +239,7 @@ test('the language popup stays inside a phone-width viewport', async ({ page }) 
 
 test('the language popup travels with its trigger while the page scrolls', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 640 })
-  const trigger = page.locator('.settings__columns .filter-menu__button')
+  const trigger = livePage(page).locator('.settings__columns .filter-menu__button')
   const list = page.locator('.filter-menu__list')
   await trigger.click()
   await list.waitFor()

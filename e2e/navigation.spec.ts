@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { connect, heldSlot, mockApi } from './support/fixtures'
+import { connect, heldSlot, livePage, mockApi } from './support/fixtures'
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
@@ -15,7 +15,7 @@ test('the wheel scrolls the page and never switches pages', async ({ page }) => 
   // page still has room to scroll or is already pinned to an end.
   await page.setViewportSize({ width: 1200, height: 320 })
   await page.locator('.rail__item').nth(5).click()
-  await expect(page.locator('.panel__title').first()).toBeVisible()
+  await expect(livePage(page).locator('.panel__title').first()).toBeVisible()
   await page.mouse.move(600, 300)
 
   await page.evaluate(() => window.scrollTo(0, 150))

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { connect, mockApi } from './support/fixtures'
+import { connect, livePage, mockApi } from './support/fixtures'
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
@@ -9,10 +9,11 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('candles come first, with the bot timeframe shown as text', async ({ page }) => {
-  await expect(page.locator('.panel').first().locator('.panel__title')).toHaveText('K 线')
-  await expect(page.locator('.panel').first().locator('.chip')).toHaveText('5m')
-  await expect(page.locator('select')).toHaveCount(0)
-  await expect(page.locator('.candles svg rect')).not.toHaveCount(0)
+  const market = livePage(page)
+  await expect(market.locator('.panel').first().locator('.panel__title')).toHaveText('K 线')
+  await expect(market.locator('.panel').first().locator('.chip')).toHaveText('5m')
+  await expect(market.locator('select')).toHaveCount(0)
+  await expect(market.locator('.candles svg rect')).not.toHaveCount(0)
 })
 
 test('candles follow the page on screen, not the mount', async ({ page }) => {
@@ -41,11 +42,11 @@ test('candles follow the page on screen, not the mount', async ({ page }) => {
 })
 
 test('dragging across the chart scrubs the candle readout', async ({ page }) => {
-  const readout = page.locator('.candles__readout')
+  const readout = livePage(page).locator('.candles__readout')
   await expect(readout).toBeVisible()
   const before = await readout.innerText()
 
-  const plot = page.locator('.candles svg')
+  const plot = livePage(page).locator('.candles svg')
   const box = (await plot.boundingBox())!
   await page.mouse.move(box.x + box.width * 0.8, box.y + box.height / 2)
   await page.mouse.down()
@@ -59,7 +60,7 @@ test('dragging across the chart scrubs the candle readout', async ({ page }) => 
 })
 
 test('pair list switches the chart to another pair', async ({ page }) => {
-  const selector = page.locator('.panel').first().locator('.filter-menu__button')
+  const selector = livePage(page).locator('.panel').first().locator('.filter-menu__button')
   await expect(selector).toContainText('OPEN/USDT')
 
   await selector.click()
@@ -69,9 +70,9 @@ test('pair list switches the chart to another pair', async ({ page }) => {
 
 test('an open position puts its cost basis on the chart, tagged with its P&L', async ({ page }) => {
   // The fixture's open position is OPEN/USDT: filled at 1.0, +0.2 in profit so far.
-  const entry = page.locator('.candles__entry')
+  const entry = livePage(page).locator('.candles__entry')
   await expect(entry).toHaveCount(1)
-  await expect(page.locator('.candles__entry-label')).toHaveText('+0.2000')
+  await expect(livePage(page).locator('.candles__entry-label')).toHaveText('+0.2000')
   // Profit tints the line as well as the tag.
   await expect(entry.locator('line')).toHaveAttribute('stroke', 'var(--long)')
 
@@ -79,14 +80,14 @@ test('an open position puts its cost basis on the chart, tagged with its P&L', a
    * Painted colour, not just a class: the tag used to render in the axis grey because a
    * CSS `fill` on the shared axis rule beat the per-tone fill attribute.
    */
-  const tag = page.locator('.candles__entry-label')
+  const tag = livePage(page).locator('.candles__entry-label')
   expect(await tag.evaluate((node) => getComputedStyle(node).fill)).toBe('rgb(36, 201, 138)')
   // Hairline outline, not the filled block it used to be.
   expect(await tag.evaluate((node) => getComputedStyle(node).strokeWidth)).toBe('1px')
 
   // Tucked into the right gutter: the tag ends at the chart's right edge, past the plot.
   const [chart, tagBox] = await Promise.all([
-    page.locator('.candles svg').boundingBox(),
+    livePage(page).locator('.candles svg').boundingBox(),
     tag.boundingBox(),
   ])
   expect(tagBox!.x + tagBox!.width).toBeGreaterThan(chart!.x + chart!.width * 0.85)
@@ -103,14 +104,14 @@ test('an open position puts its cost basis on the chart, tagged with its P&L', a
   expect(y1).toBe(y2)
 
   // A pair without a position gets no line at all.
-  await page.locator('.panel').first().locator('.filter-menu__button').click()
+  await livePage(page).locator('.panel').first().locator('.filter-menu__button').click()
   await page.locator('.filter-menu__item', { hasText: 'BBB/USDT' }).click()
-  await expect(page.locator('.candles__entry')).toHaveCount(0)
+  await expect(livePage(page).locator('.candles__entry')).toHaveCount(0)
 })
 
 test('the pair popup stays inside a phone-width viewport', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 })
-  await page.locator('.panel').first().locator('.filter-menu__button').click()
+  await livePage(page).locator('.panel').first().locator('.filter-menu__button').click()
 
   const [list, viewport] = await Promise.all([
     page.locator('.filter-menu__list').boundingBox(),

@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
 test('pair table derives win rate, fees, volume and last close from the trades', async ({
   page,
 }) => {
-  const table = page
+  const table = livePage(page)
     .locator('.panel', { has: page.locator('.panel__title', { hasText: '交易对' }) })
     .first()
   await expect(table.locator('thead th')).toHaveText([
@@ -54,15 +54,17 @@ test('period tables, durations panel and KPI tiles render', async ({ page }) => 
   await expect(stats.locator('.metric__label', { hasText: '最佳交易对' })).toHaveCount(0)
   // The account-level tiles stay removed; the pair column is a different thing.
   await expect(stats.locator('.metric__label', { hasText: '总盈亏' })).toHaveCount(0)
-  await expect(page.locator('.chart__tick').first()).toBeVisible()
+  await expect(livePage(page).locator('.chart__tick').first()).toBeVisible()
   // The period table's first column is "date", not a repeat of the panel title.
-  const period = page.locator('.panel', { has: page.locator('.panel__title', { hasText: '周期' }) })
+  const period = livePage(page).locator('.panel', {
+    has: page.locator('.panel__title', { hasText: '周期' }),
+  })
   await expect(period.locator('thead th').first()).toHaveText('日期')
   await expect(period.locator('tbody td').first()).toHaveCSS('text-align', 'left')
 })
 
 test('column headers sort in both directions', async ({ page }) => {
-  const table = page
+  const table = livePage(page)
     .locator('.panel', { has: page.locator('.panel__title', { hasText: '交易对' }) })
     .first()
   const total = table.locator('thead th', { hasText: '本对盈亏' }).locator('button')
@@ -77,7 +79,9 @@ test('column headers sort in both directions', async ({ page }) => {
 
 /** Scopes a colour assertion to the tile carrying a given label. */
 const tile = (page: Page, label: string) =>
-  page.locator('.metric').filter({ has: page.locator('.metric__label', { hasText: label }) })
+  livePage(page)
+    .locator('.metric')
+    .filter({ has: page.locator('.metric__label', { hasText: label }) })
 
 test('win/loss counts and risk ratios are colour-coded', async ({ page }) => {
   await expect(tile(page, '盈利 / 亏损').locator('.u-pos')).toHaveText('3')
@@ -87,7 +91,7 @@ test('win/loss counts and risk ratios are colour-coded', async ({ page }) => {
   await expect(tile(page, '夏普').locator('.metric__value')).toHaveClass(/u-pos/)
   await expect(tile(page, '索提诺').locator('.metric__value')).toHaveClass(/u-pos/)
   // The per-pair row follows the same rule: AAA is one win and one loss.
-  const table = page
+  const table = livePage(page)
     .locator('.panel', { has: page.locator('.panel__title', { hasText: '交易对' }) })
     .first()
   const winCell = table.locator('tbody tr').first().locator('td').nth(2)
