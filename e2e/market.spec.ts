@@ -15,6 +15,31 @@ test('candles come first, with the bot timeframe shown as text', async ({ page }
   await expect(page.locator('.candles svg rect')).not.toHaveCount(0)
 })
 
+test('candles follow the page on screen, not the mount', async ({ page }) => {
+  /*
+   * Every other page is held on the track, so this one is mounted while it is not the one
+   * on screen. Mounting it is not a reason to fetch: the chart is asked for when the page
+   * is walked to, and not when it is merely parked.
+   */
+  const candles: string[] = []
+  page.on('request', (request) => {
+    if (request.url().includes('pair_candles')) candles.push(request.url())
+  })
+
+  await page.goto('/#/')
+  await page.waitForTimeout(1500)
+  expect(candles).toEqual([])
+
+  await page.goto('/#/market')
+  await expect.poll(() => candles.length).toBeGreaterThan(0)
+  const shown = candles.length
+
+  // And leaving the page must not fetch behind the operator's back either.
+  await page.goto('/#/trades')
+  await page.waitForTimeout(800)
+  expect(candles.length).toBe(shown)
+})
+
 test('dragging across the chart scrubs the candle readout', async ({ page }) => {
   const readout = page.locator('.candles__readout')
   await expect(readout).toBeVisible()

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import CandleChart from '@/components/CandleChart.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -18,6 +19,7 @@ type Tab = 'whitelist' | 'blacklist' | 'locks'
 
 const { t } = useI18n()
 const format = useFormat()
+const route = useRoute()
 const bot = useBotStore()
 
 const tab = ref<Tab>('whitelist')
@@ -108,8 +110,15 @@ const chartEntry = computed<CandleEntry | null>(() => {
   }
 })
 
+/**
+ * Whether the router is showing this page. Every page but the one on screen is held on the
+ * track and therefore mounted too, so a fetch started on mount would run for a page nobody
+ * is looking at: the candles are asked for when this page is the one being walked to.
+ */
+const isCurrentPage = () => route.name === 'market'
+
 async function loadCandles() {
-  if (!selectedPair.value) return
+  if (!selectedPair.value || !isCurrentPage()) return
   loadingCandles.value = true
   candleError.value = false
   const result = await bot.fetchCandles(selectedPair.value, timeframe.value, 180)
