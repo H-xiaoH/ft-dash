@@ -556,6 +556,66 @@ test('the block sits where the finger is, not where the drag started', async ({ 
   await expect.poll(() => hash(page)).toBe('#/trades')
 })
 
+/**
+ * Presses the bar, shoves it sideways and lets go inside one frame. Dispatched together so
+ * the flick is a flick whatever the test runner's round-trip costs: everything the gesture's
+ * speed is measured from happens in the same millisecond.
+ */
+const flickAt = (page: Page, x: number, dx: number, y: number) =>
+  page.evaluate(
+    ({ x, dx, y }) => {
+      const target = document.querySelector('.tabbar') as Element
+      const point = (clientX: number) => new Touch({ identifier: 1, target, clientX, clientY: y })
+      const send = (type: 'touchstart' | 'touchmove' | 'touchend', clientX: number) =>
+        target.dispatchEvent(
+          new TouchEvent(type, {
+            touches: type === 'touchend' ? [] : [point(clientX)],
+            changedTouches: [point(clientX)],
+            bubbles: true,
+            cancelable: true,
+          }),
+        )
+      send('touchstart', x)
+      send('touchmove', x + dx)
+      send('touchend', x + dx)
+    },
+    { x, dx, y },
+  )
+
+test('a quick flick along the bar is one step, like a fast page swipe', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 })
+  const { slots, y, tab } = await barSizing(page)
+  await page.locator('.tabbar__item').nth(1).click()
+  await expect.poll(() => hash(page)).toBe('#/trades')
+  await expect.poll(() => blockX(page)).toBe(slots[1])
+
+  /*
+   * The shove is under half a tab, so the block is left over 交易 — where it started. A
+   * flick on a block that never left its tab still completes one step, the same way a fast
+   * swipe completes a page without crossing a third of the screen.
+   */
+  await flickAt(page, slots[1] + tab / 2, 18, y)
+  await expect.poll(() => hash(page)).toBe('#/stats')
+  await expect.poll(() => blockX(page)).toBe(slots[2])
+})
+
+test('a slow nudge that leaves the block on its own tab stays put', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 })
+  const { slots, y, tab } = await barSizing(page)
+  await page.locator('.tabbar__item').nth(1).click()
+  await expect.poll(() => hash(page)).toBe('#/trades')
+
+  // Same shove as the flick above, taken slowly: no speed, so no step — the block lands
+  // back on the tab it never left.
+  await touchAt(page, 'touchstart', slots[1] + tab / 2, y, '.tabbar')
+  await page.waitForTimeout(400)
+  await touchAt(page, 'touchmove', slots[1] + tab / 2 + 18, y, '.tabbar')
+  await touchAt(page, 'touchend', slots[1] + tab / 2 + 18, y, '.tabbar')
+  await page.waitForTimeout(400)
+  expect(hash(page)).toBe('#/trades')
+  await expect.poll(() => blockX(page)).toBe(slots[1])
+})
+
 test('the wheel over the rail walks a page per notch', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await railAt(page, 0)
