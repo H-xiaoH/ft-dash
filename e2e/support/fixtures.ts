@@ -453,6 +453,20 @@ export async function mockApi(
 }
 
 /** Types the fake credentials into the connect screen and waits for the shell. */
+/**
+ * The page the router is showing. Every other page is held on the track as well — they are
+ * what a finger drags across and a wheel walks — so anything that means "this page" has to
+ * be scoped to the one on screen, not to the whole document.
+ */
+export function livePage(page: Page) {
+  return page.locator('.page-track > :not(.page-neighbor)')
+}
+
+/** The page held on the track at a slot: 1 is the page just to the right of this one. */
+export function heldSlot(page: Page, slot: number) {
+  return page.locator(`.page-neighbor[data-slot="${slot}"]`)
+}
+
 export async function connect(page: Page) {
   await page.locator('input[inputmode="url"]').fill(API_BASE)
   await page.locator('input[autocomplete="username"]').fill(USERNAME)
@@ -460,12 +474,17 @@ export async function connect(page: Page) {
   await page.locator('.connect__submit').click()
 }
 
+/**
+ * Every route with a string from the page's own content — not from its title, which the
+ * shell renders for the page on screen whatever the shell is showing. The pages are all
+ * held on the track, so this is what tells which one is actually up.
+ */
 export const ROUTES: { path: string; marker: string }[] = [
   { path: '#/', marker: '每日盈亏' },
   { path: '#/trades', marker: '交易对' },
-  { path: '#/stats', marker: '统计' },
+  { path: '#/stats', marker: '盈利 / 亏损' },
   { path: '#/market', marker: 'K 线' },
-  { path: '#/logs', marker: '日志' },
-  { path: '#/system', marker: '系统' },
-  { path: '#/settings', marker: '机器人' },
+  { path: '#/logs', marker: '运行日志' },
+  { path: '#/system', marker: '心跳延迟' },
+  { path: '#/settings', marker: '添加机器人' },
 ]

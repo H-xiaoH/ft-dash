@@ -1,9 +1,11 @@
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NAV_ROUTES } from '@/router'
 
-/** A page parked on the track while a gesture is in flight. */
+/** A page held on the track, ready to be slid into view. */
 export interface TrackPage {
+  /** Its rail index. The track holds the page by this, so a switch never remounts it. */
+  index: number
   /** Its place on the track, in pages from the current one: 2 is two pages to the right. */
   slot: number
   component: unknown
@@ -12,14 +14,14 @@ export interface TrackPage {
 const SETTLE = 'transform 180ms var(--ease-out-strong)'
 
 /**
- * The sliding track under the pages: how far it has travelled, which pages are parked on
- * it, and how it hands over to the router once a gesture has landed. Gesture recognition
- * lives in `usePageDrag`; this half knows nothing about fingers.
+ * The sliding track under the pages: how far it has travelled, which pages are held on it,
+ * and how it hands over to the router once a swipe has landed. Gesture recognition lives in
+ * `usePageDrag`; this half knows nothing about fingers.
  *
- * The track is driven by a page position rather than by a step. A page swipe moves it by
- * the finger's travel, one screen per page, and a drag of the tab block moves it by the
- * block's travel, one tab per page — the same strip either way, with the pages the finger
- * uncovers parked on it so it never slides onto empty space.
+ * Every page but the current one is held on the track from the start, so the strip a finger
+ * drags never runs out of page to show and a wheel step never waits for a view to load. The
+ * track is driven by a page position rather than by a step: a page swipe moves it by the
+ * finger's travel, one screen per page, and carrying the tab block moves it by the block's.
  */
 export function usePageTrack() {
   const route = useRoute()
@@ -32,7 +34,7 @@ export function usePageTrack() {
   const dragging = ref(false)
   /** True while a finger-committed gesture swaps pages, so nothing animates twice. */
   const handoff = ref(false)
-  /** The pages parked beside the current one, nearest slot first. */
+  /** The pages held on the track, nearest slot first. */
   const pages = shallowRef<TrackPage[]>([])
   /** The page a committed gesture is heading for, until the router gets there. */
   const target = ref<string | null>(null)
@@ -40,9 +42,7 @@ export function usePageTrack() {
   let handoffTimer = 0
   /** A committed gesture is still sliding into place; a new one would fight over it. */
   let settling = false
-  /** The rail indices the finger is looking through right now. */
-  let wanted: { lo: number; hi: number } | null = null
-  /** Views the router's own loaders have handed over, so a second visit is free. */
+  /** Views the router's own loaders have handed over, so a switch costs nothing. */
   const resolved = new Map<number, unknown>()
   const loading = new Map<number, Promise<unknown>>()
 
@@ -86,8 +86,8 @@ export function usePageTrack() {
   /**
    * Resolves one page by its rail index, through the loader the route already owns.
    * `router.resolve()` gives back that loader, so no second import list is kept around.
-   * A page that cannot be fetched is not worth reporting — the drag just shows nothing
-   * there, and the router says its piece if the gesture lands on it.
+   * A page that cannot be fetched is not worth reporting — it is left off the track, and
+   * the router says its piece if the operator walks to it.
    */
   function resolvePage(index: number): Promise<unknown> {
     if (resolved.has(index)) return Promise.resolve(resolved.get(index))
@@ -115,33 +115,20 @@ export function usePageTrack() {
   }
 
   /**
-   * Parks exactly the pages the finger is looking through and lets go of the ones it has
-   * moved past, so the strip under the finger is real content instead of a blank slot.
-   * Pages the loaders have not delivered yet are parked the moment they arrive — unless
-   * the finger has moved on by then, in which case they are only cached for later.
+   * Holds every page but the current one on the track, each in the slot its rail index
+   * puts it in, and lets go of none: this is what keeps a gesture from ever uncovering
+   * empty space. Pages still in flight join the track the moment they arrive.
    */
-  function parkPages(lo: number, hi: number) {
+  function parkRail() {
     const index = routeIndex()
-    const range = { lo: Math.max(0, lo), hi: Math.min(NAV_ROUTES.length - 1, hi) }
-    wanted = range
     const next: TrackPage[] = []
-    for (let at = range.lo; at <= range.hi; at++) {
+    for (let at = 0; at < NAV_ROUTES.length; at++) {
       if (at === index) continue
       const component = resolved.get(at)
-      if (component) next.push({ slot: at - index, component })
-      else
-        void resolvePage(at).then((loaded) => {
-          if (loaded && wanted && at >= wanted.lo && at <= wanted.hi)
-            parkPages(wanted.lo, wanted.hi)
-        })
+      if (component) next.push({ index: at, slot: at - index, component })
+      else void resolvePage(at).then((loaded) => loaded && parkRail())
     }
     if (!samePages(next, pages.value)) pages.value = next
-  }
-
-  /** Nothing parked, nobody waiting: the track is back to one page. */
-  function releasePages() {
-    wanted = null
-    if (pages.value.length) pages.value = []
   }
 
   /** Takes the gesture over: the track starts following, with no transition in the way. */
@@ -151,21 +138,18 @@ export function usePageTrack() {
     dragging.value = true
   }
 
-  /**
-   * Follows the finger to a track offset in pixels, parking whatever that uncovers: the
-   * two pages a screen can show at once are the ones the finger is between. A page is
-   * fetched the moment it becomes visible, so `lead` asks for one past the edge the strip
-   * is heading for as well — a fast drag crosses a tab in less time than a view takes to
-   * render, and the strip must not arrive before the page does.
-   */
-  function dragTo(px: number, lead = 0) {
+  /** Follows the finger to a track offset in pixels. The pages are already all here. */
+  function dragTo(px: number) {
     offset.value = px
-    const span = width.value || window.innerWidth
-    const position = routeIndex() - px / span
-    const base = Math.floor(position)
-    // The same rule mirrored: the leading edge of the strip is the far one either way.
-    const forward = px <= 0
-    parkPages(base - (forward ? 0 : lead), base + 1 + (forward ? lead : 0))
+  }
+
+  /**
+   * Walks to another page without sliding the track: the wheel moves between pages the way
+   * a tap does, and the page's own transition is what animates — nothing on wide screens.
+   */
+  async function goTo(index: number) {
+    const entry = NAV_ROUTES[index]
+    if (entry && index !== routeIndex()) await router.push(entry.path)
   }
 
   /** Waits out the settle animation, so the page swap happens after the slide. */
@@ -176,21 +160,16 @@ export function usePageTrack() {
     const from = routeIndex()
     const entry = NAV_ROUTES[index]
     if (!entry || index === from) return cancel()
-    const span = width.value || window.innerWidth
     const step = index - from
-    const position = from - offset.value / span
     settling = true
     dragging.value = false
     target.value = entry.name
     transition.value = SETTLE
-    offset.value = -step * span
-    // Every page the slide crosses has to stay parked, the one it lands on included: the
-    // router only takes over once that page is on screen.
-    parkPages(Math.min(Math.floor(position), index), Math.max(Math.floor(position) + 1, index))
+    offset.value = -step * (width.value || window.innerWidth)
     await settle()
     try {
-      // The neighbour must be on screen before the router takes over, otherwise the swap
-      // would land on an empty track.
+      // The page it lands on must be on screen before the router takes over, otherwise
+      // the swap would land on an empty track.
       await resolvePage(index)
       handoff.value = true
       await router.push(entry.path)
@@ -213,14 +192,14 @@ export function usePageTrack() {
       // allowed to put it back to rest.
       if (dragging.value || settling) return
       transition.value = 'none'
-      releasePages()
     }, 200)
   }
 
   /**
    * Ends a finger-committed swap. Runs on the transition's `after-enter`, once the enter
-   * classes are gone: the parked page was showing this page here, so the real one lands
-   * on the same spot and only then do the direction variables come back.
+   * classes are gone: the page held on the track was showing this page here, so the real
+   * one lands on the same spot and only then do the direction variables come back. The
+   * track is re-seated for the new index in the same tick, so the held pages do not move.
    */
   function finishHandoff() {
     if (!settling) return
@@ -229,19 +208,26 @@ export function usePageTrack() {
     transition.value = 'none'
     offset.value = 0
     target.value = null
-    releasePages()
+    parkRail()
     handoff.value = false
     settling = false
   }
 
   /**
-   * Pulls in the other pages' views once the first data load is done. A gesture can only
-   * show a page whose view is already here, and the very first gesture towards an
-   * unvisited page would otherwise slide into empty space.
+   * A page that changes without a handoff — a tap, the wheel, a deep link — still has to
+   * hand the track over to the new index, or the page that just left would be held twice.
+   * A handoff does it in `finishHandoff` instead, once the track has stopped moving.
    */
-  function warmPageChunks() {
-    const index = routeIndex()
-    for (let at = 0; at < NAV_ROUTES.length; at++) if (at !== index) void resolvePage(at)
+  watch(
+    () => route.name,
+    () => {
+      if (!settling) parkRail()
+    },
+  )
+
+  /** Holds every page on the track. Off the critical path: the first paint goes first. */
+  function loadAllPages() {
+    parkRail()
   }
 
   return {
@@ -257,17 +243,23 @@ export function usePageTrack() {
     routeIndex,
     begin,
     dragTo,
+    goTo,
     commit,
     cancel,
     finishHandoff,
-    warmPageChunks,
+    loadAllPages,
   }
 }
 
-/** Whether two parked sets are the same pages in the same slots. */
+/** Whether two held sets are the same pages in the same slots. */
 function samePages(a: TrackPage[], b: TrackPage[]) {
   return (
     a.length === b.length &&
-    a.every((page, index) => page.slot === b[index].slot && page.component === b[index].component)
+    a.every(
+      (page, index) =>
+        page.index === b[index].index &&
+        page.slot === b[index].slot &&
+        page.component === b[index].component,
+    )
   )
 }

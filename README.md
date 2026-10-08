@@ -46,11 +46,17 @@ Interface languages: **简体中文** and **English** (follows the browser by de
 
 On phones you also move between pages by swiping sideways: the page follows your finger, the
 neighbour slides in beside it, and releasing past a third of the screen (or a quick flick)
-completes the move. Tapping a tab plays the same full-page slide. Holding the tab bar's
-selection and carrying it is the quicker way along the bar — the block follows your finger and
-the pages preview with it, loading the ones you walk past, and letting go lands on the page the
-block is over. A sideways swipe still moves one page at a time. On wide screens pages swap
-instantly.
+completes the move. Tapping a tab plays the same full-page slide. Dragging the tab bar is the
+quicker way along it — the block sits *under your finger* (press a tab and the block lands on
+it), the pages ride along one per tab, and letting go lands on the page the block is over.
+Every other page is held on the track the whole time, so a switch never shows a blank or a
+loading state, and the data behind the page is refreshed once the pages stop changing — a walk
+across several tabs fetches once, for the page it lands on. A sideways swipe still moves one
+page at a time.
+
+Wide screens swap instantly, and the wheel over the left rail walks pages: one notch is one
+page, a trackpad's stream keeps walking as you scroll, and the page behind the rail does not
+move. The wheel only takes over there.
 
 Data refreshes on a fixed 1-second cadence while the tab is visible (balance, positions,
 P&L, CPU/RAM), with heavier slices spread over longer intervals — trades and pair lists every
@@ -58,6 +64,9 @@ P&L, CPU/RAM), with heavier slices spread over longer intervals — trades and p
 hidden, and overlapping rounds are skipped rather than queued.
 
 ## Quick start
+
+Builds carry a `YY.MM.dd.HH.mm` timestamp as their version, shown at the foot of the settings
+page (`package.json` keeps a semver, which npm wants and nothing reads at runtime).
 
 ```bash
 npm install
@@ -82,9 +91,10 @@ checked on a real device — worth two minutes in Safari with the PWA installed:
 2. **Cache**: if a fresh deploy still looks like the previous version, cold-start the app once —
    the service worker keeps one build behind.
 3. **Page gestures**: sideways swipes track the finger and do not flicker; the bottom-bar
-   selection follows along; tapping a tab matches what a swipe does. Carrying the block along
-   the bar keeps it under the finger, never leaves a blank page behind, and lands on the page
-   the block was left over.
+   selection follows along; tapping a tab matches what a swipe does. Dragging the bar keeps the
+   block under the finger (wherever it was pressed), never leaves a blank page behind, and
+   lands on the page the block was left over. On wide screens the wheel over the rail walks
+   pages — a notch each for a mouse, continuously for a trackpad — without scrolling the page.
 4. **Candles**: dragging scrubs the readout; a dropdown follows its button while the page
    scrolls; the P&L tag stays pinned to the right.
 5. **Language**: switching applies immediately; with "follow system" selected, changing the

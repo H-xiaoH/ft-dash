@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { RESPONSES, connect, mockApi } from './support/fixtures'
+import { RESPONSES, connect, livePage, mockApi } from './support/fixtures'
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
@@ -33,25 +33,27 @@ test('pair table derives win rate, fees, volume and last close from the trades',
 })
 
 test('period tables, durations panel and KPI tiles render', async ({ page }) => {
-  await expect(page.locator('.panel__title')).toHaveText(['交易对表现', '周期', '持仓时长'])
+  const stats = livePage(page)
+  await expect(stats.locator('.panel__title')).toHaveText(['交易对表现', '周期', '持仓时长'])
   // The tile band is framed on all four sides: the grid draws the top and left hairlines,
   // the tiles draw right and bottom.
-  await expect(page.locator('.metric-grid').first()).toHaveCSS('border-top-width', '1px')
-  await expect(page.locator('.metric-grid').first()).toHaveCSS('border-left-width', '1px')
-  await expect(page.locator('.metric-grid > .metric').first()).toHaveCSS(
+  const grid = stats.locator('.metric-grid').first()
+  await expect(grid).toHaveCSS('border-top-width', '1px')
+  await expect(grid).toHaveCSS('border-left-width', '1px')
+  await expect(stats.locator('.metric-grid > .metric').first()).toHaveCSS(
     'border-right-width',
     '1px',
   )
-  await expect(page.locator('.metric-grid > .metric').first()).toHaveCSS(
+  await expect(stats.locator('.metric-grid > .metric').first()).toHaveCSS(
     'border-bottom-width',
     '1px',
   )
   // The removed tiles stay gone, and the remaining KPIs are still there.
-  await expect(page.locator('.metric__label', { hasText: '盈利 / 亏损' })).toHaveCount(1)
-  await expect(page.locator('.metric__label', { hasText: '已平仓盈亏' })).toHaveCount(1)
-  await expect(page.locator('.metric__label', { hasText: '最佳交易对' })).toHaveCount(0)
+  await expect(stats.locator('.metric__label', { hasText: '盈利 / 亏损' })).toHaveCount(1)
+  await expect(stats.locator('.metric__label', { hasText: '已平仓盈亏' })).toHaveCount(1)
+  await expect(stats.locator('.metric__label', { hasText: '最佳交易对' })).toHaveCount(0)
   // The account-level tiles stay removed; the pair column is a different thing.
-  await expect(page.locator('.metric__label', { hasText: '总盈亏' })).toHaveCount(0)
+  await expect(stats.locator('.metric__label', { hasText: '总盈亏' })).toHaveCount(0)
   await expect(page.locator('.chart__tick').first()).toBeVisible()
   // The period table's first column is "date", not a repeat of the panel title.
   const period = page.locator('.panel', { has: page.locator('.panel__title', { hasText: '周期' }) })

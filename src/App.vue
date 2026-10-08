@@ -49,6 +49,9 @@ const showConnect = computed(
     !bot.showConfig,
 )
 
+/** How long the pages have to stop changing before the landing one is refreshed. */
+const SETTLE_REFRESH_MS = 300
+
 /** Page-to-page swiping; it also owns the tab block's travel. */
 const {
   dragOffset,
@@ -58,7 +61,8 @@ const {
   handoff,
   neighbors,
   finishHandoff,
-  warmPageChunks,
+  loadAllPages,
+  onRailWheel,
 } = usePageDrag(() => showConnect.value)
 const connectionBanner = computed(() => {
   /*
@@ -113,10 +117,11 @@ onMounted(async () => {
     restoredSession.value = false
   }
   // Off the critical path: the first paint and the first API burst go first.
-  window.setTimeout(warmPageChunks, 1200)
+  window.setTimeout(loadAllPages, 1200)
 })
 
 onBeforeUnmount(() => {
+  window.clearTimeout(settleRefresh)
   bot.cleanup()
 })
 
@@ -128,10 +133,20 @@ watch(
   },
 )
 
+/**
+ * Landing on a page refreshes what it is about to show, once the moving has stopped: a
+ * wheel walk or a drag across the tabs changes pages faster than the data behind them is
+ * worth fetching, so the wait collapses all of it into the one page left on screen.
+ */
+let settleRefresh = 0
 watch(
   () => route.name,
   () => {
     events.markRead()
+    window.clearTimeout(settleRefresh)
+    settleRefresh = window.setTimeout(() => {
+      if (bot.connection === 'online') void bot.refreshAll()
+    }, SETTLE_REFRESH_MS)
   },
 )
 </script>
@@ -145,7 +160,9 @@ watch(
   </div>
 
   <div v-else class="shell">
-    <nav class="rail" :aria-label="t('app.name')">
+    <!-- The wheel is bound here and not on the window: over the rail it walks pages, and
+         anywhere else the page keeps its own scrolling. -->
+    <nav class="rail" :aria-label="t('app.name')" @wheel="onRailWheel">
       <div class="rail__brand" :title="t('app.tagline')">
         <span class="rail__dot" />
       </div>
@@ -164,7 +181,10 @@ watch(
       <span
         class="rail__indicator"
         aria-hidden="true"
-        :style="{ transform: `translateY(calc(${navIndex} * var(--rail-item)))` }"
+        :style="{
+          transform: `translateY(calc(${navIndex + indicatorFraction} * var(--rail-item)))`,
+          transition: indicatorTransition,
+        }"
       />
     </nav>
 
@@ -228,15 +248,18 @@ watch(
                 </Transition>
               </RouterView>
               <!--
-                The pages the finger has uncovered, parked in their own slots: a swipe
-                needs the one next door, carrying the tab block can need the ones it
-                passes. Keyed by slot, so a page keeps its instance while the strip holds
-                it and lets go only when the finger has moved past.
+                Every other page, held on the track in its own slot: the finger drags
+                across them and a wheel walks them, so none of them is ever still loading
+                when the strip reaches it. Keyed by rail index, so a page keeps its
+                instance for as long as the app is up, and inert, so a page that is off
+                screen stays out of the tab order and the accessibility tree.
               -->
               <div
                 v-for="page in neighbors"
-                :key="page.slot"
+                :key="page.index"
                 class="page-neighbor"
+                :data-slot="page.slot"
+                inert
                 :style="{ transform: `translateX(${page.slot * 100}%)` }"
               >
                 <component :is="page.component" />

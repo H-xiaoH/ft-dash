@@ -6,14 +6,16 @@ import { usePageTrack } from './usePageTrack'
 export type DragSide = 1 | -1
 
 /**
- * Gesture half of moving between pages: when a touch counts as a sideways drag, where it
- * goes, and whether letting go commits. The track it drives — offset, parked pages,
- * handover to the router — lives in `usePageTrack`.
+ * The input side of moving between pages: when a touch counts as a sideways drag, where it
+ * goes, whether letting go commits, and what the wheel does over the rail. The track it
+ * drives — offset, the pages held on it, handover to the router — lives in `usePageTrack`.
  *
- * Two gestures share the track. A swipe on the page moves it one screen per finger, one
- * page per gesture. A drag on the tab bar carries the block along the bar, one tab per
- * tab's worth of travel, and the pages ride with it — several tabs in one drag if you
- * want them, since the block is where you leave it.
+ * A swipe on the page pushes it aside, one screen per finger, one page per gesture. A drag
+ * on the tab bar carries the block, and the block sits where the finger is — it follows the
+ * finger, rather than moving by however far the finger has travelled — so anywhere on the
+ * bar is a handle. On wide screens the rail is the page selector: the wheel walks pages
+ * there instead of scrolling the page behind it, a notch at a time, a trackpad's stream
+ * continuously.
  *
  * `isBlocked` lets the caller veto the whole thing (a dialog is open, or we are still on
  * the connect screen).
@@ -27,6 +29,10 @@ export function usePageDrag(isBlocked: () => boolean) {
   const DRAG_COMMIT_RATIO = 0.35
   /** A quick flick completes it without travelling that far. */
   const DRAG_FLICK_PX_PER_MS = 0.5
+  /** Wheel travel that makes one page, for the stream a trackpad sends. */
+  const WHEEL_PAGE_PX = 90
+  /** Quiet time after the last wheel event before the walk counts as finished. */
+  const WHEEL_SETTLE_MS = 180
 
   let gesture: {
     target: EventTarget | null
@@ -34,11 +40,16 @@ export function usePageDrag(isBlocked: () => boolean) {
     startY: number
     /** Started on the tab bar: that carries the block, it does not push the pages. */
     bar: boolean
+    /** Where inside the block the finger landed: the block keeps that point under it. */
+    grab: number
     claimed: boolean
     lastX: number
     lastAt: number
     velocity: number
   } | null = null
+
+  /** The wheel's own walk: where it started, how far it has gone, where it has landed. */
+  let wheel: { origin: number; travel: number; landed: number; timer: number } | null = null
 
   /**
    * Which way a horizontal drag walks the rail. Pushing a page right reveals the one
@@ -50,20 +61,36 @@ export function usePageDrag(isBlocked: () => boolean) {
   }
 
   /**
-   * How far the block travels per tab. Measured off a tab itself rather than off the bar:
-   * the bar carries padding, and dividing its width would walk the block a little faster
-   * than the tabs it is supposed to land on.
+   * How far apart the tabs are. Measured off a tab itself rather than off the bar: the bar
+   * carries padding, and dividing its width would walk the block a little faster than the
+   * tabs it is supposed to land on.
    */
   function tabSlotWidth(): number {
     const item = document.querySelector('.tabbar__item')
     return item?.getBoundingClientRect().width || window.innerWidth / (NAV_ROUTES.length || 1)
   }
 
-  /** How many tabs the block has been carried, held inside the bar at either end. */
-  function blockSlots(dx: number): number {
-    const index = track.routeIndex()
-    const travel = dx / tabSlotWidth()
-    return Math.max(-index, Math.min(NAV_ROUTES.length - 1 - index, travel))
+  /** The left edge of the first tab: where the block's travel starts from. */
+  function barOrigin(): number {
+    return document.querySelector('.tabbar__item')?.getBoundingClientRect().left ?? 0
+  }
+
+  /**
+   * Where inside the block the finger landed, so it keeps that point and does not jump when
+   * grabbed by an edge. A press anywhere else on the bar centres the block on the finger,
+   * which is what makes the whole bar a handle for it.
+   */
+  function grabOffset(clientX: number): number {
+    const block = document.querySelector('.tabbar__indicator')?.getBoundingClientRect()
+    const width = tabSlotWidth()
+    if (!block || clientX < block.left || clientX > block.right) return width / 2
+    return clientX - block.left
+  }
+
+  /** Which tab the block is on for a finger at this point — the finger's own position. */
+  function blockSlots(clientX: number, grab: number): number {
+    const travel = (clientX - grab - barOrigin()) / tabSlotWidth()
+    return Math.max(0, Math.min(NAV_ROUTES.length - 1, travel))
   }
 
   /** A gesture that belongs to a dialog, or to a component that owns horizontal drags. */
@@ -86,11 +113,13 @@ export function usePageDrag(isBlocked: () => boolean) {
     gesture = null
     if (track.busy() || event.touches.length !== 1 || gestureIsTaken(event.target)) return
     const touch = event.touches[0]
+    const bar = event.target instanceof Element && event.target.closest('.tabbar') !== null
     gesture = {
       target: event.target,
       startX: touch.clientX,
       startY: touch.clientY,
-      bar: event.target instanceof Element && event.target.closest('.tabbar') !== null,
+      bar,
+      grab: bar ? grabOffset(touch.clientX) : 0,
       claimed: false,
       lastX: touch.clientX,
       lastAt: performance.now(),
@@ -125,21 +154,20 @@ export function usePageDrag(isBlocked: () => boolean) {
     current.lastX = touch.clientX
     current.lastAt = now
 
-    const side = sideOf(current.bar, dx)
     const span = track.width.value || window.innerWidth
     if (current.bar) {
       /*
-       * Dragging the block carries it along the bar one tab per tab's worth of travel,
-       * with the pages riding underneath — the opposite mapping from pushing a page
-       * aside, and several tabs per gesture if the finger goes that far. It stops at the
-       * ends of the bar, or the block would walk off it. The extra page asked for ahead
-       * is the one it is about to reach.
+       * The block goes where the finger is, on the bar's own scale — the opposite mapping
+       * from pushing a page aside, and as many tabs from here as the finger is. Holding it
+       * inside the bar is what the clamp does, so a finger off the end parks the block there
+       * with the pages behind it caught up.
        */
-      track.dragTo(-blockSlots(dx) * span, 1)
+      const slots = blockSlots(touch.clientX, current.grab) - track.routeIndex()
+      track.dragTo(-slots * span)
       return
     }
     // One page per drag: follow the finger, and resist only where the rail ends.
-    track.dragTo(NAV_ROUTES[track.routeIndex() + side] ? dx : dx * 0.25)
+    track.dragTo(NAV_ROUTES[track.routeIndex() + sideOf(false, dx)] ? dx : dx * 0.25)
   }
 
   function onTouchEnd(event: TouchEvent) {
@@ -156,12 +184,15 @@ export function usePageDrag(isBlocked: () => boolean) {
       Math.abs(current.velocity) > DRAG_FLICK_PX_PER_MS
 
     if (current.bar) {
-      // The block lands on the tab it was left over. A flick out of a tab the finger
-      // never carried the block away from still counts as one step, like a quick page
-      // swipe; either way it lands on a tab that exists.
-      const carried = index + Math.round(blockSlots(dx))
-      const stepped = carried === index && flicked ? index + side : carried
-      const target = Math.max(0, Math.min(NAV_ROUTES.length - 1, stepped))
+      // The block lands on the tab it was left over. A flick on a block the finger never
+      // carried away from its tab still counts as one step, like a quick page swipe does.
+      const last = NAV_ROUTES.length - 1
+      const under = touch ? blockSlots(touch.clientX, current.grab) : index
+      const landed = Math.max(0, Math.min(last, Math.round(under)))
+      const target = Math.max(
+        0,
+        Math.min(last, landed === index && flicked ? index + side : landed),
+      )
       if (target !== index) void track.commit(target)
       else track.cancel()
       return
@@ -175,6 +206,48 @@ export function usePageDrag(isBlocked: () => boolean) {
     else track.cancel()
   }
 
+  /**
+   * How much page travel one wheel event asks for. A wheel notch is a single big delta; a
+   * trackpad sends a stream of small ones, which add up between events — so a notch is one
+   * page, and a trackpad walk is as continuous as the fingers are.
+   */
+  function wheelTravel(event: WheelEvent): number {
+    if (event.deltaMode !== 0) return Math.sign(event.deltaY)
+    if (Math.abs(event.deltaY) >= WHEEL_PAGE_PX)
+      return (
+        Math.sign(event.deltaY) * Math.max(1, Math.round(Math.abs(event.deltaY) / WHEEL_PAGE_PX))
+      )
+    return event.deltaY / WHEEL_PAGE_PX
+  }
+
+  /**
+   * Bound to the rail itself, not to the window: the wheel only belongs to the app there,
+   * and a non-passive listener on the window would take the browser's fast path away from
+   * every scroll in the app.
+   */
+  function onRailWheel(event: WheelEvent) {
+    // The rail is the page selector on wide screens: over it the wheel walks pages, and
+    // the page behind it stays where it is.
+    event.preventDefault()
+    if (isBlocked() || document.querySelector('[role="dialog"]') || track.busy()) return
+
+    if (!wheel)
+      wheel = { origin: track.routeIndex(), travel: 0, landed: track.routeIndex(), timer: 0 }
+    wheel.travel += wheelTravel(event)
+    const last = NAV_ROUTES.length - 1
+    const target = Math.max(0, Math.min(last, wheel.origin + Math.round(wheel.travel)))
+    if (target !== wheel.landed) {
+      wheel.landed = target
+      void track.goTo(target)
+    }
+    window.clearTimeout(wheel.timer)
+    // The walk is over once the wheel goes quiet — momentum included — so the next scroll
+    // starts counting again from wherever it left the rail.
+    wheel.timer = window.setTimeout(() => {
+      wheel = null
+    }, WHEEL_SETTLE_MS)
+  }
+
   onMounted(() => {
     window.addEventListener('touchstart', onTouchStart, { passive: true })
     window.addEventListener('touchmove', onTouchMove, { passive: false })
@@ -185,6 +258,7 @@ export function usePageDrag(isBlocked: () => boolean) {
     window.removeEventListener('touchstart', onTouchStart)
     window.removeEventListener('touchmove', onTouchMove)
     window.removeEventListener('touchend', onTouchEnd)
+    window.clearTimeout(wheel?.timer)
   })
 
   return {
@@ -195,6 +269,7 @@ export function usePageDrag(isBlocked: () => boolean) {
     handoff: track.handoff,
     neighbors: track.pages,
     finishHandoff: track.finishHandoff,
-    warmPageChunks: track.warmPageChunks,
+    loadAllPages: track.loadAllPages,
+    onRailWheel,
   }
 }

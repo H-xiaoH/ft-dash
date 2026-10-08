@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { API_ORIGIN, ROUTES, connect, mockApi } from './support/fixtures'
+import { API_ORIGIN, ROUTES, connect, livePage, mockApi } from './support/fixtures'
 
 test.describe('connect screen', () => {
   test('refuses bad credentials with a readable message', async ({ page }) => {
@@ -71,16 +71,17 @@ test.describe('connect screen', () => {
 test.describe('navigation', () => {
   test('a page whose code cannot be fetched says so instead of hanging', async ({ page }) => {
     await mockApi(page)
-    await page.goto('/')
-    await connect(page)
-    await expect(page.locator('.shell')).toBeVisible()
-
-    // The flaky-network case: the view's chunk never arrives, so the navigation dies.
-    // Built app: a hashed chunk. Dev server: the source module it serves instead.
+    /*
+     * The flaky-network case: the view's chunk never arrives, so the navigation dies.
+     * Built app: a hashed chunk. Dev server: the source module it serves instead. Blocked
+     * before the first load on purpose — the app holds every page on the track, so from
+     * the second load on the chunk would already be cached and never asked for again.
+     */
     for (const pattern of ['**/assets/SettingsView-*.js', '**/views/SettingsView.vue*']) {
       await page.route(pattern, (route) => route.abort())
     }
     await page.goto('/#/settings')
+    await connect(page)
 
     // Filtered: the "bot added" toast may still be counting down from the connect step.
     await expect(page.locator('.toast', { hasText: '页面加载失败' })).toHaveCount(1)
@@ -119,7 +120,11 @@ test.describe('navigation', () => {
 
     for (const route of ROUTES) {
       await page.goto(`/${route.path}`)
-      await expect(page.locator('main')).toContainText(route.marker)
+      // Only changing the hash leaves the document up, so the page already on screen is
+      // still sliding out: wait for this route's content to arrive, then for the page it
+      // pushed out to leave the track.
+      await expect(livePage(page).filter({ hasText: route.marker }).first()).toBeVisible()
+      await expect(livePage(page)).toHaveCount(1)
     }
 
     expect(errors).toEqual([])
@@ -157,10 +162,10 @@ test.describe('navigation', () => {
       await expect(page.locator('.card').first()).toBeVisible()
       // A hash change slides the previous page out; wait for it to leave before judging
       // this page's layout.
-      await expect(page.locator('.page-track > *')).toHaveCount(1)
+      await expect(page.locator('.page-track > :not(.page-neighbor)')).toHaveCount(1)
       // Nothing on the page may still require sideways scrolling.
       const scrollable = await page.evaluate(() =>
-        [...document.querySelectorAll('.table-wrap')]
+        [...document.querySelectorAll('.page-track > :not(.page-neighbor) .table-wrap')]
           .filter((element) => element.scrollWidth > element.clientWidth + 2)
           .map(
             (element) =>

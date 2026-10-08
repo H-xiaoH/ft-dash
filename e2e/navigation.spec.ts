@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { connect, mockApi } from './support/fixtures'
+import { connect, heldSlot, mockApi } from './support/fixtures'
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
@@ -73,8 +73,8 @@ test('the page follows the finger and commits past a third of the screen', async
   })
 
   await page.setViewportSize({ width: 390, height: 780 })
-  const neighbor = page.locator('.page-neighbor')
-  await expect(neighbor).toHaveCount(0)
+  const neighbor = heldSlot(page, 1)
+  await expect(neighbor).toHaveCount(1)
 
   await touchAt(page, 'touchstart', 330)
   await touchAt(page, 'touchmove', 270)
@@ -115,7 +115,7 @@ test('the page follows the finger and commits past a third of the screen', async
   await expect.poll(() => hash(page)).toBe('#/trades')
   // The neighbour was already showing this page, so the track lands back at rest.
   await expect.poll(() => trackX(page)).toBe(0)
-  await expect(neighbor).toHaveCount(0)
+  await expect(heldSlot(page, 0)).toHaveCount(0)
   expect(await page.evaluate(() => (window as unknown as { __worst?: number }).__worst)).toBe(0)
   expect(errors).toEqual([])
 })
@@ -136,7 +136,7 @@ test('a short slow drag springs back without switching', async ({ page }) => {
   await page.waitForTimeout(400)
   expect(hash(page)).toBe('#/trades')
   expect(await trackX(page)).toBe(0)
-  await expect(page.locator('.page-neighbor')).toHaveCount(0)
+  await expect(heldSlot(page, 0)).toHaveCount(0)
 })
 
 test('the tab block lands on the tab you swiped to and never past it', async ({ page }) => {
@@ -185,7 +185,7 @@ test('a drag with nowhere to go resists and never switches', async ({ page }) =>
   await touchAt(page, 'touchstart', 60)
   await touchAt(page, 'touchmove', 180)
   await expect.poll(() => trackX(page)).toBe(30)
-  await expect(page.locator('.page-neighbor')).toHaveCount(0)
+  await expect(heldSlot(page, 0)).toHaveCount(0)
 
   await touchAt(page, 'touchend', 260)
   await page.waitForTimeout(400)
@@ -250,16 +250,18 @@ const trackX = (page: Page) =>
 
 /**
  * Whether the page area is showing real pages across its width, or has slid onto nothing.
- * Sampled near the top of the area: a page can be shorter than the current one, and what
- * is behind it there is the empty track this is looking for.
+ * Measured off the pages' own boxes rather than off hit testing: the pages held on the
+ * track are inert, and an inert page is not what a pointer lands on.
  */
 const pageAreaCovered = (page: Page) =>
   page.evaluate(() => {
     const box = document.querySelector('.page-host')!.getBoundingClientRect()
+    const pages = [...document.querySelectorAll('.page-track > *')].map((node) =>
+      node.getBoundingClientRect(),
+    )
     return [0.02, 0.25, 0.5, 0.75, 0.98].every((share) => {
-      const x = Math.round(box.x + box.width * share)
-      const at = document.elementFromPoint(x, Math.round(box.y + 40))
-      return at?.closest('.page-track > *') !== null
+      const x = box.x + box.width * share
+      return pages.some((rect) => x >= rect.x && x <= rect.x + rect.width && rect.width > 0)
     })
   })
 
@@ -295,9 +297,8 @@ test('carrying the tab block walks it along the bar, pages and all', async ({ pa
     expect(
       Math.abs((await trackX(page)) + Math.round(slotsTravelled * hostWidth)),
     ).toBeLessThanOrEqual(2)
-    // Never more than the pages a screen can show (plus the one asked for ahead), and
-    // never a hole between them.
-    expect((await parkedScreens()).length).toBeLessThanOrEqual(3)
+    // The whole rail is held on the track, and there is never a hole between the pages.
+    expect((await parkedScreens()).length).toBe(6)
     expect(await pageAreaCovered(page)).toBe(true)
   }
 
@@ -305,7 +306,7 @@ test('carrying the tab block walks it along the bar, pages and all', async ({ pa
   await expect.poll(() => hash(page)).toBe('#/market')
   await expect.poll(() => blockX(page)).toBe(slots[3])
   await expect.poll(() => trackX(page)).toBe(0)
-  await expect(page.locator('.page-neighbor')).toHaveCount(0)
+  await expect(heldSlot(page, 0)).toHaveCount(0)
   expect(errors).toEqual([])
 })
 
@@ -328,7 +329,7 @@ test('carrying the block back down the bar brings the pages back with it', async
   await expect.poll(() => hash(page)).toBe('#/stats')
   await expect.poll(() => blockX(page)).toBe(slots[2])
   await expect.poll(() => trackX(page)).toBe(0)
-  await expect(page.locator('.page-neighbor')).toHaveCount(0)
+  await expect(heldSlot(page, 0)).toHaveCount(0)
 })
 
 test('the tab block stops at the end of the bar', async ({ page }) => {
@@ -382,7 +383,7 @@ test('a horizontal drag on a scrubbable chart stays with the chart', async ({ pa
   )
 
   expect(await trackX(page)).toBe(0)
-  await expect(page.locator('.page-neighbor')).toHaveCount(0)
+  await expect(heldSlot(page, 0)).toHaveCount(0)
   await touchAt(
     page,
     'touchend',
@@ -475,7 +476,7 @@ test('tapping a tab slides the pages the way a swipe does', async ({ page }) => 
      */
     let deadline = 0
     const tick = () => {
-      const pages = [...document.querySelectorAll('.page-track > *')]
+      const pages = [...document.querySelectorAll('.page-track > :not(.page-neighbor)')]
       if (pages.length === 2) {
         if (!deadline) deadline = performance.now() + 700
         frames.push({ leaving: offset(pages[0]), entering: offset(pages[1]) })
@@ -497,4 +498,130 @@ test('tapping a tab slides the pages the way a swipe does', async ({ page }) => 
   // Both pages on screen at once: the old one heading left, the new one arriving from the right.
   expect(frames.length).toBeGreaterThan(2)
   expect(frames.some((frame) => frame.leaving < -20 && frame.entering > 20)).toBe(true)
+})
+
+/** Points the mouse at the middle of a rail item, where the wheel walks pages. */
+const railAt = async (page: Page, index: number) => {
+  const box = (await page.locator('.rail__item').nth(index).boundingBox())!
+  await page.mouse.move(Math.round(box.x + box.width / 2), Math.round(box.y + box.height / 2))
+}
+
+test('every other page is already on the track, and inert', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 })
+
+  // Held from the start, so a drag or a wheel step never uncovers a page that is still
+  // loading: the six pages the router is not showing are all mounted.
+  await expect(page.locator('.page-neighbor')).toHaveCount(6)
+  await expect(page.locator('.page-neighbor[inert]')).toHaveCount(6)
+  await expect(page.locator('.page-track > :not(.page-neighbor)')).toHaveCount(1)
+
+  // Held, but out of reach: tabbing around the shell must not walk into a page that is
+  // off screen.
+  for (let press = 0; press < 25; press += 1) await page.keyboard.press('Tab')
+  const reached = await page.evaluate(
+    () => document.activeElement?.closest('.page-neighbor') !== null,
+  )
+  expect(reached).toBe(false)
+})
+
+test('the block sits where the finger is, not where the drag started', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 })
+  const { slots, y, tab } = await barSizing(page)
+  await page.locator('.tabbar__item').nth(4).click()
+  await expect.poll(() => hash(page)).toBe('#/logs')
+  await expect.poll(() => blockX(page)).toBe(slots[4])
+
+  /*
+   * Press a tab three along from the block and move just enough to claim the gesture. The
+   * block belongs to the finger, so it comes to the finger rather than staying three tabs
+   * behind it: anywhere on the bar is a handle.
+   */
+  await touchAt(page, 'touchstart', slots[1] + 10, y, '.tabbar')
+  await touchAt(page, 'touchmove', slots[1] + 22, y, '.tabbar')
+  const centre = (await blockX(page)) + tab / 2
+  expect(Math.abs(centre - (slots[1] + 22))).toBeLessThanOrEqual(2)
+  // And the pages have come with it: the tab under the finger is the page on screen.
+  const showing = await page.evaluate(() => {
+    const host = document.querySelector('.page-host')!.getBoundingClientRect()
+    const x = host.x + host.width / 2
+    const page = [...document.querySelectorAll('.page-track > *')].find((node) => {
+      const rect = node.getBoundingClientRect()
+      return x >= rect.x && x <= rect.x + rect.width
+    })
+    return (page?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)
+  })
+  expect(showing).toContain('交易对')
+
+  await touchAt(page, 'touchend', slots[1] + 22, y, '.tabbar')
+  await expect.poll(() => hash(page)).toBe('#/trades')
+})
+
+test('the wheel over the rail walks a page per notch', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await railAt(page, 0)
+
+  // One notch is one page, and the page behind the rail stays where it is.
+  await page.mouse.wheel(0, 100)
+  await expect.poll(() => hash(page)).toBe('#/trades')
+  await page.mouse.wheel(0, 100)
+  await expect.poll(() => hash(page)).toBe('#/stats')
+  await page.mouse.wheel(0, -100)
+  await expect.poll(() => hash(page)).toBe('#/trades')
+  expect(await page.evaluate(() => window.scrollY)).toBe(0)
+})
+
+test('a trackpad stream over the rail walks pages as it goes', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await railAt(page, 0)
+
+  /*
+   * A trackpad does not send notches: it sends a stream of small deltas, which add up
+   * between events. Dispatched in the page so the stream is one continuous burst — what
+   * is under test is the arithmetic, not the input device.
+   */
+  const swipe = (events: number) =>
+    page.evaluate((count) => {
+      const rail = document.querySelector('.rail__item')!
+      for (let i = 0; i < count; i += 1) {
+        rail.dispatchEvent(
+          new WheelEvent('wheel', { deltaY: 18, deltaMode: 0, bubbles: true, cancelable: true }),
+        )
+      }
+    }, events)
+
+  await swipe(5)
+  await expect.poll(() => hash(page)).toBe('#/trades')
+  await swipe(5)
+  await expect.poll(() => hash(page)).toBe('#/stats')
+})
+
+test("the wheel off the rail stays the page's own scroll", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 })
+  await page.mouse.move(640, 300)
+  await page.mouse.wheel(0, 400)
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+  expect(hash(page)).toBe('#/')
+})
+
+test('landing on a page refreshes once, after the pages stop changing', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  /*
+   * `/monthly` belongs to the analytics slice, which the slow poll only asks for every
+   * twelfth tick — so in the first seconds of a session it is the walk's own refresh
+   * talking, not the cadence underneath it.
+   */
+  const monthly: number[] = []
+  page.on('request', (request) => {
+    if (request.url().includes('/monthly')) monthly.push(Date.now())
+  })
+  await railAt(page, 0)
+  const before = monthly.length
+
+  await page.mouse.wheel(0, 100)
+  await page.mouse.wheel(0, 100)
+  await page.mouse.wheel(0, 100)
+  await expect.poll(() => hash(page)).toBe('#/market')
+  // Three pages in one walk, and nothing fetched while it was still moving.
+  expect(monthly.length - before).toBe(0)
+  await expect.poll(() => monthly.length - before).toBe(1)
 })

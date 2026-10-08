@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { connect, mockApi } from './support/fixtures'
+import { connect, livePage, mockApi } from './support/fixtures'
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
@@ -15,7 +15,7 @@ test('“all trades” includes the open position, not just history', async ({ p
   await expect(tabs.nth(2)).toContainText('全部交易 5')
 
   await tabs.nth(2).click()
-  const rows = page.locator('table tbody tr')
+  const rows = livePage(page).locator('table tbody tr')
   await expect(rows).toHaveCount(5)
   await expect(rows.first()).toContainText('OPEN/USDT')
 
@@ -24,7 +24,7 @@ test('“all trades” includes the open position, not just history', async ({ p
 })
 
 test('outcome filter narrows the list to profitable or losing trades', async ({ page }) => {
-  const rows = page.locator('table tbody tr')
+  const rows = livePage(page).locator('table tbody tr')
   // Defaults to "all", which merges the open position with the history.
   await expect(rows).toHaveCount(5)
 
@@ -38,7 +38,7 @@ test('outcome filter narrows the list to profitable or losing trades', async ({ 
 })
 
 test('search expands on demand and clears when collapsed', async ({ page }) => {
-  const rows = page.locator('table tbody tr')
+  const rows = livePage(page).locator('table tbody tr')
   await expect(page.locator('.search-toggle input')).toHaveCount(0)
 
   await page.locator('button[title="搜索"]').first().click()
@@ -97,12 +97,12 @@ test('the filter travels between the URL and the tabs', async ({ page }) => {
 
   await page.goto('/#/trades?filter=closed')
   await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator('table tbody tr')).toHaveCount(4)
+  await expect(livePage(page).locator('table tbody tr')).toHaveCount(4)
 
   // "all" is the default, so it is dropped from the URL instead of written out.
   await tabs.nth(2).click()
   await expect(page).not.toHaveURL(/filter=/)
-  await expect(page.locator('table tbody tr')).toHaveCount(5)
+  await expect(livePage(page).locator('table tbody tr')).toHaveCount(5)
 })
 
 test('a trade drawer takes focus, parks the page, and gives both back on close', async ({

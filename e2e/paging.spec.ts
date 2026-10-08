@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { connect, mockApi } from './support/fixtures'
+import { connect, livePage, mockApi } from './support/fixtures'
 
 /**
  * A longer history than the default fixture, so paging is actually exercised.
@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('long histories are paged at 20 rows per page', async ({ page }) => {
-  const rows = page.locator('table tbody tr')
+  const rows = livePage(page).locator('table tbody tr')
   const pager = page.locator('.trades__more')
 
   await expect(rows).toHaveCount(20)
