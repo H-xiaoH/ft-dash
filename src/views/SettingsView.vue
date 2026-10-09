@@ -5,6 +5,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import BotsPanel from '@/components/BotsPanel.vue'
 import FilterMenu from '@/components/FilterMenu.vue'
 import { pushToast } from '@/composables/useToast'
+import { useSegBlock } from '@/composables/useSegBlock'
 import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from '@/i18n'
 import { canInstall, isStandalone, offlineReady, promptInstall } from '@/pwa'
 import { useBotStore } from '@/stores/bot'
@@ -18,6 +19,12 @@ const bot = useBotStore()
 const events = useEventsStore()
 
 const clearConfirm = ref(false)
+/** The block behind the stream-auth choices, which slides to whichever one is active. */
+const authSeg = ref<HTMLElement | null>(null)
+const { blockStyle: authBlockStyle, blockReady: authBlockReady } = useSegBlock(
+  authSeg,
+  () => settings.streamAuth,
+)
 const appVersion = __APP_VERSION__
 
 const languageOptions = computed(() => [
@@ -152,7 +159,7 @@ async function install() {
               <div class="settings__grid">
                 <div class="field">
                   <span class="field__label">{{ t('settings.streamAuth') }}</span>
-                  <div class="seg">
+                  <div ref="authSeg" class="seg">
                     <button
                       v-for="choice in STREAM_AUTH_CHOICES"
                       :key="choice.value"
@@ -163,6 +170,11 @@ async function install() {
                     >
                       {{ t(choice.label) }}
                     </button>
+                    <span
+                      class="seg__block"
+                      :class="{ 'is-ready': authBlockReady }"
+                      :style="authBlockStyle"
+                    />
                   </div>
                 </div>
                 <label v-if="settings.streamAuth === 'ws_token'" class="field">

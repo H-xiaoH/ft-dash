@@ -11,6 +11,7 @@ import type { Candle, CandleEntry, CandleFormatters } from '@/components/charts'
 import { collectCandleMarks } from '@/lib/candles'
 import { useFormat } from '@/composables/useFormat'
 import { useChartHeight } from '@/composables/useChartHeight'
+import { useSegBlock } from '@/composables/useSegBlock'
 import { pushToast } from '@/composables/useToast'
 import type { Lock } from '@/lib/types'
 import { buildEntryMarker } from '@/lib/positions'
@@ -24,6 +25,12 @@ const route = useRoute()
 const bot = useBotStore()
 
 const tab = ref<Tab>('whitelist')
+/** The block behind the pair-list tabs, which slides to whichever one is active. */
+const listSeg = ref<HTMLElement | null>(null)
+const { blockStyle: listBlockStyle, blockReady: listBlockReady } = useSegBlock(
+  listSeg,
+  () => tab.value,
+)
 const search = ref('')
 const positionsOnly = ref(false)
 const selectedPair = ref('')
@@ -250,7 +257,7 @@ onMounted(() => {
 
     <section class="panel">
       <div class="panel__head">
-        <div class="seg">
+        <div ref="listSeg" class="seg">
           <button
             type="button"
             class="seg__item"
@@ -278,6 +285,11 @@ onMounted(() => {
             {{ t('market.locks') }}
             <span class="small muted">{{ bot.locks?.lock_count ?? 0 }}</span>
           </button>
+          <span
+            class="seg__block"
+            :class="{ 'is-ready': listBlockReady }"
+            :style="listBlockStyle"
+          />
         </div>
         <div class="panel__actions row row--wrap">
           <label v-if="tab === 'whitelist'" class="switch">

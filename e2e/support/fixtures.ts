@@ -1,4 +1,4 @@
-import type { Page, Route } from '@playwright/test'
+import type { Locator, Page, Route } from '@playwright/test'
 
 /**
  * Offline fixtures for the end-to-end suite.
@@ -469,6 +469,23 @@ export async function mockApi(
  */
 export function livePage(page: Page) {
   return page.locator('.page-track > :not(.page-neighbor)')
+}
+
+/**
+ * Whether a segmented control's block is sitting on its active item. Measured rather than
+ * asserted through a class: the whole point of the block is that it lands on the widest
+ * label as squarely as on the narrowest.
+ */
+export async function segBlockMatches(seg: Locator) {
+  return seg.evaluate((element) => {
+    const block = element.querySelector('.seg__block') as HTMLElement | null
+    const active = element.querySelector('.seg__item[aria-pressed="true"]') as HTMLElement | null
+    if (!block || !active) return false
+    // Painted boxes, not offsets: the block is moved by a transform, which `offsetLeft` ignores.
+    const drawn = block.getBoundingClientRect()
+    const wanted = active.getBoundingClientRect()
+    return Math.abs(drawn.left - wanted.left) <= 1 && Math.abs(drawn.width - wanted.width) <= 1
+  })
 }
 
 /** The page held on the track at a slot: 1 is the page just to the right of this one. */

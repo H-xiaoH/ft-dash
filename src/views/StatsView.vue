@@ -8,6 +8,7 @@ import SortHeader from '@/components/SortHeader.vue'
 import type { BarItem } from '@/components/charts'
 import { useFormat } from '@/composables/useFormat'
 import { useChartHeight } from '@/composables/useChartHeight'
+import { useSegBlock } from '@/composables/useSegBlock'
 import { toNumber, type Numberish } from '@/lib/format'
 import { buildPairStats, type PairStats } from '@/lib/stats'
 import { useBotStore } from '@/stores/bot'
@@ -22,6 +23,12 @@ const bot = useBotStore()
 
 const period = ref<Period>('daily')
 const search = ref('')
+/** The block behind the period tabs, which slides to whichever one is active. */
+const periodSeg = ref<HTMLElement | null>(null)
+const { blockStyle: periodBlockStyle, blockReady: periodBlockReady } = useSegBlock(
+  periodSeg,
+  () => period.value,
+)
 const sortKey = ref<SortKey>('profitAbs')
 const sortDir = ref<'asc' | 'desc'>('desc')
 const periodChartHeight = useChartHeight(140, 0.19, 220)
@@ -326,7 +333,7 @@ function drawdownPercent(value: number | null | undefined) {
     <section class="panel">
       <div class="panel__head">
         <span class="panel__title">{{ t('stats.period') }}</span>
-        <div class="seg">
+        <div ref="periodSeg" class="seg">
           <button
             type="button"
             class="seg__item"
@@ -351,6 +358,11 @@ function drawdownPercent(value: number | null | undefined) {
           >
             {{ t('stats.monthly') }}
           </button>
+          <span
+            class="seg__block"
+            :class="{ 'is-ready': periodBlockReady }"
+            :style="periodBlockStyle"
+          />
         </div>
       </div>
       <div class="panel__body">

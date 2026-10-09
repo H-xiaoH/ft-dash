@@ -1,11 +1,22 @@
 import { expect, test } from '@playwright/test'
-import { connect, livePage, mockApi } from './support/fixtures'
+import { connect, livePage, mockApi, segBlockMatches } from './support/fixtures'
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
   await page.goto('/#/trades')
   await connect(page)
   await expect(page.locator('.shell')).toBeVisible()
+})
+
+test('the filter block slides to the tab you pick', async ({ page }) => {
+  const seg = livePage(page).locator('.seg')
+  await expect.poll(() => segBlockMatches(seg)).toBe(true)
+  // It travels rather than jumping.
+  await expect(seg.locator('.seg__block')).toHaveCSS('transition-property', 'transform, width')
+
+  await livePage(page).locator('.seg__item', { hasText: '全部交易' }).click()
+  await expect(livePage(page).locator('.seg__item[aria-pressed="true"]')).toContainText('全部交易')
+  await expect.poll(() => segBlockMatches(seg)).toBe(true)
 })
 
 test('“all trades” includes the open position, not just history', async ({ page }) => {

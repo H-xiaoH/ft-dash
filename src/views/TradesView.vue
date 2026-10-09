@@ -9,6 +9,7 @@ import SearchToggle from '@/components/SearchToggle.vue'
 import SideBadge from '@/components/SideBadge.vue'
 import TradeDetail from '@/components/TradeDetail.vue'
 import { useFormat } from '@/composables/useFormat'
+import { useSegBlock } from '@/composables/useSegBlock'
 import { pushToast } from '@/composables/useToast'
 import { downloadCsv } from '@/lib/csv'
 import type { Trade } from '@/lib/types'
@@ -26,6 +27,15 @@ const router = useRouter()
 const filter = ref<Filter>('all')
 const search = ref('')
 const result = ref<string>('all')
+/**
+ * The block behind the trades tabs, which slides to whichever one is active. Declared after
+ * `filter`: the composable watches it, and a watch runs its getter once straight away.
+ */
+const filterSeg = ref<HTMLElement | null>(null)
+const { blockStyle: filterBlockStyle, blockReady: filterBlockReady } = useSegBlock(
+  filterSeg,
+  () => filter.value,
+)
 const sortKey = ref<SortKey>('open_timestamp')
 const sortDir = ref<'asc' | 'desc'>('desc')
 const selected = ref<Trade | null>(null)
@@ -228,7 +238,7 @@ watch(linkedTrade, (trade) => {
   <div class="stack">
     <section class="panel">
       <div class="panel__head">
-        <div class="seg">
+        <div ref="filterSeg" class="seg">
           <button
             type="button"
             class="seg__item"
@@ -256,6 +266,11 @@ watch(linkedTrade, (trade) => {
             {{ t('trades.all') }}
             <span class="small muted">{{ allCount }}</span>
           </button>
+          <span
+            class="seg__block"
+            :class="{ 'is-ready': filterBlockReady }"
+            :style="filterBlockStyle"
+          />
         </div>
         <div class="panel__actions row">
           <SearchToggle v-model="search" :placeholder="t('market.searchPairs')" />

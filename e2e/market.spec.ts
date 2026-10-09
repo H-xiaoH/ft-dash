@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { connect, livePage, mockApi } from './support/fixtures'
+import { connect, livePage, mockApi, segBlockMatches } from './support/fixtures'
 
 const marksOfKind = (
   page: import('@playwright/test').Page,
@@ -15,6 +15,15 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/#/market')
   await connect(page)
   await expect(page.locator('.shell')).toBeVisible()
+})
+
+test('the pair-list block slides to the tab you pick', async ({ page }) => {
+  const seg = livePage(page).locator('.seg')
+  await expect.poll(() => segBlockMatches(seg)).toBe(true)
+
+  await seg.locator('.seg__item', { hasText: '交易锁' }).click()
+  await expect(seg.locator('.seg__item[aria-pressed="true"]')).toContainText('交易锁')
+  await expect.poll(() => segBlockMatches(seg)).toBe(true)
 })
 
 test('candles come first, with the bot timeframe shown as text', async ({ page }) => {

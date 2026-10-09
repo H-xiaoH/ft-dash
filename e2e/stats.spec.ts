@@ -1,11 +1,20 @@
 import { expect, test, type Page } from '@playwright/test'
-import { RESPONSES, connect, livePage, mockApi } from './support/fixtures'
+import { RESPONSES, connect, livePage, mockApi, segBlockMatches } from './support/fixtures'
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
   await page.goto('/#/stats')
   await connect(page)
   await expect(page.locator('.shell')).toBeVisible()
+})
+
+test('the period block slides to the period you pick', async ({ page }) => {
+  const seg = livePage(page).locator('.seg')
+  await expect.poll(() => segBlockMatches(seg)).toBe(true)
+
+  await livePage(page).locator('.seg__item', { hasText: '每月' }).click()
+  await expect(livePage(page).locator('.seg__item[aria-pressed="true"]')).toContainText('每月')
+  await expect.poll(() => segBlockMatches(seg)).toBe(true)
 })
 
 test('pair table derives win rate, fees, volume and last close from the trades', async ({

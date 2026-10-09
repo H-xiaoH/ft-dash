@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
-import { API_BASE, SECOND_BASE, connect, livePage, mockApi } from './support/fixtures'
+import {
+  API_BASE,
+  SECOND_BASE,
+  connect,
+  livePage,
+  mockApi,
+  segBlockMatches,
+} from './support/fixtures'
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
@@ -21,6 +28,32 @@ const gapBetween = async (above: Awaited<ReturnType<typeof panel>>, below: typeo
   const [a, b] = await Promise.all([above.boundingBox(), below.boundingBox()])
   return Math.round(b!.y - (a!.y + a!.height))
 }
+
+test('the stream-auth block slides to the choice you pick', async ({ page }) => {
+  const seg = livePage(page).locator('.seg')
+  await expect.poll(() => segBlockMatches(seg)).toBe(true)
+
+  // The labels here differ in width — `JWT` next to `ws_token` — which is why the block is
+  // measured rather than computed from the item count.
+  await seg.locator('.seg__item', { hasText: 'ws_token' }).click()
+  await expect(seg.locator('.seg__item[aria-pressed="true"]')).toContainText('ws_token')
+  await expect.poll(() => segBlockMatches(seg)).toBe(true)
+})
+
+test('toasts take the corner on wide screens and the middle on phones', async ({ page }) => {
+  await livePage(page).locator('button', { hasText: '重试实时推送' }).click()
+  const toast = page.locator('.toast').first()
+  await expect(toast).toBeVisible()
+
+  // 1440 wide in this spec: the stack hugs the right edge instead of the centre.
+  const wide = (await toast.boundingBox())!
+  expect(Math.round(wide.x + wide.width)).toBeGreaterThan(1440 - 40)
+
+  await page.setViewportSize({ width: 390, height: 780 })
+  const narrow = (await toast.boundingBox())!
+  expect(Math.round(narrow.x)).toBeLessThan(390 / 2)
+  expect(Math.round(narrow.x + narrow.width)).toBeGreaterThan(390 / 2)
+})
 
 test('the cards form two even columns with an even gap before the full-width card', async ({
   page,

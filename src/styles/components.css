@@ -298,6 +298,7 @@
 /* --- segments ----------------------------------------------------------- */
 
 .seg {
+  position: relative;
   display: inline-flex;
   padding: 2px;
   gap: 2px;
@@ -317,11 +318,31 @@
   cursor: pointer;
   font-size: var(--fs-base);
   white-space: nowrap;
+  /* Above the block, which slides underneath the labels. */
+  position: relative;
+  z-index: 1;
 }
 
 .seg__item[aria-pressed='true'] {
-  background: var(--ink-700);
   color: var(--text);
+}
+
+/* The block behind the active item: measured and moved by `useSegBlock`. */
+.seg__block {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 0;
+  border-radius: 4px;
+  background: var(--ink-700);
+  pointer-events: none;
+}
+
+/* Only once it has been placed: the first measurement must not animate in from the corner. */
+.seg__block.is-ready {
+  transition:
+    transform var(--dur-quick) var(--ease-out-strong),
+    width var(--dur-quick) var(--ease-out-strong);
 }
 
 .seg__item:hover {
@@ -657,6 +678,15 @@
   gap: var(--sp-2);
   z-index: 60;
   width: min(460px, calc(100vw - 32px));
+}
+
+/* A wide window has room to keep the middle free, so the stack sits in the corner instead. */
+@media (min-width: 901px) {
+  .toast-stack {
+    left: auto;
+    right: var(--sp-4);
+    transform: none;
+  }
 }
 
 .toast {
