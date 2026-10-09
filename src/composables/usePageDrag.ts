@@ -10,12 +10,11 @@ type DragSide = 1 | -1
  * goes, whether letting go commits, and what the wheel does over the rail. The track it
  * drives — offset, the pages held on it, handover to the router — lives in `usePageTrack`.
  *
- * A swipe on the page pushes it aside, one screen per finger, one page per gesture. A drag
- * on the tab bar carries the block, and the block sits where the finger is — it follows the
- * finger, rather than moving by however far the finger has travelled — so anywhere on the
- * bar is a handle. On wide screens the rail is the page selector: the wheel walks pages
- * there instead of scrolling the page behind it, a notch at a time, a trackpad's stream
- * continuously.
+ * A swipe pushes the page aside, one screen per finger, one page per gesture. The bottom bar
+ * is not a drag surface: a touch that lands on it belongs to the tab under the finger, so a
+ * tap cannot lose the gesture to a finger that wobbled sideways. On wide screens the rail is
+ * the page selector: the wheel walks pages there instead of scrolling the page behind it, a
+ * notch at a time, a trackpad's stream continuously.
  *
  * `isBlocked` lets the caller veto the whole thing (a dialog is open, or we are still on
  * the connect screen).
@@ -34,24 +33,10 @@ export function usePageDrag(isBlocked: () => boolean) {
   /** Quiet time after the last wheel event before the walk counts as finished. */
   const WHEEL_SETTLE_MS = 180
 
-  /** The bar's own geometry, measured once per gesture: a drag must not measure per move. */
-  interface BarMetrics {
-    /** Width of one tab slot: how far the block travels per tab, and the drag's scale. */
-    slot: number
-    /** The left edge of the first tab: where the block's travel starts from. */
-    origin: number
-  }
-
   let gesture: {
     target: EventTarget | null
     startX: number
     startY: number
-    /** Started on the tab bar: that carries the block, it does not push the pages. */
-    bar: boolean
-    /** Where the tabs sat when the finger landed; null unless this is a bar drag. */
-    metrics: BarMetrics | null
-    /** Where inside the block the finger landed: the block keeps that point under it. */
-    grab: number
     claimed: boolean
     lastX: number
     lastAt: number
@@ -62,41 +47,11 @@ export function usePageDrag(isBlocked: () => boolean) {
   let wheel: { origin: number; travel: number; landed: number; timer: number } | null = null
 
   /**
-   * Which way a horizontal drag walks the rail. Pushing a page right reveals the one
-   * before it; dragging the block right walks forward to the next tab, so the sides are
-   * mirrored.
+   * Which way a horizontal drag walks the rail: pushing a page right reveals the one before
+   * it, so the sides are mirrored.
    */
-  function sideOf(bar: boolean, dx: number): DragSide {
-    return (bar ? dx > 0 : dx < 0) ? 1 : -1
-  }
-
-  /**
-   * Where the tabs are and how far apart. Measured off a tab itself rather than off the bar:
-   * the bar carries padding, and dividing its width would walk the block a little faster than
-   * the tabs it is supposed to land on.
-   */
-  function measureBar(): BarMetrics {
-    const item = document.querySelector('.tabbar__item')
-    if (!item) return { slot: window.innerWidth / (NAV_ROUTES.length || 1), origin: 0 }
-    const box = item.getBoundingClientRect()
-    return { slot: box.width, origin: box.left }
-  }
-
-  /**
-   * Where inside the block the finger landed, so it keeps that point and does not jump when
-   * grabbed by an edge. A press anywhere else on the bar centres the block on the finger,
-   * which is what makes the whole bar a handle for it.
-   */
-  function grabOffset(clientX: number, metrics: BarMetrics): number {
-    const block = document.querySelector('.tabbar__indicator')?.getBoundingClientRect()
-    if (!block || clientX < block.left || clientX > block.right) return metrics.slot / 2
-    return clientX - block.left
-  }
-
-  /** Which tab the block is on for a finger at this point — the finger's own position. */
-  function blockSlots(clientX: number, metrics: BarMetrics, grab: number): number {
-    const travel = (clientX - grab - metrics.origin) / metrics.slot
-    return Math.max(0, Math.min(NAV_ROUTES.length - 1, travel))
+  function sideOf(dx: number): DragSide {
+    return dx < 0 ? 1 : -1
   }
 
   /** A gesture that belongs to a dialog, or to a component that owns horizontal drags. */
@@ -118,16 +73,13 @@ export function usePageDrag(isBlocked: () => boolean) {
   function onTouchStart(event: TouchEvent) {
     gesture = null
     if (track.busy() || event.touches.length !== 1 || gestureIsTaken(event.target)) return
+    // The bar belongs to its tabs: a touch there never becomes a page drag.
+    if (event.target instanceof Element && event.target.closest('.tabbar')) return
     const touch = event.touches[0]
-    const bar = event.target instanceof Element && event.target.closest('.tabbar') !== null
-    const metrics = bar ? measureBar() : null
     gesture = {
       target: event.target,
       startX: touch.clientX,
       startY: touch.clientY,
-      bar,
-      metrics,
-      grab: metrics ? grabOffset(touch.clientX, metrics) : 0,
       claimed: false,
       lastX: touch.clientX,
       lastAt: performance.now(),
@@ -162,20 +114,8 @@ export function usePageDrag(isBlocked: () => boolean) {
     current.lastX = touch.clientX
     current.lastAt = now
 
-    const span = track.width.value || window.innerWidth
-    if (current.metrics) {
-      /*
-       * The block goes where the finger is, on the bar's own scale — the opposite mapping
-       * from pushing a page aside, and as many tabs from here as the finger is. Holding it
-       * inside the bar is what the clamp does, so a finger off the end parks the block there
-       * with the pages behind it caught up.
-       */
-      const slots = blockSlots(touch.clientX, current.metrics, current.grab) - track.routeIndex()
-      track.dragTo(-slots * span)
-      return
-    }
     // One page per drag: follow the finger, and resist only where the rail ends.
-    track.dragTo(NAV_ROUTES[track.routeIndex() + sideOf(false, dx)] ? dx : dx * 0.25)
+    track.dragTo(NAV_ROUTES[track.routeIndex() + sideOf(dx)] ? dx : dx * 0.25)
   }
 
   function onTouchEnd(event: TouchEvent) {
@@ -185,26 +125,11 @@ export function usePageDrag(isBlocked: () => boolean) {
 
     const touch = event.changedTouches[0]
     const dx = touch ? touch.clientX - current.startX : track.offset.value
-    const side = sideOf(current.bar, dx)
+    const side = sideOf(dx)
     const index = track.routeIndex()
     const flicked =
       Math.sign(current.velocity) === Math.sign(dx) &&
       Math.abs(current.velocity) > DRAG_FLICK_PX_PER_MS
-
-    if (current.metrics) {
-      // The block lands on the tab it was left over. A flick on a block the finger never
-      // carried away from its tab still counts as one step, like a quick page swipe does.
-      const last = NAV_ROUTES.length - 1
-      const under = touch ? blockSlots(touch.clientX, current.metrics, current.grab) : index
-      const landed = Math.max(0, Math.min(last, Math.round(under)))
-      const target = Math.max(
-        0,
-        Math.min(last, landed === index && flicked ? index + side : landed),
-      )
-      if (target !== index) void track.commit(target)
-      else track.cancel()
-      return
-    }
 
     const route = NAV_ROUTES[index + side]
     const committed =

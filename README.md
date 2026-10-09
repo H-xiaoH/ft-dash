@@ -46,20 +46,18 @@ Interface languages: **简体中文** and **English** (follows the browser by de
 
 On phones you also move between pages by swiping sideways: the page follows your finger, the
 neighbour slides in beside it, and releasing past a third of the screen (or a quick flick)
-completes the move. Tapping a tab plays the same full-page slide. Dragging the tab bar is the
-quicker way along it — the block sits *under your finger* (press a tab and the block lands on
-it), the pages ride along one per tab, and letting go lands on the page the block is over.
-A quick flick is one step along even when the block never left its own tab — the same rule a
-fast page swipe follows. Every other page is held on the track the whole time, so a switch
-shows no blank and no loading state as soon as that page's code has arrived — the one page
-whose code cannot be fetched at all is the exception, and it says so instead of hanging. The
-data behind the page is refreshed once the pages stop changing, so a walk across several tabs
-fetches once, for the page it lands on. A sideways swipe still moves one page at a time. The
-candle chart is the exception to the pre-loading: its candles are fetched only while the
-market page is the one on screen.
+completes the move. Tapping a tab plays the same full-page slide. The bottom bar is not a drag
+surface: a touch on it belongs to the tab under the finger, so a wobbling thumb never swallows
+a tap. Every other page is held on the track the whole time, so a switch shows no blank and no
+loading state as soon as that page's code has arrived — the one page whose code cannot be
+fetched at all is the exception, and it says so instead of hanging. The data behind the page is
+refreshed once the pages stop changing, so a walk across several tabs fetches once, for the page
+it lands on. A sideways swipe still moves one page at a time. The candle chart is the exception
+to the pre-loading: its candles are fetched only while the market page is the one on screen.
 
 Pages keep a gutter between them, so a swipe reads as two sheets rather than one long one, and
-the bottom bar lights each tab as the block passes over it — held still, mid-drag, included.
+the bottom bar lights each tab as the block passes over it — mid-swipe, with the finger still
+down, included.
 Wide screens travel the way the rail reads: a whole page up or down, and the wheel over the
 left rail walks pages — one notch is one page, a trackpad's stream keeps walking as you scroll,
 and the page behind the rail does not move. The wheel only takes over there.
@@ -102,13 +100,11 @@ checked on a real device — worth two minutes in Safari with the PWA installed:
    whenever you come back to the tab, then reloads onto the new build. Nothing to click, and no
    cold start to provoke.
 3. **Page gestures**: sideways swipes track the finger and do not flicker; the bottom-bar
-   selection follows along; tapping a tab matches what a swipe does. Dragging the bar keeps the
-   block under the finger (wherever it was pressed), never leaves a blank page behind, lands on
-   the page the block was left over, and takes one step on a quick flick even from its own tab.
-   The tabs light up under the block as it passes. No page scrolls past its own content, and the
-   log page fills the window with the list scrolling inside it. On wide screens pages slide up
-   and down and the wheel over the rail walks them — a notch each for a mouse, continuously for
-   a trackpad — without scrolling the page.
+   selection follows along; tapping a tab matches what a swipe does, and a sideways drag that
+   starts on the bar leaves the pages alone. The tabs light up under the block as it passes. No
+   page scrolls past its own content, and the log page fills the window with the list scrolling
+   inside it. On wide screens pages slide up and down and the wheel over the rail walks them — a
+   notch each for a mouse, continuously for a trackpad — without scrolling the page.
 4. **Candles**: dragging scrubs the readout; a dropdown follows its button while the page
    scrolls; the P&L tag stays pinned to the right.
 5. **Language**: switching applies immediately; with "follow system" selected, changing the

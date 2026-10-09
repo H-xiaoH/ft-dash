@@ -193,54 +193,17 @@ test('a drag with nowhere to go resists and never switches', async ({ page }) =>
   expect(await trackX(page)).toBe(0)
 })
 
-test('dragging the tab block walks the block along the bar', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-  await page.locator('.tabbar__item').nth(1).click()
-  await expect.poll(() => hash(page)).toBe('#/trades')
-
-  const slots = await page
+/** How lit a bottom-bar tab is, read off its painted colour: brighter means higher. */
+const tabLit = (page: Page, index: number) =>
+  page
     .locator('.tabbar__item')
-    .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().x)))
-  const blockX = () =>
-    page.locator('.tabbar__indicator').evaluate((el) => Math.round(el.getBoundingClientRect().x))
-  const bar = (await page.locator('.tabbar').boundingBox())!
-  const y = Math.round(bar.y + bar.height / 2)
-
-  // Press the block itself: 交易 sits at slots[1].
-  await touchAt(page, 'touchstart', slots[1] + 27, y, '.tabbar')
-  await touchAt(page, 'touchmove', slots[1] + 57, y, '.tabbar')
-
-  /*
-   * The block follows the finger to the right — the opposite of pushing a page aside, where
-   * dragging right walks back a tab — and the next page previews underneath it.
-   */
-  expect(await blockX()).toBeGreaterThan(slots[1])
-  expect(await trackX(page)).toBeLessThan(-100)
-
-  await touchAt(page, 'touchend', slots[1] + 57, y, '.tabbar')
-  await expect.poll(() => hash(page)).toBe('#/stats')
-  await expect.poll(blockX).toBe(slots[2])
-})
-
-/** The tab bar's own geometry, so a drag can be checked against the tabs it lands on. */
-const barSizing = async (page: Page) => {
-  const slots = await page
-    .locator('.tabbar__item')
-    .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().x)))
-  const bar = (await page.locator('.tabbar').boundingBox())!
-  const host = (await page.locator('.page-host').boundingBox())!
-  const item = (await page.locator('.tabbar__item').first().boundingBox())!
-  return {
-    slots,
-    y: Math.round(bar.y + bar.height / 2),
-    hostX: host.x,
-    hostWidth: host.width,
-    tab: item.width,
-  }
-}
-
-const blockX = (page: Page) =>
-  page.locator('.tabbar__indicator').evaluate((el) => Math.round(el.getBoundingClientRect().x))
+    .nth(index)
+    .evaluate((el) => {
+      const channels = getComputedStyle(el)
+        .color.match(/[\d.]+/g)!
+        .slice(0, 3)
+      return channels.reduce((total, channel) => total + Number(channel), 0)
+    })
 
 const trackX = (page: Page) =>
   page.locator('.page-track').evaluate((el) => {
@@ -248,110 +211,25 @@ const trackX = (page: Page) =>
     return transform === 'none' ? 0 : Math.round(new DOMMatrixReadOnly(transform).m41)
   })
 
-/**
- * Whether the page area is showing real pages across its width, or has slid onto nothing.
- * Measured off the pages' own boxes rather than off hit testing: the pages held on the
- * track are inert, and an inert page is not what a pointer lands on.
- */
-const pageAreaCovered = (page: Page) =>
-  page.evaluate(() => {
-    const box = document.querySelector('.page-host')!.getBoundingClientRect()
-    const pages = [...document.querySelectorAll('.page-track > *')].map((node) =>
-      node.getBoundingClientRect(),
-    )
-    return [0.02, 0.25, 0.5, 0.75, 0.98].every((share) => {
-      const x = box.x + box.width * share
-      return pages.some((rect) => x >= rect.x && x <= rect.x + rect.width && rect.width > 0)
-    })
-  })
-
-test('carrying the tab block walks it along the bar, pages and all', async ({ page }) => {
+test('a touch on the bar belongs to its tab, not to the pages', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 })
-  const errors: string[] = []
-  page.on('pageerror', (error) => errors.push(String(error)))
-  page.on('console', (message) => {
-    if (message.type() === 'error' || message.text().includes('[Vue warn]'))
-      errors.push(message.text())
-  })
-
-  const { slots, y, hostWidth, tab } = await barSizing(page)
-  const parkedScreens = () =>
-    page
-      .locator('.page-neighbor')
-      .evaluateAll((nodes) => nodes.map((node) => Math.round(node.getBoundingClientRect().x)))
 
   /*
-   * Press the block on 总览 and carry it three tabs along, to 市场. The block belongs to
-   * the finger, so it follows one for one; the pages ride underneath it one page per tab,
-   * and the pages it uncovers are parked as it goes — the third page of the walk is real
-   * content, not the blank the bar used to slide onto.
+   * The bar is a control strip, not a drag surface: a sideways shove that starts on it must
+   * leave the pages and the block where they were. Otherwise a tap on a tab could lose the
+   * gesture to a finger that wobbled, and the tab would do nothing at all.
    */
-  await touchAt(page, 'touchstart', slots[0] + 27, y, '.tabbar')
-  for (const dx of [40, 90, 140, 170]) {
-    await touchAt(page, 'touchmove', slots[0] + 27 + dx, y, '.tabbar')
-    await page.waitForTimeout(50)
-
-    const slotsTravelled = dx / tab
-    expect(await blockX(page)).toBeGreaterThanOrEqual(Math.round(slots[0] + dx) - 2)
-    expect(await blockX(page)).toBeLessThanOrEqual(Math.round(slots[0] + dx) + 2)
-    expect(
-      Math.abs((await trackX(page)) + Math.round(slotsTravelled * hostWidth)),
-    ).toBeLessThanOrEqual(2)
-    // The whole rail is held on the track, and there is never a hole between the pages.
-    expect((await parkedScreens()).length).toBe(6)
-    expect(await pageAreaCovered(page)).toBe(true)
-  }
-
-  await touchAt(page, 'touchend', slots[0] + 27 + 170, y, '.tabbar')
-  await expect.poll(() => hash(page)).toBe('#/market')
-  await expect.poll(() => blockX(page)).toBe(slots[3])
-  await expect.poll(() => trackX(page)).toBe(0)
-  await expect(heldSlot(page, 0)).toHaveCount(0)
-  expect(errors).toEqual([])
-})
-
-test('carrying the block back down the bar brings the pages back with it', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-  await page.locator('.tabbar__item').nth(4).click()
-  await expect.poll(() => hash(page)).toBe('#/logs')
-  const { slots, y } = await barSizing(page)
-
-  // 日志 sits at slot 4: carry the block two tabs back, to 统计.
-  await touchAt(page, 'touchstart', slots[4] + 27, y, '.tabbar')
-  for (const dx of [-40, -80, -105]) {
-    await touchAt(page, 'touchmove', slots[4] + 27 + dx, y, '.tabbar')
-    await page.waitForTimeout(50)
-    expect(await pageAreaCovered(page)).toBe(true)
-    expect(await blockX(page)).toBeLessThan(slots[4])
-  }
-
-  await touchAt(page, 'touchend', slots[4] + 27 - 105, y, '.tabbar')
-  await expect.poll(() => hash(page)).toBe('#/stats')
-  await expect.poll(() => blockX(page)).toBe(slots[2])
-  await expect.poll(() => trackX(page)).toBe(0)
-  await expect(heldSlot(page, 0)).toHaveCount(0)
-})
-
-test('the tab block stops at the end of the bar', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-  // Already on the first tab: dragging the block left has nowhere to go.
-  const slots = await page
-    .locator('.tabbar__item')
-    .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().x)))
-  const blockX = () =>
-    page.locator('.tabbar__indicator').evaluate((el) => Math.round(el.getBoundingClientRect().x))
   const bar = (await page.locator('.tabbar').boundingBox())!
   const y = Math.round(bar.y + bar.height / 2)
-  const start = await blockX()
+  await touchAt(page, 'touchstart', 330, y, '.tabbar')
+  await touchAt(page, 'touchmove', 120, y, '.tabbar')
 
-  await touchAt(page, 'touchstart', slots[0] + 27, y, '.tabbar')
-  await touchAt(page, 'touchmove', slots[0] - 60, y, '.tabbar')
-  expect(await blockX()).toBe(start)
   expect(await trackX(page)).toBe(0)
+  expect(await hash(page)).toBe('#/')
 
-  await touchAt(page, 'touchend', slots[0] - 60, y, '.tabbar')
-  await page.waitForTimeout(300)
-  expect(hash(page)).toBe('#/')
+  await touchAt(page, 'touchend', 120, y, '.tabbar')
+  await page.waitForTimeout(200)
+  expect(await hash(page)).toBe('#/')
 })
 
 test('a horizontal drag on a scrubbable chart stays with the chart', async ({ page }) => {
@@ -544,96 +422,27 @@ test('every other page is already on the track, and inert', async ({ page }) => 
   expect(reached).toBe(false)
 })
 
-test('the block sits where the finger is, not where the drag started', async ({ page }) => {
+test('a page swipe lights the bar as the block travels', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 })
-  const { slots, y, tab } = await barSizing(page)
-  await page.locator('.tabbar__item').nth(4).click()
-  await expect.poll(() => hash(page)).toBe('#/logs')
-  await expect.poll(() => blockX(page)).toBe(slots[4])
+  const lit = (at: number) => tabLit(page, at)
+  const before = await Promise.all([0, 1, 2].map(lit))
 
-  /*
-   * Press a tab three along from the block and move just enough to claim the gesture. The
-   * block belongs to the finger, so it comes to the finger rather than staying three tabs
-   * behind it: anywhere on the bar is a handle.
-   */
-  await touchAt(page, 'touchstart', slots[1] + 10, y, '.tabbar')
-  await touchAt(page, 'touchmove', slots[1] + 22, y, '.tabbar')
-  const centre = (await blockX(page)) + tab / 2
-  expect(Math.abs(centre - (slots[1] + 22))).toBeLessThanOrEqual(2)
-  // And the pages have come with it: the tab under the finger is the page on screen.
-  const showing = await page.evaluate(() => {
-    const host = document.querySelector('.page-host')!.getBoundingClientRect()
-    const x = host.x + host.width / 2
-    const page = [...document.querySelectorAll('.page-track > *')].find((node) => {
-      const rect = node.getBoundingClientRect()
-      return x >= rect.x && x <= rect.x + rect.width
-    })
-    return (page?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)
-  })
-  expect(showing).toContain('交易对')
+  // 总览 -> 交易: the block walks one tab, and the light walks with it while the finger
+  // is still down — it is the block's position that lights a tab, not the route.
+  await touchAt(page, 'touchstart', 330)
+  await touchAt(page, 'touchmove', 200)
+  await page.waitForTimeout(80)
+  const midway = await Promise.all([0, 1, 2].map(lit))
+  // Nothing has committed yet: this is the drag, not a route change.
+  expect(hash(page)).toBe('#/')
+  expect(midway[1]).toBeGreaterThan(before[1])
 
-  await touchAt(page, 'touchend', slots[1] + 22, y, '.tabbar')
+  await touchAt(page, 'touchend', 60)
   await expect.poll(() => hash(page)).toBe('#/trades')
-})
-
-/**
- * Presses the bar, shoves it sideways and lets go inside one frame. Dispatched together so
- * the flick is a flick whatever the test runner's round-trip costs: everything the gesture's
- * speed is measured from happens in the same millisecond.
- */
-const flickAt = (page: Page, x: number, dx: number, y: number) =>
-  page.evaluate(
-    ({ x, dx, y }) => {
-      const target = document.querySelector('.tabbar') as Element
-      const point = (clientX: number) => new Touch({ identifier: 1, target, clientX, clientY: y })
-      const send = (type: 'touchstart' | 'touchmove' | 'touchend', clientX: number) =>
-        target.dispatchEvent(
-          new TouchEvent(type, {
-            touches: type === 'touchend' ? [] : [point(clientX)],
-            changedTouches: [point(clientX)],
-            bubbles: true,
-            cancelable: true,
-          }),
-        )
-      send('touchstart', x)
-      send('touchmove', x + dx)
-      send('touchend', x + dx)
-    },
-    { x, dx, y },
-  )
-
-test('a quick flick along the bar is one step, like a fast page swipe', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-  const { slots, y, tab } = await barSizing(page)
-  await page.locator('.tabbar__item').nth(1).click()
-  await expect.poll(() => hash(page)).toBe('#/trades')
-  await expect.poll(() => blockX(page)).toBe(slots[1])
-
-  /*
-   * The shove is under half a tab, so the block is left over 交易 — where it started. A
-   * flick on a block that never left its tab still completes one step, the same way a fast
-   * swipe completes a page without crossing a third of the screen.
-   */
-  await flickAt(page, slots[1] + tab / 2, 18, y)
-  await expect.poll(() => hash(page)).toBe('#/stats')
-  await expect.poll(() => blockX(page)).toBe(slots[2])
-})
-
-test('a slow nudge that leaves the block on its own tab stays put', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-  const { slots, y, tab } = await barSizing(page)
-  await page.locator('.tabbar__item').nth(1).click()
-  await expect.poll(() => hash(page)).toBe('#/trades')
-
-  // Same shove as the flick above, taken slowly: no speed, so no step — the block lands
-  // back on the tab it never left.
-  await touchAt(page, 'touchstart', slots[1] + tab / 2, y, '.tabbar')
-  await page.waitForTimeout(400)
-  await touchAt(page, 'touchmove', slots[1] + tab / 2 + 18, y, '.tabbar')
-  await touchAt(page, 'touchend', slots[1] + tab / 2 + 18, y, '.tabbar')
-  await page.waitForTimeout(400)
-  expect(hash(page)).toBe('#/trades')
-  await expect.poll(() => blockX(page)).toBe(slots[1])
+  const after = await Promise.all([0, 1, 2].map(lit))
+  // Landed: the light has moved one tab along.
+  expect(after[1]).toBeGreaterThan(after[0])
+  expect(after[0]).toBeCloseTo(before[1], 3)
 })
 
 test('the wheel over the rail walks a page per notch', async ({ page }) => {
