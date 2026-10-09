@@ -46,7 +46,7 @@ function levelClass(level: string): string {
 </script>
 
 <template>
-  <section class="panel">
+  <section class="panel logs-page">
     <div class="panel__head">
       <span class="panel__title">{{ t('logs.title') }}</span>
       <span class="panel__meta num">{{ t('logs.lines', { n: lines.length }) }}</span>
@@ -92,10 +92,27 @@ function levelClass(level: string): string {
 </template>
 
 <style scoped>
+/*
+ * Fills what the viewport has left under the strip, with the list scrolling inside the panel
+ * instead of the document: stopping at the last line left the rest of the screen empty. A
+ * definite height, not a minimum — with only a minimum the list still grows the page.
+ */
+.logs-page {
+  height: calc(100dvh - var(--topbar-h) - var(--shell-pad) - var(--shell-pad-bottom));
+}
+
+.logs-page :deep(.panel__body) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .logs {
   display: flex;
   flex-direction: column;
-  max-height: 68vh;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   font-size: var(--fs-sm);
 }
