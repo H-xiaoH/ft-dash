@@ -17,7 +17,7 @@ import {
   type DurationLabels,
   type Numberish,
 } from '@/lib/format'
-import { resolveZone } from '@/lib/periods'
+import { resolveZone } from '@/lib/timezone'
 import { useSettingsStore } from '@/stores/settings'
 
 export interface Formatter {

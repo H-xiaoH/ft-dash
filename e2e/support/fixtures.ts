@@ -173,6 +173,23 @@ const profitSummary = {
   bot_start_date: '2026-09-01 00:00:00',
 }
 
+/**
+ * Rows for `/daily`, `/weekly` and `/monthly`: the bot's own reports, which stay in UTC days.
+ */
+function periodRows(count: number, stepDays: number) {
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(NOW - (index + 1) * stepDays * DAY)
+    return {
+      date: date.toISOString().slice(0, 10),
+      abs_profit: index % 3 === 0 ? 0.5 : 0,
+      rel_profit: index % 3 === 0 ? 0.005 : 0,
+      starting_balance: 100 + index,
+      fiat_value: index % 3 === 0 ? 0.5 : 0,
+      trade_count: index % 3 === 0 ? 1 : 0,
+    }
+  })
+}
+
 function candles(count = 60) {
   const data: (string | number)[][] = []
   let price = 1
@@ -303,6 +320,9 @@ export const RESPONSES: Record<string, unknown> = {
     },
     durations: { wins: 3_600_000, losses: 1_800_000, draws: null },
   },
+  daily: { data: periodRows(20, 1), fiat_display_currency: 'USD', stake_currency: 'USDT' },
+  weekly: { data: periodRows(8, 7), fiat_display_currency: 'USD', stake_currency: 'USDT' },
+  monthly: { data: periodRows(3, 30), fiat_display_currency: 'USD', stake_currency: 'USDT' },
   logs: {
     log_count: 2,
     logs: [

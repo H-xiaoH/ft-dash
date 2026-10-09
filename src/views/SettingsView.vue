@@ -10,7 +10,7 @@ import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from '@/i18n'
 import { canInstall, isStandalone, offlineReady, promptInstall } from '@/pwa'
 import { useBotStore } from '@/stores/bot'
 import { useEventsStore } from '@/stores/events'
-import type { TimezonePreference } from '@/lib/periods'
+import type { TimezonePreference } from '@/lib/timezone'
 import { useSettingsStore } from '@/stores/settings'
 import type { StreamAuthPreference } from '@/lib/stream'
 

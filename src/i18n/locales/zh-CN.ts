@@ -297,7 +297,7 @@ export default {
     timezoneBrowser: '跟随浏览器',
     timezoneUtc: 'UTC',
     timezoneHint:
-      '按天／周／月划分的边界按这个时区算，成交时间与日志也按它显示。交易所按 UTC 走，要和机器人自己的报表对账时选 UTC。',
+      '成交时间、日志与图表读数按这个时区显示。按天／周／月统计的边界由机器人按 UTC 划定，不随这里改变；要和交易所口径一致就选 UTC。',
     push: '推送',
     websocket: 'WebSocket 实时推送',
     websocketHint: '开启后可实时收到入场、平仓与告警事件。',

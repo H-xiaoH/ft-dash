@@ -20,7 +20,7 @@ import {
 } from '@/lib/bots'
 import { readJson, removeKey, safeSessionStorage, writeJson } from '@/lib/storage'
 import type { StreamAuthPreference } from '@/lib/stream'
-import type { TimezonePreference } from '@/lib/periods'
+import type { TimezonePreference } from '@/lib/timezone'
 
 const SETTINGS_KEY = 'ftdash.settings.v1'
 

@@ -237,15 +237,14 @@ Never commit a real host, username or password: `.env*` files are git-ignored.
 Built against **Freqtrade 2026.8 / API v2.5** and verified end to end against a live futures
 instance. It reads `/ping`, `/show_config`, `/version`, `/health`, `/sysinfo`, `/balance`,
 `/profit`, `/profit_all`, `/status`, `/count`, `/trades`, `/performance`, `/stats`,
-`/logs`, `/whitelist`, `/blacklist`, `/locks` and `/pair_candles`, and posts to `/start`,
-`/stop`, `/stopentry`, `/reload_config`, `/forceexit`, `/blacklist` and `/locks/delete` when
-controls are enabled.
+`/daily`, `/weekly`, `/monthly`, `/logs`, `/whitelist`, `/blacklist`, `/locks` and
+`/pair_candles`, and posts to `/start`, `/stop`, `/stopentry`, `/reload_config`, `/forceexit`,
+`/blacklist` and `/locks/delete` when controls are enabled.
 
-The day, week and month reports are not read from `/daily`, `/weekly` and `/monthly`: those are
-bucketed in UTC, while a day of trading belongs to whoever is watching it. The app rebuilds
-them from the trades in the zone chosen under **Settings → Time zone** (the browser's own zone
-by default, UTC for reconciling against the bot's own reports). Times are shown in that zone
-too.
+The day, week and month reports are the bot's own, bucketed in UTC — the same days the bot and
+the exchange work in. **Settings → Time zone** (the browser's own zone by default, UTC for the
+exchanges' clock) decides how *times* are shown: a trade closed at 23:30 UTC reads as 07:30 the
+next morning in Shanghai. It does not move the report boundaries.
 
 Older releases may lack individual endpoints (for example `/pair_candles` column filtering or
 `/stats` durations); the affected panel then shows an error or stays empty instead of

@@ -320,6 +320,21 @@ export interface PairCandlesResponse {
   last_analyzed_ts?: number | null
 }
 
+export interface DailyEntry {
+  date: string
+  abs_profit: number
+  rel_profit: number
+  starting_balance: number
+  fiat_value: number
+  trade_count: number
+}
+
+export interface DailyResponse {
+  data: DailyEntry[]
+  fiat_display_currency: string
+  stake_currency: string
+}
+
 export interface StatusMsg {
   status?: string
   [key: string]: unknown

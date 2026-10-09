@@ -298,7 +298,7 @@ export default {
     timezoneBrowser: 'Follow the browser',
     timezoneUtc: 'UTC',
     timezoneHint:
-      'Day, week and month boundaries are drawn in this zone, and times are shown in it. Exchanges work in UTC — pick it when reconciling against the bot’s own reports.',
+      'Times, log stamps and chart readouts are shown in this zone. The day, week and month reports are bucketed in UTC by the bot and do not move with this — pick UTC to match the exchanges.',
     push: 'Push',
     websocket: 'WebSocket live updates',
     websocketHint: 'Stream entries, exits and warnings as they happen.',

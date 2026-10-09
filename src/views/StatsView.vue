@@ -10,20 +10,16 @@ import { useFormat } from '@/composables/useFormat'
 import { useChartHeight } from '@/composables/useChartHeight'
 import { useSegBlock } from '@/composables/useSegBlock'
 import { toNumber, type Numberish } from '@/lib/format'
-import { bucketTrades, resolveZone, type Period } from '@/lib/periods'
 import { buildPairStats, type PairStats } from '@/lib/stats'
 import { useBotStore } from '@/stores/bot'
-import { useSettingsStore } from '@/stores/settings'
 
+type Period = 'daily' | 'weekly' | 'monthly'
 type SortKey =
   'name' | 'count' | 'winRate' | 'profitAbs' | 'avgDuration' | 'fees' | 'volume' | 'lastTrade'
 
 const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
-const settings = useSettingsStore()
-/** The clock the operator reads by, and so the one the period buckets are drawn on. */
-const zone = computed(() => resolveZone(settings.timezone))
 
 const period = ref<Period>('daily')
 const search = ref('')
@@ -103,9 +99,9 @@ function toggleSort(key: SortKey) {
 }
 
 const periodData = computed(() => {
-  // Rebuilt from the trades so a "day" ends where the operator's day ends, not at midnight UTC.
-  // `/balance` carries the capital the account started with, alongside today's total.
-  return bucketTrades(bot.closedTrades, zone.value, period.value, bot.balance?.starting_capital)
+  const source =
+    period.value === 'daily' ? bot.daily : period.value === 'weekly' ? bot.weekly : bot.monthly
+  return source?.data ?? []
 })
 
 const periodBars = computed<BarItem[]>(() =>

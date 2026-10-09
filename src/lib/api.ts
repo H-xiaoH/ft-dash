@@ -2,6 +2,7 @@ import type {
   AccessToken,
   BalanceResponse,
   BlacklistResponse,
+  DailyResponse,
   DeleteLockPayload,
   ForceEnterPayload,
   ForceExitPayload,
@@ -338,6 +339,18 @@ export class FreqtradeApi {
 
   performance(): Promise<PerformanceEntry[]> {
     return this.request('/performance')
+  }
+
+  daily(days?: number): Promise<DailyResponse> {
+    return this.request('/daily', { query: { timescale: days } })
+  }
+
+  weekly(weeks?: number): Promise<DailyResponse> {
+    return this.request('/weekly', { query: { timescale: weeks } })
+  }
+
+  monthly(months?: number): Promise<DailyResponse> {
+    return this.request('/monthly', { query: { timescale: months } })
   }
 
   logs(limit = 100): Promise<LogsResponse> {
