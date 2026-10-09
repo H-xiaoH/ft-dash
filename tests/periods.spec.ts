@@ -68,20 +68,20 @@ describe('bucketTrades', () => {
     expect(bucketTrades([open as Trade, noClose as Trade], SHANGHAI, 'daily')).toEqual([])
   })
 
-  it('walks the opening balances back from today’s equity', () => {
+  it('carries the opening balances forward from the capital the account started with', () => {
     const rows = bucketTrades(
       [closed('2026-10-08T10:00:00Z', 10), closed('2026-10-09T10:00:00Z', 5)],
       SHANGHAI,
       'daily',
-      115,
+      100,
     )
 
-    // Today's 115 was 110 before the second day earned 5, and 100 before the first earned 10.
+    // The first day opened on the starting capital; the second on that, plus the first result.
     expect(rows.map((row) => row.starting_balance)).toEqual([100, 110])
     expect(rows.map((row) => row.rel_profit)).toEqual([0.1, 5 / 110])
   })
 
-  it('leaves the balances out when the equity is not known yet', () => {
+  it('leaves the balances out when the bot has not reported a starting capital', () => {
     const [row] = bucketTrades([closed('2026-10-09T10:00:00Z')], SHANGHAI, 'daily')
 
     expect(row.starting_balance).toBeUndefined()

@@ -96,8 +96,8 @@ export function bucketTrades(
   trades: Trade[],
   zone: string,
   period: Period,
-  /** Today's equity, when it is known: the balances are walked back from it. */
-  equity?: number | null,
+  /** What the account held before the first trade, when the bot reports it. */
+  startingCapital?: number | null,
 ): PeriodRow[] {
   const byPeriod = new Map<string, PeriodRow>()
   for (const trade of trades) {
@@ -115,18 +115,23 @@ export function bucketTrades(
   }
   const rows = [...byPeriod.values()].sort((a, b) => a.date.localeCompare(b.date))
 
-  if (typeof equity === 'number' && Number.isFinite(equity) && equity > 0) {
+  if (
+    typeof startingCapital === 'number' &&
+    Number.isFinite(startingCapital) &&
+    startingCapital > 0
+  ) {
     /*
-     * The bot's own balance history is a UTC series the app no longer reads, so each period's
-     * opening balance is worked back from today's equity instead: what was there when a period
-     * started is what is there now, less everything earned since.
+     * The bot's per-day balance history is a UTC series the app no longer reads, so the
+     * opening balances are rebuilt the way the bot builds them: start from the capital the
+     * account began with, and add each period's result as it goes. Anchoring on the starting
+     * capital rather than on today's equity keeps a position that is still open, or a balance
+     * that has not loaded yet, out of the arithmetic.
      */
-    let balance = equity
-    for (let at = rows.length - 1; at >= 0; at -= 1) {
-      const row = rows[at]
-      row.starting_balance = balance - row.abs_profit
+    let balance = startingCapital
+    for (const row of rows) {
+      row.starting_balance = balance
       row.rel_profit = row.starting_balance ? row.abs_profit / row.starting_balance : null
-      balance = row.starting_balance
+      balance += row.abs_profit
     }
   }
 

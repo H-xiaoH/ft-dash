@@ -104,7 +104,8 @@ function toggleSort(key: SortKey) {
 
 const periodData = computed(() => {
   // Rebuilt from the trades so a "day" ends where the operator's day ends, not at midnight UTC.
-  return bucketTrades(bot.closedTrades, zone.value, period.value, bot.balance?.total)
+  // `/balance` carries the capital the account started with, alongside today's total.
+  return bucketTrades(bot.closedTrades, zone.value, period.value, bot.balance?.starting_capital)
 })
 
 const periodBars = computed<BarItem[]>(() =>
