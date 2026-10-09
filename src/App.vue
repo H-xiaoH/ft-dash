@@ -55,6 +55,7 @@ const SETTLE_REFRESH_MS = 300
 const {
   dragOffset,
   dragTransition,
+  dragging,
   indicatorFraction,
   indicatorTransition,
   handoff,
@@ -96,6 +97,16 @@ watch(navIndex, (next) => {
   pageDirection.value = next >= previousIndex ? 1 : -1
   previousIndex = next
 })
+
+/**
+ * How lit a bottom-bar tab is, as a percentage: full where the block is, and fading over
+ * the tab either side of it. The block is the pointer here, so a tab lights up while a drag
+ * carries the block across it — not when the route finally changes.
+ */
+function tabLit(index: number): string {
+  const blocksAway = Math.abs(navIndex.value + indicatorFraction.value - index)
+  return `${Math.round(Math.max(0, 1 - blocksAway) * 100)}%`
+}
 
 async function refresh() {
   await bot.refreshAll()
@@ -214,8 +225,8 @@ watch(
           <div
             class="page-host"
             :style="{
-              '--page-enter': `${handoff ? 0 : pageDirection * 100}%`,
-              '--page-leave': `${handoff ? 0 : pageDirection * -100}%`,
+              '--page-enter': `${handoff ? 0 : pageDirection}`,
+              '--page-leave': `${handoff ? 0 : -pageDirection}`,
             }"
           >
             <div
@@ -264,12 +275,13 @@ watch(
 
     <nav class="tabbar" :style="{ '--nav-count': NAV_ROUTES.length }" :aria-label="t('app.name')">
       <RouterLink
-        v-for="item in NAV_ROUTES"
+        v-for="(item, index) in NAV_ROUTES"
         :key="item.name"
         :to="item.path"
         class="tabbar__item"
         :class="{ 'is-active': route.name === item.name }"
         :aria-current="route.name === item.name ? 'page' : undefined"
+        :style="{ '--lit': tabLit(index), transition: dragging ? 'none' : undefined }"
       >
         <AppIcon :name="item.icon" :size="19" />
         <span>{{ t(item.titleKey) }}</span>
@@ -334,6 +346,9 @@ watch(
 }
 
 .shell {
+  /* The frame's padding, and with it the gutter each page carries on both sides. */
+  --shell-pad: var(--sp-4);
+  --shell-pad-bottom: var(--sp-4);
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
@@ -430,7 +445,8 @@ watch(
 }
 
 .shell__body {
-  padding: var(--sp-4);
+  padding: var(--shell-pad);
+  padding-bottom: var(--shell-pad-bottom);
   min-width: 0;
 }
 
@@ -442,13 +458,17 @@ watch(
 }
 
 /*
- * The page transition slides its child, which would widen the scrollable area
- * mid-animation and make phones jitter sideways. `clip` trims it without
- * creating a scroll container, so sticky/fixed children are unaffected.
+ * Clips both axes, for two reasons. A transition slides its child, which would widen the
+ * scrollable area mid-animation and make phones jitter sideways. And a parked page is
+ * absolutely placed, which does not take it out of the document's scrollable overflow: clip
+ * it, or every page can be scrolled past its own content, down the tallest parked page.
+ *
+ * `clip` rather than `hidden`: it trims without creating a scroll container, so sticky and
+ * fixed children are unaffected.
  */
 .page-host {
   min-width: 0;
-  overflow-x: clip;
+  overflow: clip;
 }
 
 /* The current page and the parked ones ride this track, moved only by the finger. */
@@ -459,14 +479,24 @@ watch(
 }
 
 /*
- * Parked pages are absolutely placed so they never add to the document height — the real
- * page keeps defining the layout while the strip slides across it.
+ * The sideways gutter belongs to each page rather than to the frame around the track, so two
+ * pages meeting mid-swipe keep twice this between them and read as two sheets.
+ */
+.page-track > * {
+  padding-inline: var(--shell-pad);
+}
+
+/*
+ * Parked pages are absolutely placed so the real page keeps defining the layout while the
+ * strip slides across them, and their paint is contained: dragging the strip repaints the
+ * pages coming into view, not all six.
  */
 .page-neighbor {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
+  contain: paint;
 }
 
 .shell__banner {
@@ -499,28 +529,32 @@ watch(
 }
 
 .page-enter-from {
-  transform: translateX(var(--page-enter, 0));
+  transform: translateX(calc(var(--page-enter, 0) * 100%));
 }
 
 .page-leave-to {
-  transform: translateX(var(--page-leave, 0));
+  transform: translateX(calc(var(--page-leave, 0) * 100%));
 }
 
 @media (min-width: 901px) {
-  /* Wide screens have no slide, so the page swaps straight away. */
-  .page-enter-active,
-  .page-leave-active {
-    transition: none;
+  /*
+   * Wide screens slide the way the rail reads — a whole page up or down, the same full-page
+   * move a phone gets from its bottom bar — and the distance is the viewport rather than the
+   * page: pages differ in height here, and a short one would otherwise barely move.
+   */
+  .page-enter-from {
+    transform: translateY(calc(var(--page-enter, 0) * 100dvh));
   }
 
-  .page-enter-from,
   .page-leave-to {
-    transform: none;
+    transform: translateY(calc(var(--page-leave, 0) * 100dvh));
   }
 }
 
 @media (max-width: 900px) {
   .shell {
+    --shell-pad: var(--sp-3);
+    --shell-pad-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -529,8 +563,8 @@ watch(
   }
 
   .shell__body {
-    padding: var(--sp-3);
-    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    padding: var(--shell-pad);
+    padding-bottom: var(--shell-pad-bottom);
   }
 
   .tabbar {
@@ -554,12 +588,14 @@ watch(
     align-items: center;
     gap: 2px;
     padding: 4px 0;
-    color: var(--text-3);
     /*
-     * Icon and label fade between muted and accent instead of snapping, in step with the
-     * block sliding underneath them (the icon inherits this colour change).
+     * Lit by the block travelling over it — the weight is how near the block is, handed in
+     * per tab — and fading between muted and accent instead of snapping. The icon inherits
+     * the colour. The drag itself overrides the transition, so the light is under the block
+     * rather than trailing it.
      */
-    transition: color var(--dur-slide) ease;
+    color: color-mix(in srgb, var(--accent) var(--lit, 0%), var(--text-3));
+    transition: color var(--dur-slide) var(--ease-out-strong);
     text-decoration: none;
     font-size: 10px;
     position: relative;
@@ -581,10 +617,6 @@ watch(
     pointer-events: none;
     /* Its own layer, so following the finger stays on whole device pixels. */
     will-change: transform;
-  }
-
-  .tabbar__item.is-active {
-    color: var(--accent);
   }
 }
 </style>

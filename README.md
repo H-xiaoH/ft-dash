@@ -58,9 +58,11 @@ fetches once, for the page it lands on. A sideways swipe still moves one page at
 candle chart is the exception to the pre-loading: its candles are fetched only while the
 market page is the one on screen.
 
-Wide screens swap instantly, and the wheel over the left rail walks pages: one notch is one
-page, a trackpad's stream keeps walking as you scroll, and the page behind the rail does not
-move. The wheel only takes over there.
+Pages keep a gutter between them, so a swipe reads as two sheets rather than one long one, and
+the bottom bar lights each tab as the block passes over it — held still, mid-drag, included.
+Wide screens travel the way the rail reads: a whole page up or down, and the wheel over the
+left rail walks pages — one notch is one page, a trackpad's stream keeps walking as you scroll,
+and the page behind the rail does not move. The wheel only takes over there.
 
 Data refreshes on a fixed 1-second cadence while the tab is visible (balance, positions,
 P&L, CPU/RAM), with heavier slices spread over longer intervals — trades and pair lists every
@@ -103,8 +105,10 @@ checked on a real device — worth two minutes in Safari with the PWA installed:
    selection follows along; tapping a tab matches what a swipe does. Dragging the bar keeps the
    block under the finger (wherever it was pressed), never leaves a blank page behind, lands on
    the page the block was left over, and takes one step on a quick flick even from its own tab.
-   On wide screens the wheel over the rail walks pages — a notch each for a mouse, continuously
-   for a trackpad — without scrolling the page.
+   The tabs light up under the block as it passes. No page scrolls past its own content, and the
+   log page fills the window with the list scrolling inside it. On wide screens pages slide up
+   and down and the wheel over the rail walks them — a notch each for a mouse, continuously for
+   a trackpad — without scrolling the page.
 4. **Candles**: dragging scrubs the readout; a dropdown follows its button while the page
    scrolls; the P&L tag stays pinned to the right.
 5. **Language**: switching applies immediately; with "follow system" selected, changing the

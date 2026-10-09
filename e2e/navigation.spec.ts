@@ -426,12 +426,14 @@ test('a page travels the way you navigated', async ({ page }) => {
   // Wait for the navigation to land first: the variables only say which way the *last*
   // navigation went, so a second click while the first is still loading reads the old one.
   await expect.poll(() => hash(page)).toBe('#/market')
-  await expect.poll(travel).toEqual({ enter: '100%', leave: '-100%' })
+  // Unitless: the axis picks the distance — a page width on phones, a viewport on wide
+  // screens, where pages differ in height.
+  await expect.poll(travel).toEqual({ enter: '1', leave: '-1' })
 
   // Backward: both flip, so the outgoing page never slides against your finger.
   await page.locator('.tabbar__item').nth(1).click()
   await expect.poll(() => hash(page)).toBe('#/trades')
-  await expect.poll(travel).toEqual({ enter: '-100%', leave: '100%' })
+  await expect.poll(travel).toEqual({ enter: '-1', leave: '1' })
 
   /*
    * The direction has to live on the stable host. An inline custom property is baked in
@@ -444,17 +446,35 @@ test('a page travels the way you navigated', async ({ page }) => {
     .evaluate((el) => el.style.getPropertyValue('--page-enter'))
   expect(onPage).toBe('')
 
-  // Wide screens keep swapping straight away: the slide is a phone thing.
+  // Wide screens travel the way the rail reads — up and down, a whole viewport — rather than
+  // sideways, and the distance is the viewport even though these pages differ in height.
+  // The phone transition has to be over first, or its sideways frames land in the sample.
+  await page.waitForTimeout(400)
   await page.setViewportSize({ width: 1280, height: 900 })
+  await page.evaluate(() => {
+    const frames: { x: number; y: number }[] = []
+    ;(window as unknown as { __vertical?: unknown }).__vertical = frames
+    const tick = () => {
+      const page = document.querySelector('.page-track > :not(.page-neighbor)')
+      if (page) {
+        const moved = getComputedStyle(page).transform
+        const matrix = moved === 'none' ? null : new DOMMatrixReadOnly(moved)
+        frames.push({ x: Math.round(matrix?.m41 ?? 0), y: Math.round(matrix?.m42 ?? 0) })
+      }
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
   await page.locator('.rail__item').nth(4).click()
   await expect.poll(() => hash(page)).toBe('#/logs')
-  await page.waitForTimeout(120)
-  expect(
-    await page
-      .locator('.page-track > *')
-      .first()
-      .evaluate((el) => getComputedStyle(el).transform),
-  ).toBe('none')
+  await page.waitForTimeout(600)
+
+  const vertical = await page.evaluate(
+    () => (window as unknown as { __vertical?: { x: number; y: number }[] }).__vertical ?? [],
+  )
+  // Sideways: never. Up or down: a whole viewport's worth, not the page's own height.
+  expect(vertical.every((frame) => frame.x === 0)).toBe(true)
+  expect(Math.max(...vertical.map((frame) => Math.abs(frame.y)))).toBeGreaterThan(600)
 })
 
 test('tapping a tab slides the pages the way a swipe does', async ({ page }) => {
