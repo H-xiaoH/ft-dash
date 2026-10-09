@@ -321,8 +321,6 @@ export default {
     installManual:
       'This browser offers no install prompt — use its menu to install or add to home screen.',
     installHint: 'Installed, it launches full screen like a native app.',
-    updateAvailable: 'New version available',
-    update: 'Update now',
     offlineReady: 'Offline ready',
   },
   events: {

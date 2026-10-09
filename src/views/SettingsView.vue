@@ -6,14 +6,7 @@ import BotsPanel from '@/components/BotsPanel.vue'
 import FilterMenu from '@/components/FilterMenu.vue'
 import { pushToast } from '@/composables/useToast'
 import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from '@/i18n'
-import {
-  applyUpdate,
-  canInstall,
-  isStandalone,
-  needRefresh,
-  offlineReady,
-  promptInstall,
-} from '@/pwa'
+import { canInstall, isStandalone, offlineReady, promptInstall } from '@/pwa'
 import { useBotStore } from '@/stores/bot'
 import { useEventsStore } from '@/stores/events'
 import { useSettingsStore } from '@/stores/settings'
@@ -266,9 +259,6 @@ async function install() {
               <span v-if="offlineReady" class="chip chip--good">{{
                 t('settings.offlineReady')
               }}</span>
-              <span v-if="needRefresh" class="chip chip--warn">{{
-                t('settings.updateAvailable')
-              }}</span>
             </div>
           </div>
           <div class="panel__body row row--wrap">
@@ -280,9 +270,6 @@ async function install() {
               t('settings.installed')
             }}</span>
             <p v-else class="small muted">{{ t('settings.installManual') }}</p>
-            <button v-if="needRefresh" type="button" class="btn btn--primary" @click="applyUpdate">
-              {{ t('settings.update') }}
-            </button>
             <p class="small muted settings__hint">{{ t('settings.installHint') }}</p>
           </div>
         </section>

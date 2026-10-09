@@ -11,7 +11,6 @@ import { NAV_ROUTES } from '@/router'
 import { useBotStore } from '@/stores/bot'
 import { useEventsStore } from '@/stores/events'
 import { useSettingsStore } from '@/stores/settings'
-import { applyUpdate, needRefresh } from '@/pwa'
 
 const { t, locale } = useI18n()
 const settings = useSettingsStore()
@@ -202,15 +201,6 @@ watch(
           {{ t('bots.openSettings') }}
         </button>
         <button type="button" class="btn btn--sm" @click="refresh">{{ t('common.retry') }}</button>
-      </div>
-
-      <div v-if="needRefresh" class="banner banner--warn shell__banner" role="status">
-        <AppIcon name="download" :size="18" />
-        <div>{{ t('settings.updateAvailable') }}</div>
-        <div class="spacer" />
-        <button type="button" class="btn btn--sm btn--primary" @click="applyUpdate">
-          {{ t('settings.update') }}
-        </button>
       </div>
 
       <div class="shell__body">

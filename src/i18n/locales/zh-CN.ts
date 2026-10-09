@@ -317,8 +317,6 @@ export default {
     installed: '已安装',
     installManual: '当前浏览器未提供安装入口，可在浏览器菜单里选择“安装应用”或“添加到主屏幕”。',
     installHint: '安装后可以像原生应用一样全屏启动。',
-    updateAvailable: '有新版本',
-    update: '立即更新',
     offlineReady: '离线可用已就绪',
   },
   events: {
