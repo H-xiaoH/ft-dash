@@ -539,15 +539,20 @@ watch(
 @media (min-width: 901px) {
   /*
    * Wide screens slide the way the rail reads — a whole page up or down, the same full-page
-   * move a phone gets from its bottom bar — and the distance is the viewport rather than the
-   * page: pages differ in height here, and a short one would otherwise barely move.
+   * move a phone gets from its bottom bar.
+   *
+   * The two directions travel different distances, because "a page" means a different thing
+   * to each. The incoming page only has to start below the fold, so a viewport is enough,
+   * while the outgoing one has to clear the top of the window: a viewport would leave the rest
+   * of a tall page (统计 is nearly two screens) hanging in the frame, which reads as the
+   * previous page never having left.
    */
   .page-enter-from {
     transform: translateY(calc(var(--page-enter, 0) * 100dvh));
   }
 
   .page-leave-to {
-    transform: translateY(calc(var(--page-leave, 0) * 100dvh));
+    transform: translateY(calc(var(--page-leave, 0) * 100%));
   }
 }
 
