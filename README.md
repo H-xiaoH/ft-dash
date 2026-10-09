@@ -96,8 +96,9 @@ checked on a real device — worth two minutes in Safari with the PWA installed:
 
 1. **Installed mode**: launching from the home screen shows no address bar; the notch and rounded
    corners do not cover content; rotation and window resizing stay aligned.
-2. **Cache**: if a fresh deploy still looks like the previous version, cold-start the app once —
-   the service worker keeps one build behind.
+2. **Updates**: a deploy lands on its own — the app asks for a new worker every minute and
+   whenever you come back to the tab, then reloads onto the new build. Nothing to click, and no
+   cold start to provoke.
 3. **Page gestures**: sideways swipes track the finger and do not flicker; the bottom-bar
    selection follows along; tapping a tab matches what a swipe does. Dragging the bar keeps the
    block under the finger (wherever it was pressed), never leaves a blank page behind, lands on

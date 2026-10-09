@@ -1,13 +1,12 @@
 import { ref } from 'vue'
 import { registerSW } from 'virtual:pwa-register'
+import { startUpdateChecks } from '@/lib/update'
 
-export const needRefresh = ref(false)
 export const offlineReady = ref(false)
 export const canInstall = ref(false)
 export const isStandalone = ref(false)
 
 let installPrompt: BeforeInstallPromptEvent | null = null
-const updateServiceWorker = ref<((reloadPage?: boolean) => Promise<void>) | null>(null)
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -15,15 +14,14 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function setupPwa() {
-  updateServiceWorker.value = registerSW({
+  registerSW({
     immediate: true,
-    onNeedRefresh() {
-      needRefresh.value = true
-    },
     onOfflineReady() {
       offlineReady.value = true
     },
   })
+  // A new build reloads the page on its own; this is what notices it while the tab is open.
+  startUpdateChecks()
 
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault()
@@ -49,9 +47,4 @@ export async function promptInstall(): Promise<boolean> {
   installPrompt = null
   canInstall.value = false
   return choice.outcome === 'accepted'
-}
-
-export async function applyUpdate() {
-  needRefresh.value = false
-  await updateServiceWorker.value?.(true)
 }
