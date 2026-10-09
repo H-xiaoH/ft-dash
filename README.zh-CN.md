@@ -201,9 +201,13 @@ iOS Safari 15.5（2022 年 5 月）之前不覆盖，那些系统上停靠页仍
 基于 **Freqtrade 2026.8 / API v2.5** 开发，并在实盘 futures 实例上做过端到端验证。它读取
 `/ping`、`/show_config`、`/version`、`/health`、`/sysinfo`、`/balance`、`/profit`、
 `/profit_all`、`/status`、`/count`、`/trades`、`/performance`、`/stats`、`/daily`、`/weekly`、
-`/monthly`、`/logs`、`/whitelist`、`/blacklist`、`/locks` 与 `/pair_candles`；在开启控制功能后
-会向 `/start`、`/stop`、`/stopentry`、`/reload_config`、`/forceexit`、`/blacklist` 与
+`/logs`、`/whitelist`、`/blacklist`、`/locks` 与 `/pair_candles`；在开启控制功能后会向
+`/start`、`/stop`、`/stopentry`、`/reload_config`、`/forceexit`、`/blacklist` 与
 `/locks/delete` 发起请求。
+
+日／周／月的报表**不读** `/daily`、`/weekly`、`/monthly`——那三个是按 UTC 切界的，而一天的交易
+属于正在看它的人。这两个页面改由前端用成交记录重算，按**设置 → 时区**里选的时区划分（默认跟随
+浏览器，要和机器人自己的报表对账时选 UTC）；成交时间与日志也按该时区显示。
 
 较旧的版本可能缺少个别接口（例如 `/pair_candles` 的列过滤或 `/stats` 的 durations）；对应的
 面板会显示错误或保持为空，而不会让应用崩溃。实时推送需要 `api_server.jwt_secret_key`（自动

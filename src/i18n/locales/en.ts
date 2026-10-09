@@ -294,6 +294,11 @@ export default {
     passwordKept: 'Saved — leave empty to keep it',
     language: 'Language',
     languageSystem: 'Follow system',
+    timezone: 'Time zone',
+    timezoneBrowser: 'Follow the browser',
+    timezoneUtc: 'UTC',
+    timezoneHint:
+      'Day, week and month boundaries are drawn in this zone, and times are shown in it. Exchanges work in UTC — pick it when reconciling against the bot’s own reports.',
     push: 'Push',
     websocket: 'WebSocket live updates',
     websocketHint: 'Stream entries, exits and warnings as they happen.',

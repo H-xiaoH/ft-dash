@@ -523,22 +523,22 @@ test("the wheel off the rail stays the page's own scroll", async ({ page }) => {
 test('landing on a page refreshes once, after the pages stop changing', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   /*
-   * `/monthly` belongs to the analytics slice, which the slow poll only asks for every
+   * `/performance` belongs to the analytics slice, which the slow poll only asks for every
    * twelfth tick — so in the first seconds of a session it is the walk's own refresh
    * talking, not the cadence underneath it.
    */
-  const monthly: number[] = []
+  const analytics: number[] = []
   page.on('request', (request) => {
-    if (request.url().includes('/monthly')) monthly.push(Date.now())
+    if (request.url().includes('/performance')) analytics.push(Date.now())
   })
   await railAt(page, 0)
-  const before = monthly.length
+  const before = analytics.length
 
   await page.mouse.wheel(0, 100)
   await page.mouse.wheel(0, 100)
   await page.mouse.wheel(0, 100)
   await expect.poll(() => hash(page)).toBe('#/market')
   // Three pages in one walk, and nothing fetched while it was still moving.
-  expect(monthly.length - before).toBe(0)
-  await expect.poll(() => monthly.length - before).toBe(1)
+  expect(analytics.length - before).toBe(0)
+  await expect.poll(() => analytics.length - before).toBe(1)
 })

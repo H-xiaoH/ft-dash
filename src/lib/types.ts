@@ -245,21 +245,6 @@ export interface TradeStats {
   [key: string]: unknown
 }
 
-export interface DailyEntry {
-  date: string
-  abs_profit: number
-  rel_profit: number
-  starting_balance: number
-  fiat_value: number
-  trade_count: number
-}
-
-export interface DailyResponse {
-  data: DailyEntry[]
-  fiat_display_currency: string
-  stake_currency: string
-}
-
 export interface LogsResponse {
   log_count: number
   logs: [string, number, string, string, string][]

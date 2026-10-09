@@ -151,12 +151,22 @@ export function formatDuration(
   return `${secs}${labels.second}`
 }
 
-export function formatDateTime(value: Numberish, locale = 'en', fallback = '—'): string {
+export function formatDateTime(
+  value: Numberish,
+  locale = 'en',
+  fallback = '—',
+  timeZone = 'UTC',
+): string {
   const ts = parseTimestamp(value)
   if (ts === null) return fallback
   return new Intl.DateTimeFormat(locale, {
     dateStyle: 'medium',
     timeStyle: 'short',
+    /*
+     * A timestamp is a moment, not a date: it is shown where the operator says they are,
+     * which is why this one takes a zone while `formatDay` below refuses to.
+     */
+    timeZone,
   }).format(new Date(ts))
 }
 
@@ -173,7 +183,12 @@ export function formatDay(value: Numberish, locale = 'en', fallback = '—'): st
 }
 
 /** Short "MM-DD HH:mm" stamp in the viewer's own timezone, for chart readouts. */
-export function formatShortStamp(value: Numberish, locale = 'en', fallback = '—'): string {
+export function formatShortStamp(
+  value: Numberish,
+  locale = 'en',
+  fallback = '—',
+  timeZone = 'UTC',
+): string {
   const ts = parseTimestamp(value)
   if (ts === null) return fallback
   return new Intl.DateTimeFormat(locale, {
@@ -181,6 +196,7 @@ export function formatShortStamp(value: Numberish, locale = 'en', fallback = '�
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone,
   }).format(new Date(ts))
 }
 

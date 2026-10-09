@@ -11,14 +11,19 @@ import Sparkline from '@/components/Sparkline.vue'
 import { useFormat } from '@/composables/useFormat'
 import { pushToast } from '@/composables/useToast'
 import { useChartHeight } from '@/composables/useChartHeight'
-import { toIsoDate } from '@/lib/format'
+import { bucketTrades, resolveZone, zoneToday } from '@/lib/periods'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
+import { useSettingsStore } from '@/stores/settings'
 
 const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
+const settings = useSettingsStore()
 const router = useRouter()
+
+/** The clock the operator reads by, and so the one the daily buckets are drawn on. */
+const zone = computed(() => resolveZone(settings.timezone))
 
 const exitTarget = ref<Trade | null>(null)
 /** Deep-links the overview panels into the matching trades tab. */
@@ -32,12 +37,12 @@ const OVERVIEW_CLOSED_ROWS = 6
 const stake = computed(() => bot.stakeCurrency)
 
 const dailySeries = computed(() => {
-  const rows = bot.daily?.data ?? []
-  return [...rows].reverse()
+  // Freqtrade reports its days in UTC; the operator's day is the one that gets bucketed here.
+  return bucketTrades(bot.closedTrades, zone.value, 'daily').reverse()
 })
 
 const todayPnl = computed(() => {
-  const today = toIsoDate()
+  const today = zoneToday(zone.value)
   const row = dailySeries.value.find((entry) => entry.date === today)
   return row ? row.abs_profit : null
 })

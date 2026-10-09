@@ -17,6 +17,8 @@ import {
   type DurationLabels,
   type Numberish,
 } from '@/lib/format'
+import { resolveZone } from '@/lib/periods'
+import { useSettingsStore } from '@/stores/settings'
 
 export interface Formatter {
   locale: () => string
@@ -39,8 +41,11 @@ export interface Formatter {
 /** Locale-bound formatters. Every component formats through this composable. */
 export function useFormat(): Formatter {
   const { t, locale } = useI18n()
+  const settings = useSettingsStore()
 
   const current = computed(() => (locale.value === 'zh-CN' ? 'zh-CN' : 'en'))
+  /** The zone the operator reads by, from the one setting the whole app agrees on. */
+  const zone = computed(() => resolveZone(settings.timezone))
   const durationLabels = computed<DurationLabels>(() => ({
     day: t('duration.day'),
     hour: t('duration.hour'),
@@ -61,9 +66,9 @@ export function useFormat(): Formatter {
       formatPercent(value, current.value, digits, '—', signed),
     price: (value) => formatPrice(value, current.value),
     duration: (ms) => formatDuration(ms, durationLabels.value),
-    dateTime: (value) => formatDateTime(value, current.value),
+    dateTime: (value) => formatDateTime(value, current.value, '—', zone.value),
     day: (value) => formatDay(value, current.value),
-    stamp: (value) => formatShortStamp(value, current.value),
+    stamp: (value) => formatShortStamp(value, current.value, '—', zone.value),
     toneClass: (value) => {
       const dir = direction(value)
       return dir > 0 ? 'u-pos' : dir < 0 ? 'u-neg' : 'u-flat'

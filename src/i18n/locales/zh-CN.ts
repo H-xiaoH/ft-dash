@@ -293,6 +293,11 @@ export default {
     passwordKept: '已保存，留空则不修改',
     language: '语言',
     languageSystem: '跟随系统',
+    timezone: '时区',
+    timezoneBrowser: '跟随浏览器',
+    timezoneUtc: 'UTC',
+    timezoneHint:
+      '按天／周／月划分的边界按这个时区算，成交时间与日志也按它显示。交易所按 UTC 走，要和机器人自己的报表对账时选 UTC。',
     push: '推送',
     websocket: 'WebSocket 实时推送',
     websocketHint: '开启后可实时收到入场、平仓与告警事件。',

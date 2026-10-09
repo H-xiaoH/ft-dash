@@ -20,11 +20,13 @@ import {
 } from '@/lib/bots'
 import { readJson, removeKey, safeSessionStorage, writeJson } from '@/lib/storage'
 import type { StreamAuthPreference } from '@/lib/stream'
+import type { TimezonePreference } from '@/lib/periods'
 
 const SETTINGS_KEY = 'ftdash.settings.v1'
 
 interface StoredSettings {
   locale: LocalePreference | null
+  timezone: TimezonePreference
   websocket: boolean
   streamAuth: StreamAuthPreference
   wsToken: string
@@ -39,6 +41,11 @@ const DEFAULT_LOCALE: LocalePreference = 'system'
 
 const DEFAULT_SETTINGS: StoredSettings = {
   locale: DEFAULT_LOCALE,
+  /**
+   * A day of trading is local to whoever is watching, so the app starts by reading the clock
+   * the operator's browser is already on — their day, their hours.
+   */
+  timezone: 'browser',
   websocket: true,
   streamAuth: 'auto',
   wsToken: '',
@@ -58,6 +65,14 @@ function resolveStreamAuth(value: unknown): StreamAuthPreference {
   return STREAM_AUTH_OPTIONS.includes(value as StreamAuthPreference)
     ? (value as StreamAuthPreference)
     : DEFAULT_SETTINGS.streamAuth
+}
+
+export const TIMEZONE_OPTIONS: TimezonePreference[] = ['browser', 'UTC']
+
+function resolveTimezone(value: unknown): TimezonePreference {
+  return TIMEZONE_OPTIONS.includes(value as TimezonePreference)
+    ? (value as TimezonePreference)
+    : DEFAULT_SETTINGS.timezone
 }
 
 /**
@@ -110,6 +125,7 @@ export const useSettingsStore = defineStore('settings', () => {
     })
   }
   const websocket = ref(persisted.websocket ?? DEFAULT_SETTINGS.websocket)
+  const timezone = ref<TimezonePreference>(resolveTimezone(persisted.timezone))
   const streamAuth = ref(resolveStreamAuth(persisted.streamAuth))
   const wsToken = ref(
     activeBot.value?.wsToken ?? (typeof persisted.wsToken === 'string' ? persisted.wsToken : ''),
@@ -132,6 +148,7 @@ export const useSettingsStore = defineStore('settings', () => {
     writeJson(SETTINGS_KEY, {
       // The preference is what gets stored; the resolved language is derived from it.
       locale: localePreference.value,
+      timezone: timezone.value,
       websocket: websocket.value,
       streamAuth: streamAuth.value,
       wsToken: wsToken.value,
@@ -243,6 +260,7 @@ export const useSettingsStore = defineStore('settings', () => {
   watch(
     [
       localePreference,
+      timezone,
       websocket,
       streamAuth,
       wsToken,
@@ -268,6 +286,7 @@ export const useSettingsStore = defineStore('settings', () => {
     password,
     locale,
     localePreference,
+    timezone,
     websocket,
     streamAuth,
     wsToken,

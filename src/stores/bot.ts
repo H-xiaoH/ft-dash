@@ -14,7 +14,6 @@ import {
 import type {
   BalanceResponse,
   BlacklistResponse,
-  DailyResponse,
   DeleteLockPayload,
   ForceEnterPayload,
   HealthResponse,
@@ -98,9 +97,6 @@ export const useBotStore = defineStore('bot', () => {
   const tradeStats = ref<TradeStats | null>(null)
   // Named `performanceStats` because the global `performance` is used for latency.
   const performanceStats = ref<PerformanceEntry[]>([])
-  const daily = ref<DailyResponse | null>(null)
-  const weekly = ref<DailyResponse | null>(null)
-  const monthly = ref<DailyResponse | null>(null)
   const whitelist = ref<WhitelistResponse | null>(null)
   const blacklist = ref<BlacklistResponse | null>(null)
   const locks = ref<LocksResponse | null>(null)
@@ -274,19 +270,18 @@ export const useBotStore = defineStore('bot', () => {
 
   async function refreshAnalytics() {
     const api = ensureClient()
-    const [stats, perf, dailyRes, weeklyRes, monthlyRes, all] = await Promise.all([
+    /*
+     * The period reports are not asked for: `/daily`, `/weekly` and `/monthly` are bucketed in
+     * UTC, and the front end rebuilds them from the trades in the operator's own zone (see
+     * `lib/periods.ts`). Asking for both would leave two answers to disagree about.
+     */
+    const [stats, perf, all] = await Promise.all([
       track(() => api.tradeStats()),
       track(() => api.performance()),
-      track(() => api.daily(60)),
-      track(() => api.weekly(52)),
-      track(() => api.monthly(24)),
       track(() => api.profitAll()),
     ])
     if (stats) tradeStats.value = stats
     if (perf) performanceStats.value = perf
-    if (dailyRes) daily.value = dailyRes
-    if (weeklyRes) weekly.value = weeklyRes
-    if (monthlyRes) monthly.value = monthlyRes
     if (all) profitAll.value = all
   }
 
@@ -444,9 +439,6 @@ export const useBotStore = defineStore('bot', () => {
     tradesTotal.value = 0
     tradeStats.value = null
     performanceStats.value = []
-    daily.value = null
-    weekly.value = null
-    monthly.value = null
     whitelist.value = null
     blacklist.value = null
     locks.value = null
@@ -468,9 +460,6 @@ export const useBotStore = defineStore('bot', () => {
     tradesTotal: number
     tradeStats: TradeStats | null
     performanceStats: PerformanceEntry[]
-    daily: DailyResponse | null
-    weekly: DailyResponse | null
-    monthly: DailyResponse | null
     whitelist: WhitelistResponse | null
     blacklist: BlacklistResponse | null
     locks: LocksResponse | null
@@ -491,9 +480,6 @@ export const useBotStore = defineStore('bot', () => {
       tradesTotal: tradesTotal.value,
       tradeStats: tradeStats.value,
       performanceStats: performanceStats.value,
-      daily: daily.value,
-      weekly: weekly.value,
-      monthly: monthly.value,
       whitelist: whitelist.value,
       blacklist: blacklist.value,
       locks: locks.value,
@@ -514,9 +500,6 @@ export const useBotStore = defineStore('bot', () => {
     tradesTotal.value = snapshot.tradesTotal
     tradeStats.value = snapshot.tradeStats
     performanceStats.value = snapshot.performanceStats
-    daily.value = snapshot.daily
-    weekly.value = snapshot.weekly
-    monthly.value = snapshot.monthly
     whitelist.value = snapshot.whitelist
     blacklist.value = snapshot.blacklist
     locks.value = snapshot.locks
@@ -880,9 +863,6 @@ export const useBotStore = defineStore('bot', () => {
     tradesTotal,
     tradeStats,
     performance: performanceStats,
-    daily,
-    weekly,
-    monthly,
     whitelist,
     blacklist,
     locks,

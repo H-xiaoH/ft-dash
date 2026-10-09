@@ -30,7 +30,10 @@ const gapBetween = async (above: Awaited<ReturnType<typeof panel>>, below: typeo
 }
 
 test('the stream-auth block slides to the choice you pick', async ({ page }) => {
-  const seg = livePage(page).locator('.seg')
+  // Scoped to its field: the page carries more than one segmented control.
+  const seg = livePage(page)
+    .locator('.field', { has: page.locator('.field__label', { hasText: '实时推送鉴权' }) })
+    .locator('.seg')
   await expect.poll(() => segBlockMatches(seg)).toBe(true)
 
   // The labels here differ in width — `JWT` next to `ws_token` — which is why the block is
@@ -67,6 +70,34 @@ test('the footer reads the app build next to the bot version', async ({ page }) 
   await expect(footer).toHaveText(
     /^FT Dash - \d{2}\.\d{2}\.\d{2}\.\d{2}\.\d{2} · FreqTrade - \d{4}\.\d+$/,
   )
+})
+
+test('the time zone setting decides what clock the app reads by', async ({ page }) => {
+  /*
+   * The spec runs with the browser in Asia/Shanghai, so "follow the browser" is UTC+8 and the
+   * fixture's fixed log stamp (11:59 UTC) reads as 19:59. Switching to UTC must move the app's
+   * clock with it — and survive a reload, because it is a preference, not a session detail.
+   */
+  const logTime = () =>
+    // The list shows newest first, so the 11:59 stamp is the last row.
+    livePage(page).locator('.logs__line .logs__time').last()
+
+  await expect(livePage(page).locator('.panel__title', { hasText: '语言' })).toHaveCount(1)
+  await page.goto('/#/logs')
+  await expect(logTime()).toContainText('19:59')
+
+  await page.goto('/#/settings')
+  const picker = livePage(page).locator('.field', {
+    has: page.locator('.field__label', { hasText: '时区' }),
+  })
+  await expect(picker.locator('.seg__item[aria-pressed="true"]')).toContainText('跟随浏览器')
+  await picker.locator('.seg__item', { hasText: 'UTC' }).click()
+
+  await page.goto('/#/logs')
+  await expect(logTime()).toContainText('11:59')
+
+  await page.reload()
+  await expect(logTime()).toContainText('11:59')
 })
 
 test('the cards form two even columns with an even gap before the full-width card', async ({

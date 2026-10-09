@@ -10,6 +10,7 @@ import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from '@/i18n'
 import { canInstall, isStandalone, offlineReady, promptInstall } from '@/pwa'
 import { useBotStore } from '@/stores/bot'
 import { useEventsStore } from '@/stores/events'
+import type { TimezonePreference } from '@/lib/periods'
 import { useSettingsStore } from '@/stores/settings'
 import type { StreamAuthPreference } from '@/lib/stream'
 
@@ -25,11 +26,23 @@ const { blockStyle: authBlockStyle, blockReady: authBlockReady } = useSegBlock(
   authSeg,
   () => settings.streamAuth,
 )
+/** The block behind the time zone choices, which slides to whichever one is active. */
+const timezoneSeg = ref<HTMLElement | null>(null)
+const { blockStyle: timezoneBlockStyle, blockReady: timezoneBlockReady } = useSegBlock(
+  timezoneSeg,
+  () => settings.timezone,
+)
 const appVersion = __APP_VERSION__
 
 const languageOptions = computed(() => [
   { value: 'system' as LocalePreference, label: t('settings.languageSystem') },
   ...SUPPORTED_LOCALES.map((code) => ({ value: code, label: LOCALE_LABELS[code] })),
+])
+
+/** Same pair of choices FreqUI offers: the browser's own zone, or the exchanges' UTC. */
+const timezoneOptions = computed(() => [
+  { value: 'browser' as TimezonePreference, label: t('settings.timezoneBrowser') },
+  { value: 'UTC' as TimezonePreference, label: t('settings.timezoneUtc') },
 ])
 
 const STREAM_AUTH_CHOICES: { value: StreamAuthPreference; label: string }[] = [
@@ -114,13 +127,34 @@ async function install() {
           <div class="panel__head">
             <span class="panel__title">{{ t('settings.language') }}</span>
           </div>
-          <div class="panel__body">
+          <div class="panel__body stack">
             <div class="field">
               <FilterMenu
                 v-model="settings.localePreference"
                 :options="languageOptions"
                 :label="t('settings.language')"
               />
+            </div>
+            <div class="field">
+              <span class="field__label">{{ t('settings.timezone') }}</span>
+              <div ref="timezoneSeg" class="seg">
+                <button
+                  v-for="choice in timezoneOptions"
+                  :key="choice.value"
+                  type="button"
+                  class="seg__item"
+                  :aria-pressed="settings.timezone === choice.value"
+                  @click="settings.timezone = choice.value"
+                >
+                  {{ choice.label }}
+                </button>
+                <span
+                  class="seg__block"
+                  :class="{ 'is-ready': timezoneBlockReady }"
+                  :style="timezoneBlockStyle"
+                />
+              </div>
+              <span class="field__hint">{{ t('settings.timezoneHint') }}</span>
             </div>
           </div>
         </section>
