@@ -1,6 +1,15 @@
 import { expect, test } from '@playwright/test'
 import { connect, livePage, mockApi } from './support/fixtures'
 
+const marksOfKind = (
+  page: import('@playwright/test').Page,
+  kind: 'signal' | 'fill',
+  side?: 'buy' | 'sell',
+) =>
+  livePage(page).locator(
+    `.candles__marks polygon[data-kind="${kind}"]${side ? `[data-side="${side}"]` : ''}`,
+  )
+
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
   await page.goto('/#/market')
@@ -14,6 +23,43 @@ test('candles come first, with the bot timeframe shown as text', async ({ page }
   await expect(market.locator('.panel').first().locator('.chip')).toHaveText('5m')
   await expect(market.locator('select')).toHaveCount(0)
   await expect(market.locator('.candles svg rect')).not.toHaveCount(0)
+})
+
+test('signals and fills are marked on the chart, with a legend to read them', async ({ page }) => {
+  // The fixture signals once each way, and the open position was filled an hour ago — inside
+  // the five hours of candles — but has not been closed.
+  await expect(marksOfKind(page, 'signal', 'buy')).toHaveCount(1)
+  await expect(marksOfKind(page, 'signal', 'sell')).toHaveCount(1)
+  await expect(marksOfKind(page, 'fill', 'buy')).toHaveCount(1)
+  await expect(marksOfKind(page, 'fill', 'sell')).toHaveCount(0)
+  await expect(livePage(page).locator('.candles-legend')).toHaveText([
+    '▲ 买入信号',
+    '▼ 卖出信号',
+    '▶ 实际成交',
+  ])
+})
+
+test('a strategy that refuses the signal columns still gets its candles', async ({ page }) => {
+  let refused = 0
+  let asked = 0
+  await page.route('**/api/v1/pair_candles', (route) => {
+    asked += 1
+    if (route.request().postData()?.includes('enter_long')) {
+      refused += 1
+      return route.fulfill({ status: 400, json: { error: 'Column enter_long not found' } })
+    }
+    // The retry is the one the fixture answers, so it carries candles like any other.
+    return route.fallback()
+  })
+
+  // Coming back to the page asks again, this time with the signal columns in the request.
+  await page.goto('/#/trades')
+  await page.goto('/#/market')
+  await expect(livePage(page).locator('.candles svg rect').first()).toBeVisible()
+  // Refused once, asked again, and the chart is on screen rather than an error state.
+  await expect.poll(() => refused).toBeGreaterThan(0)
+  await expect.poll(() => asked).toBeGreaterThan(refused)
+  await expect(livePage(page).locator('.candles__marks polygon').first()).toBeVisible()
 })
 
 test('candles follow the page on screen, not the mount', async ({ page }) => {

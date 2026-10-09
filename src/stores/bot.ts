@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { ApiError, describeError, FreqtradeApi, websocketUrl, type Credentials } from '@/lib/api'
+import { CANDLE_COLUMNS, SIGNAL_COLUMNS } from '@/lib/candles'
 import { parseTimestamp } from '@/lib/format'
 import {
   classifyJwtFailure,
@@ -820,9 +821,16 @@ export const useBotStore = defineStore('bot', () => {
   async function fetchCandles(pair: string, timeframe: string, limit = 180) {
     const key = `${pair}|${timeframe}`
     const api = ensureClient()
-    const result = await track(() =>
-      api.pairCandles(pair, timeframe, limit, ['date', 'open', 'high', 'low', 'close', 'volume']),
-    )
+    /*
+     * The signal columns ride along when the strategy has them, which is what lets the chart
+     * mark its entries and exits. A strategy that does not expose them makes Freqtrade refuse
+     * the whole request, so a refused one is asked again without: the marks are all that is
+     * lost, and the candles stay.
+     */
+    const result =
+      (await track(() =>
+        api.pairCandles(pair, timeframe, limit, [...CANDLE_COLUMNS, ...SIGNAL_COLUMNS]),
+      )) ?? (await track(() => api.pairCandles(pair, timeframe, limit, CANDLE_COLUMNS)))
     if (result) candleCache.value = { ...candleCache.value, [key]: result }
     // Keep the cache bounded — browsing many pairs must not grow memory forever.
     const keys = Object.keys(candleCache.value)

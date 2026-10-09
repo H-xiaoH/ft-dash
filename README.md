@@ -23,8 +23,10 @@ backend to host and nothing to trust in the middle.
   daily/weekly/monthly chart with period table; and average holding times. Column headers
   sort; the search narrows the list.
 - **Market** — a candlestick chart first (drag across it to scrub, with an exchange-style
-  OHLC/volume readout in the corner), a pair picker, the bot's timeframe, then whitelist,
-  blacklist and active pair locks.
+  OHLC/volume readout in the corner). The chart is marked up: the strategy's buy and sell
+  signals ride under and over their candles, and the bot's own fills point in at the price
+  they happened at. Then a pair picker, the bot's timeframe, whitelist, blacklist and active
+  pair locks.
 - **Logs** — live bot log with a level filter, search that expands from the toolbar and a
   follow toggle.
 - **System** — CPU/RAM/load, heartbeat lag warning, process uptime, the effective config

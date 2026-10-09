@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import type { CandleMark } from '@/lib/candles'
 import type { Candle, CandleEntry, CandleFormatters } from './charts'
 
 const props = withDefaults(
@@ -8,10 +9,12 @@ const props = withDefaults(
     candles: Candle[]
     /** Cost basis of the open position on this pair, if any. */
     entry?: CandleEntry | null
+    /** Entries and exits to mark: the strategy's signals, and the bot's own fills. */
+    marks?: CandleMark[]
     height?: number
     formatters: CandleFormatters
   }>(),
-  { height: 260, entry: null },
+  { height: 260, entry: null, marks: () => [] },
 )
 
 const { t } = useI18n()
@@ -38,7 +41,8 @@ onBeforeUnmount(() => {
   observer = null
 })
 
-const padding = { top: 12, right: 58, bottom: 8, left: 4 }
+/* Top and bottom leave room for the signal triangles that hang off the outermost candle. */
+const padding = { top: 18, right: 58, bottom: 16, left: 4 }
 
 const priceBounds = computed(() => {
   /*
@@ -49,6 +53,10 @@ const priceBounds = computed(() => {
     ...props.candles.map((candle) => candle.high),
     ...props.candles.map((candle) => candle.low),
     ...(validEntry.value ? [validEntry.value.price] : []),
+    // A fill sits at the price it traded at, which can be away from the candles around it.
+    ...props.marks
+      .filter((mark) => mark.kind === 'fill' && Number.isFinite(mark.price))
+      .map((mark) => Number(mark.price)),
   ]
   const max = values.length ? Math.max(...values) : 1
   const min = values.length ? Math.min(...values) : 0
@@ -132,6 +140,48 @@ const entryLine = computed(() => {
   const entry = validEntry.value
   return entry ? { y: scaleY(entry.price), ...entry, color: toneColor(entry.tone) } : null
 })
+
+/**
+ * The triangles drawn on the candles. A signal rides against its candle — up under the low
+ * for a buy, down over the high for a sell — while a fill points right, at the price it
+ * actually traded at, just left of its candle. They shrink with the candles, so a dense chart
+ * does not turn into a wall of triangles.
+ */
+const markShapes = computed(() => {
+  const size = Math.max(2.5, Math.min(5, step.value * 0.5))
+  return props.marks.flatMap((mark, at) => {
+    const candle = rendered.value[mark.index]
+    if (!candle) return []
+    const colour = mark.side === 'buy' ? 'var(--long)' : 'var(--short)'
+    let points: string
+    if (mark.kind === 'fill') {
+      if (!Number.isFinite(mark.price)) return []
+      const tipX = candle.x - bodyWidth.value / 2 - 2
+      const y = scaleY(Number(mark.price))
+      points = `${tipX},${y} ${tipX - size * 1.6},${y - size} ${tipX - size * 1.6},${y + size}`
+    } else {
+      const y = mark.side === 'buy' ? candle.wickBottom + size + 1 : candle.wickTop - size - 1
+      const wing = mark.side === 'buy' ? size * 1.4 : -size * 1.4
+      points = `${candle.x},${y} ${candle.x - size},${y + wing} ${candle.x + size},${y + wing}`
+    }
+    return [
+      {
+        key: `${mark.kind}-${mark.side}-${mark.index}-${at}`,
+        kind: mark.kind,
+        side: mark.side,
+        points,
+        colour,
+        label: markLabel(mark),
+      },
+    ]
+  })
+})
+
+/** What a mark says when the pointer rests on it, and to a screen reader. */
+function markLabel(mark: CandleMark): string {
+  if (mark.kind === 'fill') return t(mark.side === 'buy' ? 'market.buyFill' : 'market.sellFill')
+  return t(mark.side === 'buy' ? 'market.buySignals' : 'market.sellSignals')
+}
 
 /** Change against the previous close, the way an exchange readout shows it. */
 const activeChange = computed(() => {
@@ -262,7 +312,7 @@ function onKeydown(event: KeyboardEvent) {
         </text>
       </g>
 
-      <g v-for="candle in rendered" :key="candle.key">
+      <g v-for="candle in rendered" :key="candle.key" class="candles__candle">
         <line
           :x1="candle.x"
           :x2="candle.x"
@@ -279,6 +329,19 @@ function onKeydown(event: KeyboardEvent) {
           :fill="candle.up ? 'var(--long)' : 'var(--short)'"
           opacity="0.9"
         />
+      </g>
+
+      <g class="candles__marks">
+        <polygon
+          v-for="shape in markShapes"
+          :key="shape.key"
+          :points="shape.points"
+          :fill="shape.colour"
+          :data-kind="shape.kind"
+          :data-side="shape.side"
+        >
+          <title>{{ shape.label }}</title>
+        </polygon>
       </g>
 
       <g v-if="markerY !== null">

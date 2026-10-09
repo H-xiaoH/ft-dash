@@ -8,6 +8,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
 import type { Candle, CandleEntry, CandleFormatters } from '@/components/charts'
+import { collectCandleMarks } from '@/lib/candles'
 import { useFormat } from '@/composables/useFormat'
 import { useChartHeight } from '@/composables/useChartHeight'
 import { pushToast } from '@/composables/useToast'
@@ -111,6 +112,21 @@ const chartEntry = computed<CandleEntry | null>(() => {
 })
 
 /**
+ * What the chart marks on this pair: the entries and exits the strategy signalled, and the
+ * ones the bot actually did. The counts under the chart are the signals alone — the marks are
+ * what make them findable.
+ */
+const chartMarks = computed(() =>
+  collectCandleMarks({
+    meta: candleMeta.value,
+    candles: candles.value,
+    // Closed trades come from `/trades`, the position still open from `/status`.
+    trades: [...bot.trades, ...bot.openTrades],
+    pair: selectedPair.value,
+  }),
+)
+
+/**
  * Whether the router is showing this page. Every page but the one on screen is held on the
  * track and therefore mounted too, so a fetch started on mount would run for a page nobody
  * is looking at: the candles are asked for when this page is the one being walked to.
@@ -210,6 +226,7 @@ onMounted(() => {
           v-else
           :candles="candles"
           :entry="chartEntry"
+          :marks="chartMarks"
           :height="candleHeight"
           :formatters="formatters"
         />
@@ -221,6 +238,12 @@ onMounted(() => {
           <span v-if="candleMeta.sell_signals !== undefined">
             · {{ t('market.sellSignals') }} {{ candleMeta.sell_signals }}
           </span>
+        </div>
+        <!-- The legend only earns its line when there is something on the chart to read. -->
+        <div v-if="chartMarks.length" class="row row--wrap small muted" style="margin-top: 4px">
+          <span class="candles-legend candles-legend--buy">▲ {{ t('market.buySignals') }}</span>
+          <span class="candles-legend candles-legend--sell">▼ {{ t('market.sellSignals') }}</span>
+          <span class="candles-legend">▶ {{ t('market.fills') }}</span>
         </div>
       </div>
     </section>
@@ -480,6 +503,15 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* The legend carries the shapes' colours, so the chart below reads without a key. */
+.candles-legend--buy {
+  color: var(--long);
+}
+
+.candles-legend--sell {
+  color: var(--short);
+}
+
 /* Toolbar controls drop to a second line instead of squeezing the tabs. */
 .panel__head {
   flex-wrap: wrap;

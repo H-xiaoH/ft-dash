@@ -200,7 +200,17 @@ function candles(count = 60) {
       .toISOString()
       .slice(0, 19)
       .replace('T', ' ')
-    data.push([time, open, high, low, close, 100 + index])
+    // The last two are the strategy's signals: one entry, one exit, so both marks get drawn.
+    data.push([
+      time,
+      open,
+      high,
+      low,
+      close,
+      100 + index,
+      index === 20 ? 1 : 0,
+      index === 40 ? 1 : 0,
+    ])
     price = close
   }
   return data
@@ -331,11 +341,11 @@ function bodyFor(url: URL, method: string): unknown | undefined {
       pair: url.searchParams.get('pair') ?? 'AAA/USDT',
       timeframe: url.searchParams.get('timeframe') ?? '5m',
       timeframe_ms: 300_000,
-      columns: ['date', 'open', 'high', 'low', 'close', 'volume'],
+      columns: ['date', 'open', 'high', 'low', 'close', 'volume', 'enter_long', 'exit_long'],
       data: candles(),
       length: 60,
       buy_signals: 1,
-      sell_signals: 0,
+      sell_signals: 1,
       last_analyzed_ts: NOW,
     }
   }
