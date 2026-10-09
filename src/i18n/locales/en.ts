@@ -34,6 +34,8 @@ export default {
     live: 'Live',
     prev: 'Previous',
     next: 'Next',
+    showing: 'Showing {shown} of {total}',
+    page: 'Page {page} / {pages}',
   },
   status: {
     running: 'Running',
@@ -153,9 +155,7 @@ export default {
     orderStatus: 'Status',
     orderDate: 'Time',
     noClosed: 'No closed trades yet.',
-    showing: 'Showing {shown} of {total}',
     loadMore: 'Load more',
-    page: 'Page {page} / {pages}',
     exportCsv: 'Export CSV',
     tradeId: 'Trade ID',
     noOrders: 'No orders recorded',

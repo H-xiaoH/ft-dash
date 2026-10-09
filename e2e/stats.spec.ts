@@ -8,6 +8,34 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('.shell')).toBeVisible()
 })
 
+test('the pair table shows ten pairs a page', async ({ page }) => {
+  // A longer pair list than the default fixture, so there is a second page to turn to.
+  await mockApi(page, { pairCount: 12 })
+  await page.reload()
+
+  const table = livePage(page).locator('.panel', {
+    has: page.locator('.panel__title', { hasText: '交易对' }),
+  })
+  const rows = table.locator('tbody tr')
+  const pager = table.locator('.panel__pager')
+
+  await expect(rows).toHaveCount(10)
+  await expect(pager).toContainText('显示 10 / 12')
+  await expect(pager).toContainText('第 1 / 2 页')
+  // The narrow-screen card list is the same page of pairs.
+  await expect(table.locator('.card')).toHaveCount(10)
+
+  await pager.locator('button', { hasText: '下一页' }).click()
+  await expect(rows).toHaveCount(2)
+  await expect(pager).toContainText('第 2 / 2 页')
+  await expect(pager.locator('button', { hasText: '下一页' })).toBeDisabled()
+
+  // Sorting is the operator's own move, so it starts the table over at page one.
+  await table.locator('thead th', { hasText: '笔数' }).locator('button').click()
+  await expect(pager).toContainText('第 1 / 2 页')
+  await expect(rows).toHaveCount(10)
+})
+
 test('the period block slides to the period you pick', async ({ page }) => {
   const seg = livePage(page).locator('.seg')
   await expect.poll(() => segBlockMatches(seg)).toBe(true)

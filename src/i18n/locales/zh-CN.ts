@@ -34,6 +34,8 @@ export default {
     live: '实时',
     prev: '上一页',
     next: '下一页',
+    showing: '显示 {shown} / {total}',
+    page: '第 {page} / {pages} 页',
   },
   status: {
     running: '运行中',
@@ -152,9 +154,7 @@ export default {
     orderStatus: '状态',
     orderDate: '时间',
     noClosed: '还没有平仓记录。',
-    showing: '显示 {shown} / {total}',
     loadMore: '加载更多',
-    page: '第 {page} / {pages} 页',
     exportCsv: '导出 CSV',
     tradeId: '交易 ID',
     noOrders: '没有订单记录',

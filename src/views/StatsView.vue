@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BarChart from '@/components/BarChart.vue'
 import MetricTile from '@/components/MetricTile.vue'
@@ -34,6 +34,8 @@ const sortDir = ref<'asc' | 'desc'>('desc')
 const periodChartHeight = useChartHeight(140, 0.19, 220)
 /** The period tables list exactly as many rows as the chart draws bars. */
 const PERIOD_ROWS = 30
+/** The pair table shows ten pairs at a time, the way the trades list pages its rows. */
+const PAIR_PAGE_SIZE = 10
 
 const stake = computed(() => bot.stakeCurrency)
 
@@ -67,6 +69,24 @@ const rows = computed<PairStats[]>(() => {
         return (a.profitAbs - b.profitAbs) * direction
     }
   })
+})
+
+const pairPage = ref(1)
+const pairTotalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / PAIR_PAGE_SIZE)))
+const pagedPairs = computed(() =>
+  rows.value.slice((pairPage.value - 1) * PAIR_PAGE_SIZE, pairPage.value * PAIR_PAGE_SIZE),
+)
+
+/*
+ * Only the operator's own choices send the table back to the first page. Watching `rows`
+ * instead would do it on every poll — the store refreshes the pairs every few seconds, and the
+ * page would be yanked out from under whoever turned it.
+ */
+watch([search, sortKey, sortDir], () => {
+  pairPage.value = 1
+})
+watch(pairTotalPages, (max) => {
+  if (pairPage.value > max) pairPage.value = max
 })
 
 function toggleSort(key: SortKey) {
@@ -281,7 +301,7 @@ function drawdownPercent(value: number | null | undefined) {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in rows" :key="row.pair">
+              <tr v-for="row in pagedPairs" :key="row.pair">
                 <td>{{ row.pair }}</td>
                 <td>{{ row.count }}</td>
                 <td class="num" :class="winRateTone(row.winRate)">
@@ -304,8 +324,8 @@ function drawdownPercent(value: number | null | undefined) {
         </div>
 
         <!-- Narrow screens get cards instead of a horizontally scrolling table. -->
-        <ul v-if="rows.length" class="cards u-mobile-only">
-          <li v-for="row in rows" :key="row.pair" class="card">
+        <ul v-if="pagedPairs.length" class="cards u-mobile-only">
+          <li v-for="row in pagedPairs" :key="row.pair" class="card">
             <div class="card__row">
               <span class="num card__pair">{{ row.pair }}</span>
               <span class="spacer" />
@@ -327,6 +347,35 @@ function drawdownPercent(value: number | null | undefined) {
             </div>
           </li>
         </ul>
+      </div>
+
+      <div class="panel__head panel__pager">
+        <span class="panel__meta num">
+          {{ t('common.showing', { shown: pagedPairs.length, total: rows.length }) }}
+        </span>
+        <div class="panel__actions row">
+          <button
+            type="button"
+            class="btn btn--sm"
+            :disabled="pairPage <= 1"
+            @click="pairPage -= 1"
+          >
+            <AppIcon name="chevronRight" class="flip" />
+            {{ t('common.prev') }}
+          </button>
+          <span class="num small muted">
+            {{ t('common.page', { page: pairPage, pages: pairTotalPages }) }}
+          </span>
+          <button
+            type="button"
+            class="btn btn--sm"
+            :disabled="pairPage >= pairTotalPages"
+            @click="pairPage += 1"
+          >
+            {{ t('common.next') }}
+            <AppIcon name="chevronRight" />
+          </button>
+        </div>
       </div>
     </section>
 

@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }) => {
 
 test('long histories are paged at 20 rows per page', async ({ page }) => {
   const rows = livePage(page).locator('table tbody tr')
-  const pager = page.locator('.trades__more')
+  const pager = livePage(page).locator('.panel__pager')
 
   await expect(rows).toHaveCount(20)
   await expect(pager).toContainText('第 1 / 3 页')
@@ -37,7 +37,7 @@ test('long histories are paged at 20 rows per page', async ({ page }) => {
 })
 
 test('changing the filter returns to the first page', async ({ page }) => {
-  const pager = page.locator('.trades__more')
+  const pager = livePage(page).locator('.panel__pager')
   await pager.locator('button', { hasText: '下一页' }).click()
   await expect(pager).toContainText('第 2 / 3 页')
 

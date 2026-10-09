@@ -421,16 +421,16 @@ watch(linkedTrade, (trade) => {
         </ul>
       </div>
 
-      <div class="panel__head trades__more">
+      <div class="panel__head panel__pager">
         <span class="panel__meta num">
-          {{ t('trades.showing', { shown: pagedRows.length, total: rows.length }) }}
+          {{ t('common.showing', { shown: pagedRows.length, total: rows.length }) }}
         </span>
         <div class="panel__actions row">
           <button type="button" class="btn btn--sm" :disabled="page <= 1" @click="page -= 1">
             <AppIcon name="chevronRight" class="flip" />
             {{ t('common.prev') }}
           </button>
-          <span class="num small muted">{{ t('trades.page', { page, pages: totalPages }) }}</span>
+          <span class="num small muted">{{ t('common.page', { page, pages: totalPages }) }}</span>
           <button
             type="button"
             class="btn btn--sm"
@@ -485,15 +485,6 @@ watch(linkedTrade, (trade) => {
   color: inherit;
   font: inherit;
   cursor: pointer;
-}
-
-.trades__more {
-  border-bottom: 0;
-  border-top: 1px solid var(--line);
-}
-
-.flip {
-  transform: rotate(180deg);
 }
 
 @media (max-width: 900px) {

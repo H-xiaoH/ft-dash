@@ -361,12 +361,13 @@ export async function mockApi(
   options: {
     rejectAuth?: boolean
     tradeCount?: number
+    pairCount?: number
     staleHeartbeat?: boolean
     secondBot?: boolean
   } = {},
 ) {
   const calls: string[] = []
-  const { tradeCount } = options
+  const { tradeCount, pairCount } = options
   /**
    * Health is answered relative to the moment of the request: the heartbeat alert
    * compares against the real clock, so a frozen timestamp would look days stale.
@@ -391,6 +392,18 @@ export async function mockApi(
         total_trades: tradeCount,
       }
     : RESPONSES.trades
+
+  /** A longer pair list than the default fixture, so the table has pages to turn. */
+  const performancePayload = pairCount
+    ? Array.from({ length: pairCount }, (_, index) => ({
+        pair: `P${String(index + 1).padStart(2, '0')}/USDT`,
+        count: index + 1,
+        profit_abs: (pairCount - index) / 10,
+        profit_ratio: 0.01,
+        profit_pct: 1,
+        profit: 1,
+      }))
+    : undefined
 
   /** One answerer per origin; `overrides` swaps individual payloads per instance. */
   const serve =
@@ -418,12 +431,15 @@ export async function mockApi(
       }
 
       // `tradeCount` lets a test page through a longer history than the default fixture.
+      // `pairCount` does for the pair table what `tradeCount` does for the trades list.
       const body =
         tradeCount && path.startsWith('trades')
           ? tradesPayload
-          : path === 'health'
-            ? healthPayload()
-            : (overrides[path] ?? bodyFor(url, request.method()))
+          : pairCount && path === 'performance'
+            ? performancePayload
+            : path === 'health'
+              ? healthPayload()
+              : (overrides[path] ?? bodyFor(url, request.method()))
       if (body === undefined) {
         await route.fulfill({
           status: 404,

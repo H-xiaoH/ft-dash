@@ -49,6 +49,17 @@
   padding: 0;
 }
 
+/* The pager strip at the foot of a panel: a hairline above it, none under it. */
+.panel__pager {
+  border-bottom: 0;
+  border-top: 1px solid var(--line);
+}
+
+/* A chevron pointing the other way, for the "previous" side of a pager. */
+.flip {
+  transform: rotate(180deg);
+}
+
 /* --- metrics ------------------------------------------------------------ */
 
 .metric-grid {
