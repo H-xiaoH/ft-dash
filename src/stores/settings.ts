@@ -21,6 +21,7 @@ import {
 import { readJson, removeKey, safeSessionStorage, writeJson } from '@/lib/storage'
 import type { StreamAuthPreference } from '@/lib/stream'
 import type { TimezonePreference } from '@/lib/timezone'
+import { isZone } from '@/lib/timezone'
 
 const SETTINGS_KEY = 'ftdash.settings.v1'
 
@@ -67,12 +68,14 @@ function resolveStreamAuth(value: unknown): StreamAuthPreference {
     : DEFAULT_SETTINGS.streamAuth
 }
 
-export const TIMEZONE_OPTIONS: TimezonePreference[] = ['browser', 'UTC']
-
+/**
+ * A stored zone survives only if the runtime still knows it: 'browser', or an IANA name
+ * this Intl can format in. Anything else — an old value, a hand-edited entry — falls back
+ * to the default rather than leaving the app formatting in a zone that does not exist.
+ */
 function resolveTimezone(value: unknown): TimezonePreference {
-  return TIMEZONE_OPTIONS.includes(value as TimezonePreference)
-    ? (value as TimezonePreference)
-    : DEFAULT_SETTINGS.timezone
+  if (value === 'browser') return 'browser'
+  return typeof value === 'string' && isZone(value) ? value : DEFAULT_SETTINGS.timezone
 }
 
 /**

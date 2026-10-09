@@ -29,6 +29,15 @@ const gapBetween = async (above: Awaited<ReturnType<typeof panel>>, below: typeo
   return Math.round(b!.y - (a!.y + a!.height))
 }
 
+/**
+ * The dropdown under a given field label. The region panel now holds two of them, so
+ * "the dropdown on the settings page" is no longer a single thing to point at.
+ */
+const fieldMenu = (page: Page, label: string) =>
+  livePage(page)
+    .locator('.field', { has: page.locator('.field__label', { hasText: label }) })
+    .locator('.filter-menu')
+
 test('the stream-auth block slides to the choice you pick', async ({ page }) => {
   // Scoped to its field: the page carries more than one segmented control.
   const seg = livePage(page)
@@ -82,22 +91,87 @@ test('the time zone setting decides what clock the app reads by', async ({ page 
     // The list shows newest first, so the 11:59 stamp is the last row.
     livePage(page).locator('.logs__line .logs__time').last()
 
-  await expect(livePage(page).locator('.panel__title', { hasText: '语言' })).toHaveCount(1)
+  await expect(livePage(page).locator('.panel__title', { hasText: '区域' })).toHaveCount(1)
   await page.goto('/#/logs')
   await expect(logTime()).toContainText('19:59')
 
   await page.goto('/#/settings')
-  const picker = livePage(page).locator('.field', {
-    has: page.locator('.field__label', { hasText: '时区' }),
-  })
-  await expect(picker.locator('.seg__item[aria-pressed="true"]')).toContainText('跟随浏览器')
-  await picker.locator('.seg__item', { hasText: 'UTC' }).click()
+  /*
+   * The browser is Asia/Shanghai, so pin that same zone by name: the point is that pinning a
+   * zone works, and "follow the browser" resolving to it must read the clock the same way.
+   *
+   * The list is the whole IANA catalogue, so it is reached through the search box rather than
+   * scrolled — 400-odd rows in a popup is not a list anyone scrolls by hand.
+   */
+  const picker = fieldMenu(page, '时区')
+  await expect(picker.locator('.filter-menu__button')).toContainText('跟随浏览器')
+  await picker.locator('.filter-menu__button').click()
+  await page.locator('.filter-menu__input').fill('Shanghai')
+  /*
+   * Two rows, both honest: the browser zone *is* Shanghai, so the follow-the-browser row is
+   * reachable by that name too. Its display text is still just "跟随浏览器".
+   */
+  await expect(page.locator('.filter-menu__item')).toHaveCount(2)
+  const shanghai = page.locator('.filter-menu__item', { hasText: 'Asia/Shanghai' })
+  await expect(shanghai).toHaveCount(1)
+  await expect(shanghai).toContainText('UTC+08:00')
+  await shanghai.click()
+  await expect(picker.locator('.filter-menu__button')).toContainText('Asia/Shanghai')
 
+  // Pinning Shanghai reads the same clock "follow the browser" did one step ago.
+  await page.goto('/#/logs')
+  await expect(logTime()).toContainText('19:59')
+
+  // And the pin is a preference, not a session detail: it survives a reload.
+  await page.goto('/#/settings')
+  await page.reload()
+  await expect(fieldMenu(page, '时区').locator('.filter-menu__button')).toContainText(
+    'Asia/Shanghai',
+  )
+  await page.goto('/#/logs')
+  await expect(logTime()).toContainText('19:59')
+
+  // Switching to UTC still moves the clock, eight hours the other way.
+  await page.goto('/#/settings')
+  const back = fieldMenu(page, '时区')
+  await back.locator('.filter-menu__button').click()
+  await page.locator('.filter-menu__input').fill('UTC')
+  await expect(page.locator('.filter-menu__item')).toHaveCount(1)
+  await expect(page.locator('.filter-menu__item')).toHaveText('UTC')
+  await page.locator('.filter-menu__item', { hasText: /^UTC$/ }).click()
   await page.goto('/#/logs')
   await expect(logTime()).toContainText('11:59')
+})
 
-  await page.reload()
-  await expect(logTime()).toContainText('11:59')
+test('the time zone list offers every zone and searches them by name', async ({ page }) => {
+  const picker = fieldMenu(page, '时区')
+  await picker.locator('.filter-menu__button').click()
+  // UTC is a fixed offset, not a region, so `supportedValuesOf` leaves it out — put back by hand.
+  await expect(page.locator('.filter-menu__item').first()).toHaveText('跟随浏览器')
+
+  await page.locator('.filter-menu__input').fill('Tokyo')
+  const tokyo = page.locator('.filter-menu__item', { hasText: 'Asia/Tokyo' })
+  await expect(tokyo).toHaveCount(1)
+  // The offset rides along as right-aligned text, not as part of the zone name.
+  await expect(tokyo.locator('.filter-menu__hint')).toHaveText('UTC+09:00')
+  // And it is decoration only: every offset contains "UTC", so matching on one would make
+  // a search for UTC return the whole list.
+  await page.locator('.filter-menu__input').fill('UTC+09')
+  await expect(page.locator('.filter-menu__item')).toHaveCount(0)
+
+  // A term that matches nothing says so, and clears in place.
+  await page.locator('.filter-menu__input').fill('nowhere')
+  await expect(page.locator('.filter-menu__item')).toHaveCount(0)
+  await expect(page.locator('.filter-menu__empty')).toContainText('没有匹配项')
+  await page.locator('.filter-menu__reset').click()
+  await expect(page.locator('.filter-menu__empty')).toHaveCount(0)
+  await expect(page.locator('.filter-menu__item').first()).toHaveText('跟随浏览器')
+
+  // A term is per-opening: it is not left behind to hide rows on the next visit.
+  await tokyo.click()
+  await expect(picker.locator('.filter-menu__button')).toContainText('Asia/Tokyo')
+  await picker.locator('.filter-menu__button').click()
+  await expect(page.locator('.filter-menu__input')).toHaveValue('')
 })
 
 test('the cards form two even columns with an even gap before the full-width card', async ({
@@ -129,7 +203,7 @@ test('the cards form two even columns with an even gap before the full-width car
   await expect.poll(columnTopGap).toBeLessThanOrEqual(1)
 
   // The gap inside a column and the gap before the full-width card are the same.
-  await expect.poll(() => gapBetween(panel(page, '语言'), panel(page, '推送'))).toBe(16)
+  await expect.poll(() => gapBetween(panel(page, '区域'), panel(page, '推送'))).toBe(16)
   await expect
     .poll(() => gapBetween(livePage(page).locator('.settings__columns'), panel(page, '本机数据')))
     .toBe(16)
@@ -289,9 +363,9 @@ test('retrying the live stream acknowledges the click', async ({ page }) => {
 })
 
 test('the settings language picker offers following the system', async ({ page }) => {
-  await expect(livePage(page).locator('.panel__title', { hasText: '语言' })).toHaveCount(1)
-  // Located by structure, not by the panel title: switching the language renames the title.
-  const trigger = livePage(page).locator('.settings__columns .filter-menu__button')
+  await expect(livePage(page).locator('.panel__title', { hasText: '区域' })).toHaveCount(1)
+  // Located by structure: the trigger's own label is what the case is about, not the panel head.
+  const trigger = fieldMenu(page, '语言').locator('.filter-menu__button')
   // Same control as the connect screen, but the panel is already titled — no emoji here.
   await expect(trigger).not.toContainText('🌐')
   await expect(trigger).toContainText('跟随系统')
@@ -299,13 +373,14 @@ test('the settings language picker offers following the system', async ({ page }
   await trigger.click()
   await expect(page.locator('.filter-menu__item')).toHaveText(['跟随系统', '简体中文', 'English'])
   await expect(page.locator('.filter-menu__item.is-active')).toHaveText('跟随系统')
+  // Switching the language renames every panel; the field is found by label, not by title.
   await page.locator('.filter-menu__item', { hasText: 'English' }).click()
-  await expect(trigger).toContainText('English')
+  await expect(fieldMenu(page, 'Language').locator('.filter-menu__button')).toContainText('English')
 })
 
 test('the language popup stays inside a phone-width viewport', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 })
-  const trigger = livePage(page).locator('.settings__columns .filter-menu__button')
+  const trigger = fieldMenu(page, '语言').locator('.filter-menu__button')
   await trigger.click()
 
   const [list, viewport] = await Promise.all([
@@ -322,7 +397,7 @@ test('the language popup stays inside a phone-width viewport', async ({ page }) 
 
 test('the language popup travels with its trigger while the page scrolls', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 640 })
-  const trigger = livePage(page).locator('.settings__columns .filter-menu__button')
+  const trigger = fieldMenu(page, '语言').locator('.filter-menu__button')
   const list = page.locator('.filter-menu__list')
   await trigger.click()
   await list.waitFor()

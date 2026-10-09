@@ -10,7 +10,7 @@ import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from '@/i18n'
 import { canInstall, isStandalone, offlineReady, promptInstall } from '@/pwa'
 import { useBotStore } from '@/stores/bot'
 import { useEventsStore } from '@/stores/events'
-import type { TimezonePreference } from '@/lib/timezone'
+import { browserZone, listZones, zoneOffsetLabel, type TimezonePreference } from '@/lib/timezone'
 import { useSettingsStore } from '@/stores/settings'
 import type { StreamAuthPreference } from '@/lib/stream'
 
@@ -26,12 +26,6 @@ const { blockStyle: authBlockStyle, blockReady: authBlockReady } = useSegBlock(
   authSeg,
   () => settings.streamAuth,
 )
-/** The block behind the time zone choices, which slides to whichever one is active. */
-const timezoneSeg = ref<HTMLElement | null>(null)
-const { blockStyle: timezoneBlockStyle, blockReady: timezoneBlockReady } = useSegBlock(
-  timezoneSeg,
-  () => settings.timezone,
-)
 const appVersion = __APP_VERSION__
 
 const languageOptions = computed(() => [
@@ -39,11 +33,31 @@ const languageOptions = computed(() => [
   ...SUPPORTED_LOCALES.map((code) => ({ value: code, label: LOCALE_LABELS[code] })),
 ])
 
-/** Same pair of choices FreqUI offers: the browser's own zone, or the exchanges' UTC. */
+const zoneLabels = computed<Record<string, string>>(() =>
+  Object.fromEntries(listZones().map((zone) => [zone, zoneOffsetLabel(zone, settings.locale)])),
+)
+
+/**
+ * The browser's own zone heads the list as an explicit choice, because pinning a zone and
+ * following the machine are different intents: the first survives a move, the second follows
+ * one. Every IANA zone follows, and the offset rides along as right-aligned text — except on
+ * UTC, whose very name already is its offset.
+ */
 const timezoneOptions = computed(() => [
   { value: 'browser' as TimezonePreference, label: t('settings.timezoneBrowser') },
-  { value: 'UTC' as TimezonePreference, label: t('settings.timezoneUtc') },
+  ...listZones().map((zone) => ({
+    value: zone as TimezonePreference,
+    label: zone,
+    hint: zone === 'UTC' ? '' : zoneLabels.value[zone],
+  })),
 ])
+
+/**
+ * "Follow the browser" can also be found by the zone it resolves to — an operator who types
+ * "Shanghai" deserves to see both answers. The offsets are deliberately *not* matched on:
+ * every one of them contains "UTC", so searching UTC would return the entire list.
+ */
+const timezoneSearchText = computed<Record<string, string>>(() => ({ browser: browserZone() }))
 
 const STREAM_AUTH_CHOICES: { value: StreamAuthPreference; label: string }[] = [
   { value: 'auto', label: 'settings.streamAuthAuto' },
@@ -125,10 +139,11 @@ async function install() {
       <div class="settings__col">
         <section class="panel">
           <div class="panel__head">
-            <span class="panel__title">{{ t('settings.language') }}</span>
+            <span class="panel__title">{{ t('settings.region') }}</span>
           </div>
           <div class="panel__body stack">
             <div class="field">
+              <span class="field__label">{{ t('settings.language') }}</span>
               <FilterMenu
                 v-model="settings.localePreference"
                 :options="languageOptions"
@@ -137,24 +152,14 @@ async function install() {
             </div>
             <div class="field">
               <span class="field__label">{{ t('settings.timezone') }}</span>
-              <div ref="timezoneSeg" class="seg">
-                <button
-                  v-for="choice in timezoneOptions"
-                  :key="choice.value"
-                  type="button"
-                  class="seg__item"
-                  :aria-pressed="settings.timezone === choice.value"
-                  @click="settings.timezone = choice.value"
-                >
-                  {{ choice.label }}
-                </button>
-                <span
-                  class="seg__block"
-                  :class="{ 'is-ready': timezoneBlockReady }"
-                  :style="timezoneBlockStyle"
-                />
-              </div>
-              <span class="field__hint">{{ t('settings.timezoneHint') }}</span>
+              <FilterMenu
+                v-model="settings.timezone"
+                :options="timezoneOptions"
+                :label="t('settings.timezone')"
+                :search-text="timezoneSearchText"
+                searchable
+                align="start"
+              />
             </div>
           </div>
         </section>

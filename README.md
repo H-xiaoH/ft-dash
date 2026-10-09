@@ -242,9 +242,10 @@ instance. It reads `/ping`, `/show_config`, `/version`, `/health`, `/sysinfo`, `
 `/blacklist` and `/locks/delete` when controls are enabled.
 
 The day, week and month reports are the bot's own, bucketed in UTC — the same days the bot and
-the exchange work in. **Settings → Time zone** (the browser's own zone by default, UTC for the
-exchanges' clock) decides how *times* are shown: a trade closed at 23:30 UTC reads as 07:30 the
-next morning in Shanghai. It does not move the report boundaries.
+the exchange work in. **Settings → Region → Time zone** decides how *times* are shown: the
+browser's own zone by default, or any zone pinned by name (UTC for the exchanges' clock). A
+trade closed at 23:30 UTC reads as 07:30 the next morning in Shanghai. It does not move the
+report boundaries.
 
 Older releases may lack individual endpoints (for example `/pair_candles` column filtering or
 `/stats` durations); the affected panel then shows an error or stays empty instead of

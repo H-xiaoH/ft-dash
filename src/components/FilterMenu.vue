@@ -6,6 +6,8 @@ import AppIcon from './AppIcon.vue'
 export interface FilterOption<T extends string = string> {
   value: T
   label: string
+  /** Right-aligned supporting text, e.g. "UTC+08:00". Never searched; see `searchText`. */
+  hint?: string
 }
 
 /** A compact dropdown: the current choice stays visible on the button. */
@@ -18,16 +20,39 @@ const props = withDefaults(
     /** Replaces the value on the button, e.g. an emoji where the button is self-explanatory. */
     triggerLabel?: string
     align?: 'start' | 'end'
+    /** Shows a search box above the options; the list can be long (every IANA zone is). */
+    searchable?: boolean
+    /** Extra text a row is matched against, keyed by value. Not shown. */
+    searchText?: Record<string, string>
   }>(),
-  { label: '', prefix: '', triggerLabel: '', align: 'end' },
+  {
+    label: '',
+    prefix: '',
+    triggerLabel: '',
+    align: 'end',
+    searchable: false,
+    searchText: () => ({}),
+  },
 )
 
 const model = defineModel<T>()
 const { t } = useI18n()
 const open = ref(false)
+const query = ref('')
 const trigger = ref<HTMLElement | null>(null)
 const list = ref<HTMLElement | null>(null)
+const search = ref<HTMLInputElement | null>(null)
 const anchor = ref({ top: 0, left: 0 })
+
+const shown = computed(() => {
+  const term = query.value.trim().toLowerCase()
+  if (!props.searchable || !term) return props.options
+  return props.options.filter((option) =>
+    `${option.label} ${option.value} ${props.searchText[option.value] ?? ''}`
+      .toLowerCase()
+      .includes(term),
+  )
+})
 
 const current = computed(
   () =>
@@ -47,6 +72,25 @@ async function toggle() {
   await nextTick()
   place()
   follow()
+}
+
+// The search term is per-opening: a filter left over from last time would hide rows for no
+// visible reason, since the box is gone by then.
+watch(open, async (isOpen) => {
+  if (!isOpen) {
+    unfollow()
+    query.value = ''
+    return
+  }
+  if (!props.searchable) return
+  await nextTick()
+  search.value?.focus()
+})
+
+/** A term that matches nothing must not look like a broken control. */
+function clearQuery() {
+  query.value = ''
+  search.value?.focus()
 }
 
 /**
@@ -91,10 +135,6 @@ function unfollow() {
   window.removeEventListener('resize', place)
 }
 
-watch(open, (isOpen) => {
-  if (!isOpen) unfollow()
-})
-
 onBeforeUnmount(unfollow)
 
 const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${anchor.value.left}px` }))
@@ -121,9 +161,26 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
         <div ref="list" class="filter-menu__list" :style="listStyle">
           <!-- The title sits outside the listbox: a listbox may only contain options. -->
           <span :id="titleId" class="filter-menu__title">{{ label || t('common.filter') }}</span>
+          <!--
+            The field sits outside the listbox too, but the popup has to swallow clicks on
+            everything that is not the backdrop; the backdrop closes the menu.
+          -->
+          <div v-if="searchable" class="filter-menu__search" @click.stop>
+            <AppIcon name="search" :size="13" />
+            <input
+              ref="search"
+              v-model="query"
+              class="filter-menu__input"
+              type="search"
+              spellcheck="false"
+              :placeholder="t('common.search')"
+              :aria-label="t('common.search')"
+              @keydown.escape="open = false"
+            />
+          </div>
           <div class="filter-menu__options" role="listbox" :aria-labelledby="titleId">
             <button
-              v-for="option in options"
+              v-for="option in shown"
               :key="option.value"
               type="button"
               class="filter-menu__item"
@@ -132,9 +189,17 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
               :class="{ 'is-active': option.value === model }"
               @click="choose(option.value)"
             >
-              {{ option.label }}
+              <span>{{ option.label }}</span>
+              <span v-if="option.hint" class="filter-menu__hint num">{{ option.hint }}</span>
             </button>
           </div>
+          <!-- Not an option: an empty listbox would make a zero-match term look like a fault. -->
+          <p v-if="searchable && !shown.length" class="filter-menu__empty">
+            {{ t('common.noMatch') }}
+            <button type="button" class="filter-menu__reset" @click="clearQuery">
+              {{ t('common.clear') }}
+            </button>
+          </p>
         </div>
       </template>
     </Teleport>
@@ -181,6 +246,66 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
   gap: 1px;
 }
 
+.filter-menu__search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 4px;
+  padding: 0 8px;
+  height: 28px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-1);
+  background: var(--ink-900);
+  color: var(--text-3);
+}
+
+.filter-menu__search:focus-within {
+  border-color: var(--accent);
+}
+
+.filter-menu__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0;
+  font-size: var(--fs-base);
+}
+
+.filter-menu__input:focus,
+.filter-menu__input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* The field brings its own clear button. */
+.filter-menu__input::-webkit-search-cancel-button,
+.filter-menu__input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.filter-menu__empty {
+  margin: 2px 0 0;
+  padding: 6px 8px;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+
+.filter-menu__reset {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0 0 0 4px;
+  font-size: inherit;
+}
+
+.filter-menu__reset:hover {
+  text-decoration: underline;
+}
+
 .filter-menu__title {
   padding: 4px 8px;
   font-size: var(--fs-xs);
@@ -214,5 +339,17 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
 .filter-menu__item.is-active::after {
   content: '✓';
   margin-left: auto;
+}
+
+.filter-menu__hint {
+  margin-left: auto;
+  padding-left: 14px;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+/* The tick already means "current"; the hint then trails it rather than fighting for the edge. */
+.filter-menu__item.is-active .filter-menu__hint {
+  margin-left: 0;
 }
 </style>
