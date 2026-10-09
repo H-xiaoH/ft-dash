@@ -113,21 +113,26 @@ test('the cards form two even columns with an even gap before the full-width car
   await expect(columns.nth(0)).toBeVisible()
   await expect(columns.nth(1)).toBeVisible()
 
+  /*
+   * The panels fill in from the config, so the page is still moving when the first measure
+   * lands: on a slow runner the tops differed and the gaps read 0. Every measure is polled
+   * until the layout has settled, which is what "the cards are even" actually means.
+   */
+  const columnTopGap = async () => {
+    const [left, right] = await Promise.all([
+      columns.nth(0).boundingBox(),
+      columns.nth(1).boundingBox(),
+    ])
+    return left && right ? Math.abs(Math.round(left.y) - Math.round(right.y)) : Number.NaN
+  }
   // Both stacks start on the same line; neither is pushed down by balancing.
-  const [left, right] = await Promise.all([
-    columns.nth(0).boundingBox(),
-    columns.nth(1).boundingBox(),
-  ])
-  expect(Math.round(left!.y)).toBe(Math.round(right!.y))
+  await expect.poll(columnTopGap).toBeLessThanOrEqual(1)
 
   // The gap inside a column and the gap before the full-width card are the same.
-  const insideColumn = await gapBetween(panel(page, '语言'), panel(page, '推送'))
-  const beforeData = await gapBetween(
-    livePage(page).locator('.settings__columns'),
-    panel(page, '本机数据'),
-  )
-  expect(insideColumn).toBe(16)
-  expect(beforeData).toBe(16)
+  await expect.poll(() => gapBetween(panel(page, '语言'), panel(page, '推送'))).toBe(16)
+  await expect
+    .poll(() => gapBetween(livePage(page).locator('.settings__columns'), panel(page, '本机数据')))
+    .toBe(16)
 
   // The local-data card spans the whole width, outside the two stacks.
   expect(Math.round((await panel(page, '本机数据').boundingBox())!.width)).toBe(
