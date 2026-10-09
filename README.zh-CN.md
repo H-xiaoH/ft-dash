@@ -71,6 +71,9 @@ npm run build        # 类型检查 + 生产构建（输出 dist/）
 `npx playwright install chromium webkit` 下载浏览器（WebKit 就是 Safari 的引擎，套件里
 `webkit` 项目用它跑冒烟与无障碍扫描）。
 
+**浏览器下限。** 停靠页与打开的弹窗都用原生 `inert` 属性停掉，后面没有 polyfill 兜底：
+iOS Safari 15.5（2022 年 5 月）之前不覆盖，那些系统上停靠页仍会留在 Tab 序里。
+
 自动化能覆盖到的是「渲染、交互、无障碍规则」这三层；下面这些只能在真机上看，每次改动 UI 后
 建议花两分钟走一遍（Safari + 已安装到主屏幕的 PWA）：
 

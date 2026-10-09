@@ -87,6 +87,10 @@ answers every request from fixtures in `e2e/support/fixtures.ts`, so it runs off
 no credentials. First run needs `npx playwright install chromium webkit` to fetch the browsers
 (WebKit is Safari's engine; the `webkit` project runs the smoke and accessibility specs on it).
 
+**Browser floor.** Off-screen pages and open dialogs are parked with the native `inert`
+attribute, with no polyfill behind it: iOS Safari before 15.5 (May 2022) is not covered, and
+there those pages stay in the tab order.
+
 Automation covers rendering, interaction and accessibility rules. These few things can only be
 checked on a real device — worth two minutes in Safari with the PWA installed:
 
