@@ -300,7 +300,7 @@ async function install() {
             {{ t('settings.clearData') }}
           </button>
           <span class="small muted">
-            {{ t('app.name') }} {{ appVersion }} · {{ t('system.version') }}
+            {{ t('app.name') }} - {{ appVersion }} · {{ t('app.freqtrade') }} -
             {{ bot.showConfig?.version ?? '—' }}
           </span>
         </div>

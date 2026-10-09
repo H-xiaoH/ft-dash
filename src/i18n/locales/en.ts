@@ -1,6 +1,7 @@
 export default {
   app: {
     name: 'FT Dash',
+    freqtrade: 'FreqTrade',
     tagline: 'Freqtrade Dashboard',
   },
   nav: {

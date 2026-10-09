@@ -55,6 +55,20 @@ test('toasts take the corner on wide screens and the middle on phones', async ({
   expect(Math.round(narrow.x + narrow.width)).toBeGreaterThan(390 / 2)
 })
 
+test('the footer reads the app build next to the bot version', async ({ page }) => {
+  /*
+   * The two numbers answer different questions — which build of this page, and which
+   * Freqtrade the bot is running — so each is named rather than left to sit under a bare
+   * "版本" that reads as if it described the page.
+   */
+  const footer = livePage(page)
+    .locator('.panel', { has: page.locator('.panel__title', { hasText: '本机数据' }) })
+    .locator('.row > .small.muted')
+  await expect(footer).toHaveText(
+    /^FT Dash - \d{2}\.\d{2}\.\d{2}\.\d{2}\.\d{2} · FreqTrade - \d{4}\.\d+$/,
+  )
+})
+
 test('the cards form two even columns with an even gap before the full-width card', async ({
   page,
 }) => {
