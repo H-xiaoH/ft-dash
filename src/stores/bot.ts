@@ -108,7 +108,20 @@ export const useBotStore = defineStore('bot', () => {
   const candleCache = ref<Record<string, PairCandlesResponse>>({})
 
   let pollTimer: number | null = null
-  let pollInFlight = false
+  interface PollRun {
+    epoch: number
+    token: number
+  }
+
+  interface RefreshRun {
+    epoch: number
+    token: number
+  }
+
+  let pollInFlight: PollRun | null = null
+  let nextPollToken = 0
+  let refreshInFlight: RefreshRun | null = null
+  let nextRefreshToken = 0
   let tick = 0
   let ws: WebSocket | null = null
   let wsRetry = 0
@@ -120,8 +133,11 @@ export const useBotStore = defineStore('bot', () => {
    * the new one's figures — dropping them is what keeps "one bot at a time" honest.
    */
   let botEpoch = 0
+  /** Serializes bot selection, removal and direct reconnects so stale rollback cannot win. */
+  let lifecycleToken = 0
   let streamFailures = 0
   let streamOpened = false
+  let streamAttempt = 0
   /** Set when a JWT handshake is rejected, so auto mode can fall back to ws_token. */
   let streamPreferToken = false
 
@@ -201,6 +217,10 @@ export const useBotStore = defineStore('bot', () => {
     client.value = null
   }
 
+  function isCurrentLifecycle(token: number): boolean {
+    return token === lifecycleToken
+  }
+
   function recordError(error: unknown) {
     errorKey.value = describeError(error)
     if (error instanceof ApiError) {
@@ -237,6 +257,7 @@ export const useBotStore = defineStore('bot', () => {
    * land a few milliseconds apart.
    */
   async function refreshCore() {
+    const epoch = botEpoch
     const started = performance.now()
     const api = ensureClient()
     const results = await Promise.all([
@@ -247,6 +268,7 @@ export const useBotStore = defineStore('bot', () => {
       track(() => api.health()),
       track(() => api.sysinfo()),
     ])
+    if (epoch !== botEpoch) return
     if (results[0]) openTrades.value = results[0]
     if (results[1]) count.value = results[1]
     if (results[2]) balance.value = results[2]
@@ -257,8 +279,10 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   async function refreshTrades() {
+    const epoch = botEpoch
     const api = ensureClient()
     const result = await track(() => api.trades({ limit: TRADES_PAGE_SIZE }))
+    if (epoch !== botEpoch) return
     if (result) {
       trades.value = result.trades
       tradesTotal.value = result.total_trades
@@ -267,7 +291,9 @@ export const useBotStore = defineStore('bot', () => {
 
   /** Explicit paged fetch used by the trades view's "load more". */
   async function fetchTrades(limit: number) {
+    const epoch = botEpoch
     const result = await track(() => ensureClient().trades({ limit }))
+    if (epoch !== botEpoch) return result
     if (result) {
       trades.value = result.trades
       tradesTotal.value = result.total_trades
@@ -276,6 +302,7 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   async function refreshAnalytics() {
+    const epoch = botEpoch
     const api = ensureClient()
     const [stats, perf, dailyRes, weeklyRes, monthlyRes, all] = await Promise.all([
       track(() => api.tradeStats()),
@@ -285,6 +312,7 @@ export const useBotStore = defineStore('bot', () => {
       track(() => api.monthly(24)),
       track(() => api.profitAll()),
     ])
+    if (epoch !== botEpoch) return
     if (stats) tradeStats.value = stats
     if (perf) performanceStats.value = perf
     if (dailyRes) daily.value = dailyRes
@@ -294,23 +322,27 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   async function refreshMarket() {
+    const epoch = botEpoch
     const api = ensureClient()
     const [white, black, lockRes] = await Promise.all([
       track(() => api.whitelist()),
       track(() => api.blacklist()),
       track(() => api.locks()),
     ])
+    if (epoch !== botEpoch) return
     if (white) whitelist.value = white
     if (black) blacklist.value = black
     if (lockRes) locks.value = lockRes
   }
 
   async function refreshSystem() {
+    const epoch = botEpoch
     const api = ensureClient()
     const [config, logRes] = await Promise.all([
       track(() => api.showConfig()),
       track(() => api.logs(150)),
     ])
+    if (epoch !== botEpoch) return
     if (config) {
       showConfig.value = config
       applyConfigMetadata(config)
@@ -319,26 +351,38 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   async function refreshAll() {
-    if (refreshing.value) return
+    if (refreshInFlight !== null) return
+    const run: RefreshRun = { epoch: botEpoch, token: ++nextRefreshToken }
+    refreshInFlight = run
     refreshing.value = true
     try {
       await refreshCore()
+      if (run.epoch !== botEpoch || refreshInFlight?.token !== run.token) return
       await Promise.all([refreshTrades(), refreshAnalytics(), refreshMarket(), refreshSystem()])
     } finally {
-      refreshing.value = false
+      if (refreshInFlight?.token === run.token) {
+        refreshInFlight = null
+        refreshing.value = false
+      }
     }
   }
 
   /** How often the hidden-tab watchdog may ask, regardless of the visible cadence. */
   const BACKGROUND_CHECK_MS = 10_000
 
+  function isCurrentPoll(run: PollRun): boolean {
+    return run.epoch === botEpoch && pollInFlight?.token === run.token
+  }
+
   /** Cheap slices refreshed on every poll tick. */
   async function pollTick() {
     // A slow round trip must not stack requests on the next tick.
-    if (pollInFlight) return
-    pollInFlight = true
-    const now = Date.now()
+    if (pollInFlight !== null) return
+    const run: PollRun = { epoch: botEpoch, token: ++nextPollToken }
+    pollInFlight = run
     try {
+      if (!isCurrentPoll(run)) return
+      const now = Date.now()
       if (document.visibilityState === 'hidden') {
         /*
          * Background tabs otherwise stop polling to save battery — but the point of
@@ -358,24 +402,34 @@ export const useBotStore = defineStore('bot', () => {
          */
         if (settings.notifications && now - lastBackgroundCheck >= BACKGROUND_CHECK_MS) {
           lastBackgroundCheck = now
-          await checkHeartbeat()
+          await checkHeartbeat(run)
         }
         return
       }
       tick += 1
       await refreshCore()
+      if (!isCurrentPoll(run)) return
       evaluateHeartbeatAlert()
-      if (tick % 4 === 0) await Promise.all([refreshTrades(), refreshMarket()])
-      if (tick % 12 === 0) await Promise.all([refreshAnalytics(), refreshSystem()])
+      if (tick % 4 === 0) {
+        await Promise.all([refreshTrades(), refreshMarket()])
+        if (!isCurrentPoll(run)) return
+      }
+      if (tick % 12 === 0) {
+        await Promise.all([refreshAnalytics(), refreshSystem()])
+        if (!isCurrentPoll(run)) return
+      }
     } finally {
-      pollInFlight = false
+      // A newer bot or poll run owns the latch now; an old finally must not release it.
+      if (pollInFlight?.token === run.token) pollInFlight = null
     }
   }
 
   /** Health-only refresh, used as the background watchdog. */
-  async function checkHeartbeat() {
+  async function checkHeartbeat(run: PollRun) {
+    if (!isCurrentPoll(run)) return
     const api = ensureClient()
     const result = await track(() => api.health())
+    if (!isCurrentPoll(run)) return
     if (result) health.value = result
     evaluateHeartbeatAlert()
   }
@@ -429,12 +483,17 @@ export const useBotStore = defineStore('bot', () => {
       window.clearInterval(pollTimer)
       pollTimer = null
     }
+    // Invalidate an in-flight run immediately. Its request cannot be cancelled here,
+    // but its continuations and finally block will fail the token check.
+    pollInFlight = null
   }
 
   function resetData() {
     snapshotStale.value = false
     connection.value = 'idle'
     errorKey.value = null
+    latencyMs.value = null
+    lastFetchAt.value = null
     showConfig.value = null
     health.value = null
     sysinfo.value = null
@@ -459,6 +518,8 @@ export const useBotStore = defineStore('bot', () => {
 
   /** Everything a page reads, minus the connection state that is rebuilt on switch. */
   interface Snapshot {
+    latencyMs: number | null
+    lastFetchAt: number | null
     showConfig: ShowConfigResponse | null
     health: HealthResponse | null
     sysinfo: SysInfoResponse | null
@@ -478,10 +539,13 @@ export const useBotStore = defineStore('bot', () => {
     blacklist: BlacklistResponse | null
     locks: LocksResponse | null
     logs: LogsResponse | null
+    candleCache: Record<string, PairCandlesResponse>
   }
 
   function captureSnapshot(): Snapshot {
     return {
+      latencyMs: latencyMs.value,
+      lastFetchAt: lastFetchAt.value,
       showConfig: showConfig.value,
       health: health.value,
       sysinfo: sysinfo.value,
@@ -501,10 +565,13 @@ export const useBotStore = defineStore('bot', () => {
       blacklist: blacklist.value,
       locks: locks.value,
       logs: logs.value,
+      candleCache: candleCache.value,
     }
   }
 
   function restoreSnapshot(snapshot: Snapshot) {
+    latencyMs.value = snapshot.latencyMs
+    lastFetchAt.value = snapshot.lastFetchAt
     showConfig.value = snapshot.showConfig
     health.value = snapshot.health
     sysinfo.value = snapshot.sysinfo
@@ -524,6 +591,7 @@ export const useBotStore = defineStore('bot', () => {
     blacklist.value = snapshot.blacklist
     locks.value = snapshot.locks
     logs.value = snapshot.logs
+    candleCache.value = snapshot.candleCache
   }
 
   /**
@@ -539,13 +607,10 @@ export const useBotStore = defineStore('bot', () => {
    * Points the whole dashboard at another bot. The caller (settings) decides *when*;
    * this keeps the connection, the cache and the polling timers in step with it.
    */
-  async function switchBot(id: string): Promise<boolean> {
-    if (id === settings.activeBotId) return true
-    // A write in flight belongs to the bot you are looking at; never leave it behind.
-    if (actionPending.value !== null) return false
+  async function switchBotForLifecycle(id: string, token: number): Promise<boolean> {
     const previous = settings.activeBotId
     if (previous) snapshots.set(previous, captureSnapshot())
-    cleanup()
+    stopLifecycle()
     settings.setActiveBot(id)
     rebuildClient()
     const snapshot = snapshots.get(id)
@@ -553,16 +618,61 @@ export const useBotStore = defineStore('bot', () => {
       restoreSnapshot(snapshot)
       snapshotStale.value = true
       // Paint from the snapshot, then let the real figures land on top.
-      return connect()
+      const connected = await connectForLifecycle(token)
+      return isCurrentLifecycle(token) && connected
     }
     resetData()
-    return connect()
+    const connected = await connectForLifecycle(token)
+    return isCurrentLifecycle(token) && connected
+  }
+
+  async function switchBot(id: string): Promise<boolean> {
+    if (id === settings.activeBotId) return true
+    // A write in flight belongs to the bot you are looking at; never leave it behind.
+    if (actionPending.value !== null) return false
+    const token = ++lifecycleToken
+    return switchBotForLifecycle(id, token)
+  }
+
+  /** Removes a bot without leaving the active connection outside the switch lifecycle. */
+  async function removeBot(id: string): Promise<boolean> {
+    if (id !== settings.activeBotId) {
+      settings.removeBot(id)
+      snapshots.delete(id)
+      return true
+    }
+    if (actionPending.value !== null) return false
+
+    const next = settings.bots.find((entry) => entry.id !== id)
+    if (!next) {
+      ++lifecycleToken
+      stopLifecycle()
+      settings.removeBot(id)
+      snapshots.delete(id)
+      resetData()
+      return true
+    }
+
+    const token = ++lifecycleToken
+    const switched = await switchBotForLifecycle(next.id, token)
+    if (!switched) {
+      // A newer switch, removal or reconnect owns the dashboard now. Do not undo it.
+      if (!isCurrentLifecycle(token)) return false
+      await switchBotForLifecycle(id, token)
+      return false
+    }
+    if (!isCurrentLifecycle(token)) return false
+    settings.removeBot(id)
+    snapshots.delete(id)
+    return true
   }
 
   // --- connection lifecycle ------------------------------------------------
 
-  async function connect(): Promise<boolean> {
+  async function connectForLifecycle(token: number): Promise<boolean> {
+    if (!isCurrentLifecycle(token)) return false
     if (!settings.baseUrl || !settings.username || !settings.password) {
+      connection.value = 'idle'
       errorKey.value = { key: 'errors.config' }
       return false
     }
@@ -575,9 +685,9 @@ export const useBotStore = defineStore('bot', () => {
       const api = ensureClient()
       const started = performance.now()
       await api.ping()
-      if (epoch !== botEpoch) return false
+      if (!isCurrentLifecycle(token) || epoch !== botEpoch) return false
       const config = await api.showConfig()
-      if (epoch !== botEpoch) return false
+      if (!isCurrentLifecycle(token) || epoch !== botEpoch) return false
       latencyMs.value = Math.round(performance.now() - started)
       showConfig.value = config
       settings.persistBots()
@@ -586,17 +696,23 @@ export const useBotStore = defineStore('bot', () => {
       // Real data is on its way in; anything shown before it is no longer a stale copy.
       snapshotStale.value = false
       await refreshAll()
-      if (epoch !== botEpoch) return false
+      if (!isCurrentLifecycle(token) || epoch !== botEpoch) return false
       startPolling()
       if (settings.websocket) retryStream()
       return true
     } catch (error) {
-      if (epoch !== botEpoch) return false
+      if (!isCurrentLifecycle(token) || epoch !== botEpoch) return false
       recordError(error)
       connection.value =
         error instanceof ApiError && error.kind === 'auth' ? 'unauthorized' : 'unreachable'
       return false
     }
+  }
+
+  async function connect(): Promise<boolean> {
+    const token = ++lifecycleToken
+    stopLifecycle()
+    return connectForLifecycle(token)
   }
 
   function applyConfigMetadata(config: ShowConfigResponse) {
@@ -609,17 +725,27 @@ export const useBotStore = defineStore('bot', () => {
     await connect()
   }
 
-  function cleanup() {
+  function stopLifecycle() {
     stopped = true
     botEpoch += 1
     stopPolling()
+    refreshInFlight = null
+    refreshing.value = false
+    tick = 0
+    heartbeatAlerted = false
+    lastBackgroundCheck = 0
     disconnectStream()
+  }
+
+  function cleanup() {
+    lifecycleToken += 1
+    stopLifecycle()
   }
 
   // --- websocket -----------------------------------------------------------
 
   /** Resolves the token the socket needs: an operator ws_token, or a fresh JWT. */
-  async function resolveStreamAuth(api: FreqtradeApi) {
+  async function resolveStreamAuth(api: FreqtradeApi, isCurrent: () => boolean) {
     if (settings.streamAuth === 'ws_token') {
       return planStreamAuth({
         preference: settings.streamAuth,
@@ -636,12 +762,14 @@ export const useBotStore = defineStore('bot', () => {
         jwtToken = await api.login()
       } catch (error) {
         jwtFailure = classifyJwtFailure(error)
-        events.push({
-          type: 'stream.auth',
-          subject: jwtFailure,
-          detail: '',
-          severity: 'warn',
-        })
+        if (isCurrent()) {
+          events.push({
+            type: 'stream.auth',
+            subject: jwtFailure,
+            detail: '',
+            severity: 'warn',
+          })
+        }
       }
     }
     return planStreamAuth({
@@ -653,7 +781,13 @@ export const useBotStore = defineStore('bot', () => {
     })
   }
 
+  function isCurrentStreamAttempt(epoch: number, attempt: number, api: FreqtradeApi): boolean {
+    return !stopped && epoch === botEpoch && streamAttempt === attempt && client.value === api
+  }
+
   async function connectStream() {
+    const epoch = botEpoch
+    const attempt = ++streamAttempt
     const api = client.value
     if (!api || !settings.websocket) {
       streamAuthMode.value = 'off'
@@ -663,7 +797,8 @@ export const useBotStore = defineStore('bot', () => {
     }
     events.setStatus('connecting')
     try {
-      const plan = await resolveStreamAuth(api)
+      const plan = await resolveStreamAuth(api, () => isCurrentStreamAttempt(epoch, attempt, api))
+      if (!isCurrentStreamAttempt(epoch, attempt, api)) return
       streamAuthMode.value = plan.mode
       streamReasonKey.value = plan.reason ?? null
       if (!plan.connectable || !plan.token) {
@@ -675,8 +810,9 @@ export const useBotStore = defineStore('bot', () => {
       }
       streamBlocked.value = false
       streamOpened = false
-      openSocket(websocketUrl(api.baseUrl, plan.token))
+      openSocket(websocketUrl(api.baseUrl, plan.token), epoch, attempt)
     } catch (error) {
+      if (!isCurrentStreamAttempt(epoch, attempt, api)) return
       events.setStatus('error', error instanceof ApiError ? error.kind : 'login-failed')
       streamReasonKey.value = 'errors.wsAuthUnavailable'
       scheduleReconnect()
@@ -684,16 +820,33 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   /** Wires one socket: subscribe on open, classify the close, surface errors. */
-  function openSocket(url: string) {
+  function openSocket(url: string, epoch: number, attempt: number) {
+    if (ws) {
+      const previous = ws
+      ws = null
+      previous.close()
+    }
     const socket = new WebSocket(url)
     ws = socket
-    socket.addEventListener('open', () => onSocketOpen(socket))
-    socket.addEventListener('message', (event) => handleStreamMessage(event.data))
-    socket.addEventListener('close', () => onSocketClose(socket))
-    socket.addEventListener('error', () => events.setStatus('error', 'socket-error'))
+    socket.addEventListener('open', () => onSocketOpen(socket, epoch, attempt))
+    socket.addEventListener('message', (event) =>
+      handleStreamMessage(socket, epoch, attempt, event.data),
+    )
+    socket.addEventListener('close', () => onSocketClose(socket, epoch, attempt))
+    socket.addEventListener('error', () => {
+      if (isCurrentSocket(socket, epoch, attempt)) events.setStatus('error', 'socket-error')
+    })
   }
 
-  function onSocketOpen(socket: WebSocket) {
+  function isCurrentSocket(socket: WebSocket, epoch: number, attempt: number): boolean {
+    return !stopped && epoch === botEpoch && streamAttempt === attempt && ws === socket
+  }
+
+  function onSocketOpen(socket: WebSocket, epoch: number, attempt: number) {
+    if (!isCurrentSocket(socket, epoch, attempt)) {
+      socket.close()
+      return
+    }
     wsRetry = 0
     streamFailures = 0
     streamOpened = true
@@ -715,8 +868,9 @@ export const useBotStore = defineStore('bot', () => {
     return true
   }
 
-  function onSocketClose(socket: WebSocket) {
-    if (ws === socket) ws = null
+  function onSocketClose(socket: WebSocket, epoch: number, attempt: number) {
+    if (!isCurrentSocket(socket, epoch, attempt)) return
+    ws = null
     events.setStatus('closed')
     if (!streamOpened) {
       if (fallBackToWsToken()) {
@@ -733,7 +887,8 @@ export const useBotStore = defineStore('bot', () => {
     scheduleReconnect()
   }
 
-  function handleStreamMessage(raw: unknown) {
+  function handleStreamMessage(socket: WebSocket, epoch: number, attempt: number, raw: unknown) {
+    if (!isCurrentSocket(socket, epoch, attempt)) return
     if (typeof raw !== 'string') return
     let parsed: WsMessage
     try {
@@ -775,13 +930,16 @@ export const useBotStore = defineStore('bot', () => {
     if (wsTimer !== null) window.clearTimeout(wsTimer)
     wsRetry += 1
     const delay = nextRetryDelay(wsRetry)
+    const epoch = botEpoch
     wsTimer = window.setTimeout(() => {
+      if (epoch !== botEpoch || stopped) return
       void connectStream()
     }, delay)
   }
 
   /** Manual recovery after a blocked handshake (Settings → live stream). */
   function retryStream() {
+    disconnectStream()
     streamFailures = 0
     streamBlocked.value = false
     streamReasonKey.value = null
@@ -794,6 +952,7 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   function disconnectStream() {
+    streamAttempt += 1
     if (wsTimer !== null) {
       window.clearTimeout(wsTimer)
       wsTimer = null
@@ -919,6 +1078,7 @@ export const useBotStore = defineStore('bot', () => {
     connect,
     autoConnect,
     switchBot,
+    removeBot,
     refreshAll,
     refreshCore,
     refreshTrades,

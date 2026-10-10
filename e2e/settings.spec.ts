@@ -268,6 +268,14 @@ test('carries the default bot name over from the connect form', async ({ page })
 })
 
 test('adding a second bot and switching moves the dashboard to it', async ({ page }) => {
+  // A bot switch is also a data-source boundary: the previous route filter must not follow it.
+  await page.locator('.rail__item').nth(1).click()
+  await expect(page).toHaveURL(/trades/)
+  await livePage(page).locator('.seg__item').nth(1).click()
+  await expect(page).toHaveURL(/filter=closed/)
+  await page.locator('.rail__item').nth(6).click()
+  await expect(livePage(page).locator('.settings__columns')).toBeVisible()
+
   // The second origin only exists for this test.
   await mockApi(page, { secondBot: true })
   const bots = livePage(page).locator('.bots__row')
@@ -288,6 +296,12 @@ test('adding a second bot and switching moves the dashboard to it', async ({ pag
   await bots.nth(1).locator('button', { hasText: '切换' }).click()
   await expect(bots.nth(1)).toContainText('当前')
   await expect(page.locator('.toast', { hasText: '已切换' })).toHaveCount(1)
+
+  await page.locator('.rail__item').nth(1).click()
+  await expect(page).not.toHaveURL(/filter=/)
+  await expect(
+    livePage(page).locator('.seg__item').filter({ hasText: '全部交易' }),
+  ).toHaveAttribute('aria-pressed', 'true')
 
   // The system page reports the endpoint the dashboard is now polling.
   await page.locator('.rail__item').nth(5).click()

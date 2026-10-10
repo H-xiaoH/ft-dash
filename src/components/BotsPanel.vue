@@ -181,15 +181,16 @@ async function confirmRemove() {
   const entry = removeTarget.value
   removeTarget.value = null
   if (!entry) return
-  const wasActive = entry.id === settings.activeBotId
-  settings.removeBot(entry.id)
-  pushToast(t('bots.removed', { name: entry.name }), 'good')
-  if (!settings.bots.length) {
-    bot.cleanup()
-    bot.resetData()
+  if (bot.actionPending !== null) {
+    pushToast(t('bots.busy'), 'bad')
     return
   }
-  if (wasActive) await bot.connect()
+  const removed = await bot.removeBot(entry.id)
+  if (!removed) {
+    pushToast(t(bot.errorKey?.key ?? 'actions.failed'), 'bad')
+    return
+  }
+  pushToast(t('bots.removed', { name: entry.name }), 'good')
 }
 </script>
 

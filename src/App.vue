@@ -134,6 +134,19 @@ watch(
   },
 )
 
+watch(
+  () => settings.activeBotId,
+  (next, previous) => {
+    if (!previous || !next || next === previous) return
+    const query = { ...route.query }
+    const hadPageState = 'filter' in query || 'trade' in query
+    if (!hadPageState) return
+    delete query.filter
+    delete query.trade
+    void router.replace({ query })
+  },
+)
+
 /**
  * Landing on a page refreshes what it is about to show, once the moving has stopped: a
  * wheel walk or a drag across the tabs changes pages faster than the data behind them is
@@ -202,7 +215,9 @@ watch(
               '--page-leave': `${handoff ? 0 : -pageDirection}`,
             }"
           >
+            <!-- A bot switch is a new data source, so page-local filters and drawers start fresh. -->
             <div
+              :key="settings.activeBotId"
               class="page-track"
               :style="{ transform: `translateX(${dragOffset}px)`, transition: dragTransition }"
             >
