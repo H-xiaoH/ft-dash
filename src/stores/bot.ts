@@ -220,6 +220,9 @@ export const useBotStore = defineStore('bot', () => {
       if (connection.value !== 'online') connection.value = 'online'
       return result
     } catch (error) {
+      // A switch happened while this request was in flight: its failure belongs to the
+      // previous bot too, so it must not make the new bot look unreachable.
+      if (epoch !== botEpoch) return null
       recordError(error)
       return null
     }
@@ -563,6 +566,7 @@ export const useBotStore = defineStore('bot', () => {
       errorKey.value = { key: 'errors.config' }
       return false
     }
+    const epoch = botEpoch
     stopped = false
     connection.value = 'connecting'
     errorKey.value = null
@@ -571,7 +575,9 @@ export const useBotStore = defineStore('bot', () => {
       const api = ensureClient()
       const started = performance.now()
       await api.ping()
+      if (epoch !== botEpoch) return false
       const config = await api.showConfig()
+      if (epoch !== botEpoch) return false
       latencyMs.value = Math.round(performance.now() - started)
       showConfig.value = config
       settings.persistBots()
@@ -580,10 +586,12 @@ export const useBotStore = defineStore('bot', () => {
       // Real data is on its way in; anything shown before it is no longer a stale copy.
       snapshotStale.value = false
       await refreshAll()
+      if (epoch !== botEpoch) return false
       startPolling()
       if (settings.websocket) retryStream()
       return true
     } catch (error) {
+      if (epoch !== botEpoch) return false
       recordError(error)
       connection.value =
         error instanceof ApiError && error.kind === 'auth' ? 'unauthorized' : 'unreachable'
@@ -820,6 +828,7 @@ export const useBotStore = defineStore('bot', () => {
 
   async function fetchCandles(pair: string, timeframe: string, limit = 180) {
     const key = `${pair}|${timeframe}`
+    const epoch = botEpoch
     const api = ensureClient()
     /*
      * The signal columns ride along when the strategy has them, which is what lets the chart
@@ -827,10 +836,13 @@ export const useBotStore = defineStore('bot', () => {
      * the whole request, so a refused one is asked again without: the marks are all that is
      * lost, and the candles stay.
      */
+    const withSignals = await track(() =>
+      api.pairCandles(pair, timeframe, limit, [...CANDLE_COLUMNS, ...SIGNAL_COLUMNS]),
+    )
+    if (epoch !== botEpoch) return null
     const result =
-      (await track(() =>
-        api.pairCandles(pair, timeframe, limit, [...CANDLE_COLUMNS, ...SIGNAL_COLUMNS]),
-      )) ?? (await track(() => api.pairCandles(pair, timeframe, limit, CANDLE_COLUMNS)))
+      withSignals ?? (await track(() => api.pairCandles(pair, timeframe, limit, CANDLE_COLUMNS)))
+    if (epoch !== botEpoch) return null
     if (result) candleCache.value = { ...candleCache.value, [key]: result }
     // Keep the cache bounded — browsing many pairs must not grow memory forever.
     const keys = Object.keys(candleCache.value)

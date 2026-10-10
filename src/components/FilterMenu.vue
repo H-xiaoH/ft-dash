@@ -44,7 +44,7 @@ const list = ref<HTMLElement | null>(null)
 const search = ref<HTMLInputElement | null>(null)
 const anchor = ref({ top: 0, left: 0 })
 
-const shown = computed(() => {
+const visibleOptions = computed(() => {
   const term = query.value.trim().toLowerCase()
   if (!props.searchable || !term) return props.options
   return props.options.filter((option) =>
@@ -180,7 +180,7 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
           </div>
           <div class="filter-menu__options" role="listbox" :aria-labelledby="titleId">
             <button
-              v-for="option in shown"
+              v-for="option in visibleOptions"
               :key="option.value"
               type="button"
               class="filter-menu__item"
@@ -194,7 +194,7 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
             </button>
           </div>
           <!-- Not an option: an empty listbox would make a zero-match term look like a fault. -->
-          <p v-if="searchable && !shown.length" class="filter-menu__empty">
+          <p v-if="searchable && !visibleOptions.length" class="filter-menu__empty">
             {{ t('common.noMatch') }}
             <button type="button" class="filter-menu__reset" @click="clearQuery">
               {{ t('common.clear') }}
