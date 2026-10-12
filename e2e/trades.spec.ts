@@ -141,6 +141,17 @@ test('browser back closes the drawer on the same trades list', async ({ page }) 
   await expect(page.locator('.overlay--drawer')).toHaveCount(0)
 })
 
+test('an unresolved trade query clears the stale trade drawer', async ({ page }) => {
+  await livePage(page).locator('table tbody tr').first().click()
+  await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
+
+  await page.evaluate(() => {
+    window.location.hash = '/trades?trade=404'
+  })
+  await expect(page).toHaveURL(/trade=404/)
+  await expect(page.locator('.overlay--drawer')).toHaveCount(0)
+})
+
 test('swipe changes adjacent trade filters without dragging the page', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 })
   const tabs = livePage(page).locator('.seg__item')

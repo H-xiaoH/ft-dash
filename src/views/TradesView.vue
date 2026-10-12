@@ -255,16 +255,7 @@ const linkedTrade = computed(() => {
   )
 })
 
-watch(linkedTrade, (trade) => {
-  if (trade) selected.value = trade
-})
-
-watch(
-  () => route.query.trade,
-  (value, previous) => {
-    if (previous && !value) selected.value = null
-  },
-)
+watch(linkedTrade, (trade) => (selected.value = trade), { immediate: true })
 </script>
 
 <template>
