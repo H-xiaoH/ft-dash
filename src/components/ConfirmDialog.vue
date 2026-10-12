@@ -88,4 +88,9 @@ const canConfirm = computed(
   color: var(--warn);
   font-size: var(--fs-base);
 }
+
+.overlay,
+.dialog {
+  overscroll-behavior: contain;
+}
 </style>

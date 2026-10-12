@@ -153,7 +153,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-for="(order, index) in orders" :key="order.order_id ?? index">
+                      <tr
+                        v-for="order in orders"
+                        :key="
+                          order.order_id ??
+                          `${order.order_timestamp ?? order.order_date ?? 'unknown'}:${order.order_type ?? 'unknown'}:${order.side ?? 'unknown'}`
+                        "
+                      >
                         <td>{{ order.ft_order_side ?? order.side ?? '—' }}</td>
                         <td>{{ order.order_type ?? '—' }}</td>
                         <td class="num">
@@ -237,6 +243,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 .drawer__body {
   padding: var(--sp-4);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .drawer__pnl {
