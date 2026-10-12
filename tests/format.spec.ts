@@ -82,6 +82,14 @@ describe('format helpers', () => {
       date: 'N/A',
       time: '',
     })
+    expect(formatDateTimeParts(1e20, 'en', 'N/A', 'UTC')).toEqual({
+      date: 'N/A',
+      time: '',
+    })
+    expect(formatDateTimeParts('100000000000000000000', 'en', 'N/A', 'UTC')).toEqual({
+      date: 'N/A',
+      time: '',
+    })
   })
 
   it('parses date-only values without a lenient engine (Safari regression)', () => {

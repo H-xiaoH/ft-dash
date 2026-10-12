@@ -184,6 +184,7 @@ export function formatDateTimeParts(
   const ts = parseTimestamp(value)
   if (ts === null) return { date: fallback, time: '' }
   const date = new Date(ts)
+  if (!Number.isFinite(date.getTime())) return { date: fallback, time: '' }
   return {
     date: new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone }).format(date),
     time: new Intl.DateTimeFormat(locale, { timeStyle: 'short', timeZone }).format(date),
