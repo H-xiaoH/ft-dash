@@ -38,6 +38,21 @@ const fieldMenu = (page: Page, label: string) =>
     .locator('.field', { has: page.locator('.field__label', { hasText: label }) })
     .locator('.filter-menu')
 
+test('the language and time zone dropdown triggers share the settings presentation', async ({
+  page,
+}) => {
+  const language = fieldMenu(page, '语言')
+  const timezone = fieldMenu(page, '时区')
+  const [languageBox, timezoneBox] = await Promise.all([
+    language.locator('.filter-menu__button').boundingBox(),
+    timezone.locator('.filter-menu__button').boundingBox(),
+  ])
+
+  await expect(language).toHaveClass(/settings__filter/)
+  await expect(timezone).toHaveClass(/settings__filter/)
+  expect(Math.round(languageBox!.width)).toBe(Math.round(timezoneBox!.width))
+})
+
 test('the stream-auth block slides to the choice you pick', async ({ page }) => {
   // Scoped to its field: the page carries more than one segmented control.
   const seg = livePage(page)
@@ -265,6 +280,57 @@ test('carries the default bot name over from the connect form', async ({ page })
   // The connect form never asked for a name, so the bot is named after its username.
   await expect(bots.first()).toContainText('tester')
   await expect(bots.first()).toContainText('当前')
+})
+
+test('test connection moves success into the bot test button', async ({ page }) => {
+  const row = livePage(page).locator('.bots__row').first()
+  const button = row.getByRole('button', { name: /测试连接|连接成功/ })
+
+  await button.click()
+
+  await expect(button).toContainText('连接成功')
+  await expect(row.locator('.bots__meta .chip', { hasText: '连接成功' })).toHaveCount(0)
+})
+
+test('the bot name follows username until the name is edited', async ({ page }) => {
+  await livePage(page).locator('button', { hasText: '添加机器人' }).click()
+  const editor = livePage(page).locator('.bots__editor')
+  const name = editor.getByLabel('机器人名称')
+  const username = editor.getByLabel('用户名')
+
+  await username.fill('second')
+  await expect(name).toHaveValue('second')
+  await name.fill('我的机器人')
+  await username.fill('third')
+  await expect(name).toHaveValue('我的机器人')
+})
+
+test('delete bot opens an inline confirmation instead of a dialog', async ({ page }) => {
+  const botsPanel = panel(page, '机器人')
+  await botsPanel.locator('.bots__row').first().locator('button', { hasText: '删除' }).click()
+
+  await expect(botsPanel.locator('.inline-confirm')).toContainText(
+    '将从本机移除 tester，需要重新输入凭据才能再次添加。',
+  )
+  await expect(page.locator('[role="dialog"]')).toHaveCount(0)
+})
+
+test('the clear local data confirmation message stays centered', async ({ page }) => {
+  const dataPanel = panel(page, '本机数据')
+  await dataPanel.locator('button', { hasText: '清除本机数据' }).click()
+  const confirmation = dataPanel.locator('.inline-confirm')
+  const message = confirmation.locator('.inline-confirm__message')
+  const [confirmationBox, messageBox] = await Promise.all([
+    confirmation.boundingBox(),
+    message.boundingBox(),
+  ])
+
+  await expect(message).toHaveText('这会把保存的凭据与偏好一并删除。')
+  expect(
+    Math.abs(
+      confirmationBox!.x + confirmationBox!.width / 2 - (messageBox!.x + messageBox!.width / 2),
+    ),
+  ).toBeLessThanOrEqual(1)
 })
 
 test('adding a second bot and switching moves the dashboard to it', async ({ page }) => {

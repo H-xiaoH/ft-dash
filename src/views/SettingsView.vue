@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import BotsPanel from '@/components/BotsPanel.vue'
 import FilterMenu from '@/components/FilterMenu.vue'
+import InlineConfirm from '@/components/InlineConfirm.vue'
 import { pushToast } from '@/composables/useToast'
 import { useSegBlock } from '@/composables/useSegBlock'
 import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from '@/i18n'
@@ -146,14 +147,17 @@ async function install() {
               <span class="field__label">{{ t('settings.language') }}</span>
               <FilterMenu
                 v-model="settings.localePreference"
+                class="settings__filter"
                 :options="languageOptions"
                 :label="t('settings.language')"
+                align="start"
               />
             </div>
             <div class="field">
               <span class="field__label">{{ t('settings.timezone') }}</span>
               <FilterMenu
                 v-model="settings.timezone"
+                class="settings__filter"
                 :options="timezoneOptions"
                 :label="t('settings.timezone')"
                 :search-text="timezoneSearchText"
@@ -343,20 +347,15 @@ async function install() {
             {{ bot.showConfig?.version ?? '—' }}
           </span>
         </div>
-        <p v-if="clearConfirm" class="banner banner--warn">
-          {{ t('settings.clearDataConfirm') }}
-          <button
-            type="button"
-            class="btn btn--sm btn--danger"
-            style="margin-left: 8px"
-            @click="clearData"
-          >
-            {{ t('common.confirm') }}
-          </button>
-          <button type="button" class="btn btn--sm" @click="clearConfirm = false">
-            {{ t('common.cancel') }}
-          </button>
-        </p>
+        <InlineConfirm
+          class="settings__clear-confirm"
+          :open="clearConfirm"
+          :message="t('settings.clearDataConfirm')"
+          :confirm-label="t('common.confirm')"
+          :cancel-label="t('common.cancel')"
+          @confirm="clearData"
+          @cancel="clearConfirm = false"
+        />
       </div>
     </section>
   </div>
@@ -402,6 +401,27 @@ async function install() {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: var(--sp-3);
+}
+
+.settings__filter {
+  width: 100%;
+}
+
+.settings__filter :deep(.filter-menu__button) {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.settings__clear-confirm {
+  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.settings__clear-confirm :deep(.inline-confirm__message) {
+  flex-basis: 100%;
+  max-width: 480px;
+  text-align: center;
 }
 
 .settings__list {
