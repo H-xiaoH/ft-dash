@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test'
 import { connect, livePage, mockApi, segBlockMatches } from './support/fixtures'
 
+const WHITELIST_SCROLL_TEST = 'whitelist scrolls inside the available viewport'
+
 const marksOfKind = (
   page: import('@playwright/test').Page,
   kind: 'signal' | 'fill',
@@ -10,11 +12,33 @@ const marksOfKind = (
     `.candles__marks polygon[data-kind="${kind}"]${side ? `[data-side="${side}"]` : ''}`,
   )
 
-test.beforeEach(async ({ page }) => {
-  await mockApi(page)
+test.beforeEach(async ({ page }, testInfo) => {
+  const checksWhitelistScroll = testInfo.title === WHITELIST_SCROLL_TEST
+  if (checksWhitelistScroll) await page.setViewportSize({ width: 390, height: 740 })
+
+  const mockOptions = checksWhitelistScroll ? { whitelistCount: 40 } : undefined
+  await mockApi(page, mockOptions)
   await page.goto('/#/market')
   await connect(page)
   await expect(page.locator('.shell')).toBeVisible()
+})
+
+test(WHITELIST_SCROLL_TEST, async ({ page }) => {
+  const market = livePage(page)
+  const list = market.locator('.market__scroll')
+
+  await expect(list.locator('.card--tappable')).toHaveCount(40)
+  await expect
+    .poll(() => list.evaluate((element) => element.scrollHeight > element.clientHeight))
+    .toBe(true)
+
+  await market.locator('.market__pairs .panel__actions .btn--icon').focus()
+  await page.keyboard.press('Tab')
+  await expect(list).toBeFocused()
+
+  await list.evaluate((element) => element.scrollTo({ top: element.scrollHeight }))
+  expect(await list.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+  expect(await page.evaluate(() => document.scrollingElement?.scrollTop)).toBe(0)
 })
 
 test('the pair-list block slides to the tab you pick', async ({ page }) => {
