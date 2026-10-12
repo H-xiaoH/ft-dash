@@ -275,7 +275,7 @@ async function confirmRemove() {
               @click="testConnection(entry)"
             >
               <AppIcon name="wifi" />
-              {{ testResult[entry.id] === 'ok' ? t('bots.testOk') : t('bots.test') }}
+              {{ testResult[entry.id] === 'ok' ? t('bots.testSucceeded') : t('bots.test') }}
             </button>
             <button type="button" class="btn btn--sm btn--danger" @click="removeTarget = entry">
               <AppIcon name="trash" />

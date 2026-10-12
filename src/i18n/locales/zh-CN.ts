@@ -79,6 +79,7 @@ export default {
     current: '当前',
     test: '测试连接',
     testOk: '连接成功',
+    testSucceeded: '连接成功',
     testNeedsPassword: '该机器人没有可用密码，先编辑填入',
     busy: '有操作正在进行，稍后再切换',
     switched: '已切换到 {name}',

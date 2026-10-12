@@ -284,12 +284,19 @@ test('carries the default bot name over from the connect form', async ({ page })
 
 test('test connection moves success into the bot test button', async ({ page }) => {
   const row = livePage(page).locator('.bots__row').first()
-  const button = row.getByRole('button', { name: /测试连接|连接成功/ })
+  const button = row.getByRole('button', {
+    name: /测试连接|连接成功|Test connection|Connected|Connection successful/,
+  })
 
   await button.click()
 
   await expect(button).toContainText('连接成功')
   await expect(row.locator('.bots__meta .chip', { hasText: '连接成功' })).toHaveCount(0)
+
+  const language = fieldMenu(page, '语言').locator('.filter-menu__button')
+  await language.click()
+  await page.locator('.filter-menu__item', { hasText: 'English' }).click()
+  await expect(button).toContainText('Connection successful')
 })
 
 test('the bot name follows username until the name is edited', async ({ page }) => {

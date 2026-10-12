@@ -80,6 +80,7 @@ export default {
     current: 'Current',
     test: 'Test connection',
     testOk: 'Connected',
+    testSucceeded: 'Connection successful',
     testNeedsPassword: 'No stored password for this bot — edit it first',
     busy: 'An action is in flight, try again in a moment',
     switched: 'Switched to {name}',
