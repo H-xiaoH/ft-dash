@@ -39,6 +39,15 @@ const totalFees = computed(() => {
 })
 
 const orders = computed(() => props.trade?.orders ?? [])
+const orderRows = computed(() => {
+  const occurrences = new Map<string, number>()
+  return orders.value.map((order) => {
+    const identity = order.order_id ? `id:${order.order_id}` : `value:${JSON.stringify(order)}`
+    const occurrence = occurrences.get(identity) ?? 0
+    occurrences.set(identity, occurrence + 1)
+    return { key: `${identity}:${occurrence}`, order }
+  })
+})
 
 /** Escape dismisses the drawer, matching the charts and the search box. */
 function onKeydown(event: KeyboardEvent) {
@@ -153,24 +162,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
                       </tr>
                     </thead>
                     <tbody>
-                      <tr
-                        v-for="order in orders"
-                        :key="
-                          order.order_id ??
-                          `${order.order_timestamp ?? order.order_date ?? 'unknown'}:${order.order_type ?? 'unknown'}:${order.side ?? 'unknown'}`
-                        "
-                      >
-                        <td>{{ order.ft_order_side ?? order.side ?? '—' }}</td>
-                        <td>{{ order.order_type ?? '—' }}</td>
+                      <tr v-for="row in orderRows" :key="row.key">
+                        <td>{{ row.order.ft_order_side ?? row.order.side ?? '—' }}</td>
+                        <td>{{ row.order.order_type ?? '—' }}</td>
                         <td class="num">
-                          {{ format.price(order.average ?? order.price ?? null) }}
+                          {{ format.price(row.order.average ?? row.order.price ?? null) }}
                         </td>
                         <td class="num">
-                          {{ format.number(order.filled ?? null, 4) }} /
-                          {{ format.number(order.amount ?? null, 4) }}
+                          {{ format.number(row.order.filled ?? null, 4) }} /
+                          {{ format.number(row.order.amount ?? null, 4) }}
                         </td>
-                        <td>{{ order.status ?? '—' }}</td>
-                        <td class="num">{{ format.dateTime(order.order_timestamp ?? null) }}</td>
+                        <td>{{ row.order.status ?? '—' }}</td>
+                        <td class="num">
+                          {{ format.dateTime(row.order.order_timestamp ?? null) }}
+                        </td>
                       </tr>
                     </tbody>
                   </table>

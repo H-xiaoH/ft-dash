@@ -57,4 +57,23 @@ describe('useModalFocus through ConfirmDialog', () => {
     expect(shell.hasAttribute('inert')).toBe(false)
     expect(document.body.style.overflow).toBe('')
   })
+
+  it('restores the original background focus when the outer modal closes first', async () => {
+    const shell = document.createElement('div')
+    shell.className = 'shell'
+    const backgroundButton = document.createElement('button')
+    backgroundButton.textContent = '背景动作'
+    shell.append(backgroundButton)
+    document.body.append(shell)
+    backgroundButton.focus()
+
+    const outer = mountDialog()
+    const inner = mountDialog()
+    await inner.vm.$nextTick()
+
+    await outer.setProps({ open: false })
+    inner.unmount()
+
+    expect(document.activeElement).toBe(backgroundButton)
+  })
 })

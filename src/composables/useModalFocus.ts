@@ -2,6 +2,7 @@ import { nextTick, onBeforeUnmount, watch, type Ref } from 'vue'
 
 let activeLockCount = 0
 let savedBodyOverflow: string | null = null
+let initialFocus: HTMLElement | null = null
 
 /**
  * The part of `<dialog>` the app cannot get for free: park the page behind the modal so
@@ -9,7 +10,6 @@ let savedBodyOverflow: string | null = null
  * it once it closes.
  */
 export function useModalFocus(open: Ref<boolean>, panel: Ref<HTMLElement | null>) {
-  let restoreTo: HTMLElement | null = null
   let ownsLock = false
   let focusRequest = 0
   const shell = () => document.querySelector('.shell')
@@ -17,6 +17,7 @@ export function useModalFocus(open: Ref<boolean>, panel: Ref<HTMLElement | null>
   function acquireLock() {
     if (ownsLock) return
     if (activeLockCount === 0) {
+      initialFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
       savedBodyOverflow = document.body.style.overflow
       document.body.style.overflow = 'hidden'
     }
@@ -37,12 +38,24 @@ export function useModalFocus(open: Ref<boolean>, panel: Ref<HTMLElement | null>
     return true
   }
 
+  function restoreFocus() {
+    const target = initialFocus
+    initialFocus = null
+    if (target?.isConnected) {
+      target.focus()
+      return
+    }
+    const fallback = shell()?.querySelector<HTMLElement>(
+      'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    fallback?.focus()
+  }
+
   watch(
     open,
     async (isOpen) => {
       if (isOpen) {
         // Teleported dialogs sit outside the shell, so inerting it cannot reach them.
-        restoreTo = document.activeElement instanceof HTMLElement ? document.activeElement : null
         acquireLock()
         const request = ++focusRequest
         await nextTick()
@@ -50,15 +63,13 @@ export function useModalFocus(open: Ref<boolean>, panel: Ref<HTMLElement | null>
         return
       }
       focusRequest += 1
-      if (releaseLock()) restoreTo?.focus()
-      restoreTo = null
+      if (releaseLock()) restoreFocus()
     },
     { immediate: true },
   )
 
   onBeforeUnmount(() => {
     focusRequest += 1
-    if (releaseLock()) restoreTo?.focus()
-    restoreTo = null
+    if (releaseLock()) restoreFocus()
   })
 }
