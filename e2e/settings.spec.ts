@@ -181,6 +181,18 @@ test('the time zone setting decides what clock the app reads by', async ({ page 
   await expect(logTime()).toContainText('11:59')
 })
 
+test('logs render the date and time on separate lines', async ({ page }) => {
+  await page.goto('/#/logs')
+  const stamp = livePage(page).locator('.logs__line .logs__time').last()
+  const date = stamp.locator('.logs__date')
+  const time = stamp.locator('.logs__clock')
+
+  await expect(date).not.toBeEmpty()
+  await expect(time).toHaveText('19:59')
+  await expect(date).toHaveCSS('display', 'block')
+  await expect(time).toHaveCSS('display', 'block')
+})
+
 test('the time zone list offers every zone and searches them by name', async ({ page }) => {
   const picker = fieldMenu(page, '时区')
   await picker.locator('.filter-menu__button').click()

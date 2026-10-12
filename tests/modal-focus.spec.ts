@@ -58,6 +58,20 @@ describe('useModalFocus through ConfirmDialog', () => {
     expect(document.body.style.overflow).toBe('')
   })
 
+  it('restores the original body overflow value after the last modal closes', async () => {
+    const shell = document.createElement('div')
+    shell.className = 'shell'
+    document.body.append(shell)
+    document.body.style.overflow = 'scroll'
+
+    const wrapper = mountDialog()
+    await wrapper.vm.$nextTick()
+    expect(document.body.style.overflow).toBe('hidden')
+
+    await wrapper.setProps({ open: false })
+    expect(document.body.style.overflow).toBe('scroll')
+  })
+
   it('restores the original background focus when the outer modal closes first', async () => {
     const shell = document.createElement('div')
     shell.className = 'shell'

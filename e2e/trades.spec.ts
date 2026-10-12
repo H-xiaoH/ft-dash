@@ -141,6 +141,22 @@ test('browser back closes the drawer on the same trades list', async ({ page }) 
   await expect(page.locator('.overlay--drawer')).toHaveCount(0)
 })
 
+test('closing a deep-linked trade preserves its filter without adding history', async ({
+  page,
+}) => {
+  await page.goto('/#/trades?filter=closed&trade=1')
+  const drawer = page.locator('.overlay--drawer .drawer')
+  await expect(drawer).toBeVisible()
+
+  await drawer.locator('.drawer__head button').click()
+  await expect(page).toHaveURL(/#\/trades\?filter=closed$/)
+  await expect(page.locator('.overlay--drawer')).toHaveCount(0)
+
+  await page.goBack()
+  await expect(page).toHaveURL(/#\/trades(?:\?|$)/)
+  await expect(page).not.toHaveURL(/trade=/)
+})
+
 test('an unresolved trade query clears the stale trade drawer', async ({ page }) => {
   await livePage(page).locator('table tbody tr').first().click()
   await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
@@ -221,4 +237,33 @@ test('a trade drawer takes focus, parks the page, and gives both back on close',
   await page.keyboard.press('Escape')
   await expect(page.locator('.overlay--drawer')).toHaveCount(0)
   expect(await shell.evaluate((el) => el.hasAttribute('inert'))).toBe(false)
+})
+
+test('trade details scroll inside the drawer without moving the page', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 480 })
+  await page.goto('/#/trades?trade=1')
+
+  const body = page.locator('.overlay--drawer .drawer__body')
+  await expect
+    .poll(() => body.evaluate((element) => element.scrollHeight > element.clientHeight))
+    .toBe(true)
+  expect(await body.evaluate((element) => getComputedStyle(element).overscrollBehaviorY)).toBe(
+    'contain',
+  )
+
+  await body.evaluate((element) => {
+    element.scrollTop = 0
+  })
+  await body.hover()
+  await page.mouse.wheel(0, 320)
+  await expect.poll(() => body.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+
+  const bodyBottom = await body.evaluate((element) => element.scrollHeight - element.clientHeight)
+  await body.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+  await body.hover()
+  await page.mouse.wheel(0, 320)
+  await expect.poll(() => body.evaluate((element) => element.scrollTop)).toBe(bodyBottom)
+  expect(await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)).toBe(0)
 })

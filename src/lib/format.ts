@@ -156,14 +156,21 @@ export function formatDuration(
   return `${secs}${labels.second}`
 }
 
+function dateFromTimestamp(value: Numberish): Date | null {
+  const timestamp = parseTimestamp(value)
+  if (timestamp === null) return null
+  const date = new Date(timestamp)
+  return Number.isFinite(date.getTime()) ? date : null
+}
+
 export function formatDateTime(
   value: Numberish,
   locale = 'en',
   fallback = '—',
   timeZone = 'UTC',
 ): string {
-  const ts = parseTimestamp(value)
-  if (ts === null) return fallback
+  const date = dateFromTimestamp(value)
+  if (!date) return fallback
   return new Intl.DateTimeFormat(locale, {
     dateStyle: 'medium',
     timeStyle: 'short',
@@ -172,7 +179,7 @@ export function formatDateTime(
      * which is why this one takes a zone while `formatDay` below refuses to.
      */
     timeZone,
-  }).format(new Date(ts))
+  }).format(date)
 }
 
 export function formatDateTimeParts(
@@ -181,10 +188,8 @@ export function formatDateTimeParts(
   fallback = '—',
   timeZone = 'UTC',
 ): DateTimeParts {
-  const ts = parseTimestamp(value)
-  if (ts === null) return { date: fallback, time: '' }
-  const date = new Date(ts)
-  if (!Number.isFinite(date.getTime())) return { date: fallback, time: '' }
+  const date = dateFromTimestamp(value)
+  if (!date) return { date: fallback, time: '' }
   return {
     date: new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone }).format(date),
     time: new Intl.DateTimeFormat(locale, { timeStyle: 'short', timeZone }).format(date),
@@ -196,11 +201,9 @@ export function formatDateTimeParts(
  * day never shifts for visitors west of Greenwich.
  */
 export function formatDay(value: Numberish, locale = 'en', fallback = '—'): string {
-  const ts = parseTimestamp(value)
-  if (ts === null) return fallback
-  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(
-    new Date(ts),
-  )
+  const date = dateFromTimestamp(value)
+  if (!date) return fallback
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(date)
 }
 
 /** Short "MM-DD HH:mm" stamp in the viewer's own timezone, for chart readouts. */
@@ -210,15 +213,15 @@ export function formatShortStamp(
   fallback = '—',
   timeZone = 'UTC',
 ): string {
-  const ts = parseTimestamp(value)
-  if (ts === null) return fallback
+  const date = dateFromTimestamp(value)
+  if (!date) return fallback
   return new Intl.DateTimeFormat(locale, {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     timeZone,
-  }).format(new Date(ts))
+  }).format(date)
 }
 
 export function toIsoDate(value: Date = new Date()): string {

@@ -11,6 +11,7 @@ import {
   formatPercent,
   formatPrice,
   formatRatio,
+  formatShortStamp,
   formatSignedMoney,
   parseTimestamp,
   toNumber,
@@ -90,6 +91,12 @@ describe('format helpers', () => {
       date: 'N/A',
       time: '',
     })
+  })
+
+  it('returns fallbacks for timestamps outside the supported date range', () => {
+    expect(formatDateTime(1e20, 'en', 'N/A', 'UTC')).toBe('N/A')
+    expect(formatDay(1e20, 'en', 'N/A')).toBe('N/A')
+    expect(formatShortStamp(1e20, 'en', 'N/A', 'UTC')).toBe('N/A')
   })
 
   it('parses date-only values without a lenient engine (Safari regression)', () => {
