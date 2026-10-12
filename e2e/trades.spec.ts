@@ -239,6 +239,43 @@ test('a trade drawer takes focus, parks the page, and gives both back on close',
   expect(await shell.evaluate((el) => el.hasAttribute('inert'))).toBe(false)
 })
 
+test('force exit requires the exact pair and Escape only closes its confirmation', async ({
+  page,
+}) => {
+  await page.goto('/#/settings')
+  await livePage(page).getByRole('button', { name: '我了解风险，开启控制功能' }).click()
+
+  await page.goto('/#/trades?filter=open&trade=99')
+  const drawer = page.locator('.overlay--drawer .drawer')
+  await expect(drawer).toBeVisible()
+
+  const titleId = await drawer.getAttribute('aria-labelledby')
+  expect(titleId).toMatch(/^trade-detail-title-/)
+  await expect(page.locator(`#${titleId}`)).toHaveText('OPEN/USDT')
+
+  const forceExit = drawer.getByRole('button', { name: '平仓' })
+  const confirmation = page.locator('.overlay[role="dialog"]:not(.overlay--drawer)')
+  await forceExit.click()
+  await expect(confirmation).toBeVisible()
+
+  const input = confirmation.locator('input')
+  const confirm = confirmation.getByRole('button', { name: '平仓' })
+  await input.fill('WRONG/USDT')
+  await expect(confirm).toBeDisabled()
+
+  await page.keyboard.press('Escape')
+  await expect(confirmation).toHaveCount(0)
+  await expect(drawer).toBeVisible()
+
+  await forceExit.click()
+  await confirmation.locator('input').fill('OPEN/USDT')
+  await expect(confirmation.getByRole('button', { name: '平仓' })).toBeEnabled()
+  await confirmation.getByRole('button', { name: '平仓' }).click()
+  await expect(confirmation).toHaveCount(0)
+  await expect(drawer).toBeVisible()
+  await expect(page.locator('.toast', { hasText: '指令已发送' })).toBeVisible()
+})
+
 test('trade details scroll inside the drawer without moving the page', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 480 })
   await page.goto('/#/trades?trade=1')

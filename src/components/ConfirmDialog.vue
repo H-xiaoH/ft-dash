@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModalFocus } from '@/composables/useModalFocus'
 
@@ -25,7 +25,7 @@ const { t } = useI18n()
 const typed = ref('')
 const panel = ref<HTMLElement | null>(null)
 
-useModalFocus(
+const { isTopModal } = useModalFocus(
   computed(() => props.open),
   panel,
 )
@@ -40,6 +40,16 @@ watch(
 const canConfirm = computed(
   () => !props.requireText || typed.value.trim() === props.requireText.trim(),
 )
+
+function onKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Escape' || !props.open || !isTopModal.value) return
+  event.preventDefault()
+  event.stopPropagation()
+  emit('cancel')
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>

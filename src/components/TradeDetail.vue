@@ -6,6 +6,13 @@ import { useModalFocus } from '@/composables/useModalFocus'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
 
+let nextTradeDetailTitleId = 0
+
+function createTradeDetailTitleId(): string {
+  nextTradeDetailTitleId += 1
+  return `trade-detail-title-${nextTradeDetailTitleId}`
+}
+
 const props = defineProps<{ trade: Trade | null }>()
 const emit = defineEmits<{ close: []; forceExit: [trade: Trade] }>()
 
@@ -15,10 +22,12 @@ const bot = useBotStore()
 
 const panel = ref<HTMLElement | null>(null)
 
-useModalFocus(
+const { isTopModal } = useModalFocus(
   computed(() => props.trade !== null),
   panel,
 )
+
+const dialogTitleId = createTradeDetailTitleId()
 
 const stake = computed(() => bot.stakeCurrency)
 
@@ -51,7 +60,10 @@ const orderRows = computed(() => {
 
 /** Escape dismisses the drawer, matching the charts and the search box. */
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && props.trade) emit('close')
+  if (event.key !== 'Escape' || !props.trade || !isTopModal.value) return
+  event.preventDefault()
+  event.stopPropagation()
+  emit('close')
 }
 
 onMounted(() => window.addEventListener('keydown', onKeydown))
@@ -62,7 +74,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   <Teleport to="body">
     <Transition name="drawer-overlay">
       <div v-if="trade" class="overlay overlay--drawer" @click.self="emit('close')">
-        <aside ref="panel" class="drawer" role="dialog" aria-modal="true" tabindex="-1">
+        <aside
+          ref="panel"
+          class="drawer"
+          role="dialog"
+          aria-modal="true"
+          :aria-labelledby="dialogTitleId"
+          tabindex="-1"
+        >
           <header class="drawer__head">
             <div>
               <div class="row">
@@ -70,7 +89,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
                   class="table__side"
                   :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
                 />
-                <span class="drawer__pair num">{{ trade.pair }}</span>
+                <span :id="dialogTitleId" class="drawer__pair num">{{ trade.pair }}</span>
                 <span class="chip" :class="trade.is_open ? 'chip--accent' : ''">
                   {{ trade.is_open ? t('trades.open') : t('trades.closed') }}
                 </span>

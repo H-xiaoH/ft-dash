@@ -23,7 +23,7 @@ const follow = ref(true)
 const levelOptions: FilterOption[] = LEVELS.map((level) => ({ value: level, label: level }))
 
 interface DisplayLogLine {
-  key: number
+  key: string
   line: LogsResponse['logs'][number]
   dateTime: DateTimeParts
 }
@@ -33,7 +33,8 @@ const lines = computed<DisplayLogLine[]>(() => {
   const query = search.value.trim().toLowerCase()
   const rows = bot.logs?.logs ?? []
   return rows
-    .filter((line) => {
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => {
       const level = (line[3] ?? '').toUpperCase().replace('WARN', 'WARNING')
       const index = LEVELS.indexOf(level as Level)
       if (index !== -1 && index < minIndex) return false
@@ -42,7 +43,11 @@ const lines = computed<DisplayLogLine[]>(() => {
     })
     .slice()
     .reverse()
-    .map((line) => ({ key: line[1], line, dateTime: format.dateTimeParts(line[0]) }))
+    .map(({ line, index }) => ({
+      key: `${line[1]}:${index}`,
+      line,
+      dateTime: format.dateTimeParts(line[0]),
+    }))
 })
 
 function levelClass(level: string): string {
