@@ -18,6 +18,9 @@ import { useBotStore } from '@/stores/bot'
 type Filter = 'open' | 'closed' | 'all'
 type SortKey = 'open_timestamp' | 'pair' | 'profit_abs' | 'duration' | 'stake_amount'
 
+const FILTERS: readonly Filter[] = ['open', 'closed', 'all']
+const FILTER_SWIPE_PX = 48
+
 const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
@@ -44,12 +47,13 @@ const limit = ref(300)
 /** Rows per page; paging happens in the browser over everything already loaded. */
 const PAGE_SIZE = 20
 const page = ref(1)
+let filterTouchStart: { x: number; y: number } | null = null
 
 // The overview links here with ?filter=open|closed; keep the query in step with the tab.
 watch(
   () => route.query.filter,
   (value) => {
-    if (value === 'open' || value === 'closed' || value === 'all') filter.value = value
+    filter.value = value === 'open' || value === 'closed' || value === 'all' ? value : 'all'
   },
   { immediate: true },
 )
@@ -150,9 +154,31 @@ function toggleSort(key: SortKey) {
   sortDir.value = key === 'pair' ? 'asc' : 'desc'
 }
 
-function openTrade(trade: Trade) {
+function moveFilter(delta: 1 | -1): void {
+  const next = FILTERS.indexOf(filter.value) + delta
+  if (next >= 0 && next < FILTERS.length) filter.value = FILTERS[next]
+}
+
+function onFilterTouchStart(event: TouchEvent): void {
+  const touch = event.touches[0]
+  filterTouchStart = touch ? { x: touch.clientX, y: touch.clientY } : null
+}
+
+function onFilterTouchEnd(event: TouchEvent): void {
+  const start = filterTouchStart
+  const touch = event.changedTouches[0]
+  filterTouchStart = null
+  if (!start || !touch) return
+
+  const dx = touch.clientX - start.x
+  const dy = touch.clientY - start.y
+  if (Math.abs(dx) < FILTER_SWIPE_PX || Math.abs(dx) <= Math.abs(dy)) return
+  moveFilter(dx < 0 ? 1 : -1)
+}
+
+function openTrade(trade: Trade): void {
   selected.value = trade
-  void router.replace({ query: { ...route.query, trade: String(trade.trade_id) } })
+  void router.push({ query: { ...route.query, trade: String(trade.trade_id) } })
 }
 
 function closeDrawer() {
@@ -232,13 +258,26 @@ const linkedTrade = computed(() => {
 watch(linkedTrade, (trade) => {
   if (trade) selected.value = trade
 })
+
+watch(
+  () => route.query.trade,
+  (value, previous) => {
+    if (previous && !value) selected.value = null
+  },
+)
 </script>
 
 <template>
   <div class="stack">
     <section class="panel">
       <div class="panel__head">
-        <div ref="filterSeg" class="seg">
+        <div
+          ref="filterSeg"
+          class="seg"
+          data-swipe-tabs
+          @touchstart="onFilterTouchStart"
+          @touchend="onFilterTouchEnd"
+        >
           <button
             type="button"
             class="seg__item"
@@ -485,6 +524,10 @@ watch(linkedTrade, (trade) => {
   color: inherit;
   font: inherit;
   cursor: pointer;
+}
+
+.seg[data-swipe-tabs] {
+  touch-action: pan-y;
 }
 
 @media (max-width: 900px) {

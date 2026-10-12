@@ -1,5 +1,28 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { connect, livePage, mockApi, segBlockMatches } from './support/fixtures'
+
+const touchAt = (page: Page, type: 'touchstart' | 'touchmove' | 'touchend', x: number, y: number) =>
+  page.evaluate(
+    ({ type, x, y }) => {
+      const target = document.querySelector('[data-swipe-tabs]') as Element
+      const point = new Touch({ identifier: 1, target, clientX: x, clientY: y })
+      target.dispatchEvent(
+        new TouchEvent(type, {
+          touches: type === 'touchend' ? [] : [point],
+          changedTouches: [point],
+          bubbles: true,
+          cancelable: true,
+        }),
+      )
+    },
+    { type, x, y },
+  )
+
+const trackX = (page: Page) =>
+  page.locator('.page-track').evaluate((element) => {
+    const transform = getComputedStyle(element).transform
+    return transform === 'none' ? 0 : Math.round(new DOMMatrixReadOnly(transform).m41)
+  })
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
@@ -78,7 +101,21 @@ test('the overview "view all" links open the matching trades tab', async ({ page
   await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
 })
 
-test('the overview "recently closed" rows open that trade in the trades list', async ({ page }) => {
+test('the overview rows open the matching trades tab', async ({ page }) => {
+  await page.goto('/#/')
+  const row = livePage(page)
+    .locator('.panel')
+    .filter({ has: page.locator('.panel__title', { hasText: '当前持仓' }) })
+    .locator('table tbody tr')
+    .first()
+
+  await row.click()
+  await expect(page).toHaveURL(/filter=open/)
+  await expect(page).toHaveURL(/trade=99/)
+  await expect(livePage(page).locator('.seg__item').nth(0)).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('the overview recently closed rows open the matching trades tab', async ({ page }) => {
   await page.goto('/#/')
   const row = livePage(page)
     .locator('.panel')
@@ -88,9 +125,48 @@ test('the overview "recently closed" rows open that trade in the trades list', a
   const pair = await row.locator('.table__pair .num').innerText()
 
   await row.click()
+  await expect(page).toHaveURL(/filter=closed/)
   await expect(page).toHaveURL(/trade=\d+/)
+  await expect(livePage(page).locator('.seg__item').nth(1)).toHaveAttribute('aria-pressed', 'true')
   // The drawer names the same pair the overview row shows.
   await expect(page.locator('.overlay--drawer .drawer')).toContainText(pair)
+})
+
+test('browser back closes the drawer on the same trades list', async ({ page }) => {
+  await livePage(page).locator('table tbody tr').first().click()
+  await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
+
+  await page.goBack()
+  await expect(page).toHaveURL(/#\/trades(?:\?|$)/)
+  await expect(page.locator('.overlay--drawer')).toHaveCount(0)
+})
+
+test('swipe changes adjacent trade filters without dragging the page', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 })
+  const tabs = livePage(page).locator('.seg__item')
+
+  const swipe = async (fromX: number, toX: number, fromY = 120, toY = 122) => {
+    await touchAt(page, 'touchstart', fromX, fromY)
+    await touchAt(page, 'touchmove', toX, toY)
+    expect(await trackX(page)).toBe(0)
+    await touchAt(page, 'touchend', toX, toY)
+  }
+
+  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
+  await swipe(300, 270)
+  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
+  await swipe(300, 260, 120, 240)
+  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
+  await swipe(300, 120)
+  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
+  await swipe(120, 300)
+  await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
+  await swipe(120, 300)
+  await expect(tabs.nth(0)).toHaveAttribute('aria-pressed', 'true')
+  await swipe(120, 300)
+  await expect(tabs.nth(0)).toHaveAttribute('aria-pressed', 'true')
+  await swipe(300, 120)
+  await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('a deep link opens its trade even when the page boots empty', async ({ page }) => {
