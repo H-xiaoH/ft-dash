@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   direction,
   formatCompact,
+  formatDateTime,
+  formatDateTimeParts,
   formatDay,
   formatDuration,
   formatMoney,
@@ -59,6 +61,27 @@ describe('format helpers', () => {
     expect(parseTimestamp('2026-09-21 19:28:22')).toBe(Date.parse('2026-09-21T19:28:22Z'))
     expect(parseTimestamp('2026-09-21T19:28:22Z')).toBe(Date.parse('2026-09-21T19:28:22Z'))
     expect(parseTimestamp('nonsense')).toBeNull()
+  })
+
+  it('formats date-time parts with the requested locale and time zone', () => {
+    const value = '2026-09-21T19:28:22Z'
+
+    expect(formatDateTimeParts(value, 'zh-CN', '—', 'Asia/Shanghai')).toEqual({
+      date: '2026年9月22日',
+      time: '03:28',
+    })
+    expect(formatDateTime(value, 'zh-CN', '—', 'Asia/Shanghai')).toBe('2026年9月22日 03:28')
+  })
+
+  it('returns safe date-time parts for missing and invalid timestamps', () => {
+    expect(formatDateTimeParts(null, 'zh-CN', '—', 'Asia/Shanghai')).toEqual({
+      date: '—',
+      time: '',
+    })
+    expect(formatDateTimeParts('nonsense', 'en', 'N/A', 'UTC')).toEqual({
+      date: 'N/A',
+      time: '',
+    })
   })
 
   it('parses date-only values without a lenient engine (Safari regression)', () => {

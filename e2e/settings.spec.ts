@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
   API_BASE,
+  PASSWORD,
   SECOND_BASE,
   connect,
   livePage,
@@ -75,11 +76,33 @@ test('toasts take the corner on wide screens and the middle on phones', async ({
   // 1440 wide in this spec: the stack hugs the right edge instead of the centre.
   const wide = (await toast.boundingBox())!
   expect(Math.round(wide.x + wide.width)).toBeGreaterThan(1440 - 40)
+  expect(Math.round(wide.width)).toBeLessThan(460)
 
   await page.setViewportSize({ width: 390, height: 780 })
   const narrow = (await toast.boundingBox())!
   expect(Math.round(narrow.x)).toBeLessThan(390 / 2)
   expect(Math.round(narrow.x + narrow.width)).toBeGreaterThan(390 / 2)
+  expect(narrow.x).toBeGreaterThanOrEqual(16)
+  expect(narrow.x + narrow.width).toBeLessThanOrEqual(390 - 16)
+
+  await toast.click()
+  await expect(toast).toHaveCount(0)
+
+  const longName = '这是一个用于验证很长提示文案会在手机窄屏内自动换行而不会溢出的机器人名称'
+  await livePage(page).locator('button', { hasText: '添加机器人' }).click()
+  const editor = livePage(page).locator('.bots__editor')
+  await editor.getByLabel('机器人名称').fill(longName)
+  await editor.locator('input[inputmode="url"]').fill(API_BASE)
+  await editor.getByLabel('用户名').fill('long-toast')
+  await editor.getByLabel('密码').fill(PASSWORD)
+  await editor.locator('button[type="submit"]').click()
+
+  const longToast = page.locator('.toast', { hasText: longName })
+  await expect(longToast).toBeVisible()
+  const wrapped = (await longToast.boundingBox())!
+  expect(wrapped.x).toBeGreaterThanOrEqual(16)
+  expect(wrapped.x + wrapped.width).toBeLessThanOrEqual(390 - 16)
+  expect(wrapped.height).toBeGreaterThan(narrow.height)
 })
 
 test('the footer reads the app build next to the bot version', async ({ page }) => {

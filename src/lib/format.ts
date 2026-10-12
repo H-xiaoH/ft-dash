@@ -9,6 +9,11 @@ export interface DurationLabels {
   second: string
 }
 
+export interface DateTimeParts {
+  date: string
+  time: string
+}
+
 const DEFAULT_DURATION_LABELS: DurationLabels = { day: 'd', hour: 'h', minute: 'm', second: 's' }
 
 export function toNumber(value: Numberish): number | null {
@@ -168,6 +173,21 @@ export function formatDateTime(
      */
     timeZone,
   }).format(new Date(ts))
+}
+
+export function formatDateTimeParts(
+  value: Numberish,
+  locale = 'en',
+  fallback = '—',
+  timeZone = 'UTC',
+): DateTimeParts {
+  const ts = parseTimestamp(value)
+  if (ts === null) return { date: fallback, time: '' }
+  const date = new Date(ts)
+  return {
+    date: new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone }).format(date),
+    time: new Intl.DateTimeFormat(locale, { timeStyle: 'short', timeZone }).format(date),
+  }
 }
 
 /**
