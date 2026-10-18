@@ -72,8 +72,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 <template>
   <Teleport to="body">
-    <Transition name="drawer-overlay">
-      <div v-if="trade" class="overlay overlay--drawer" @click.self="emit('close')">
+    <Transition name="drawer-overlay" appear>
+      <div
+        v-if="trade"
+        :key="trade.trade_id"
+        class="overlay overlay--drawer"
+        @click.self="emit('close')"
+      >
         <aside
           ref="panel"
           class="drawer"

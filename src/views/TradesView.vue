@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
@@ -160,6 +160,10 @@ function moveFilter(delta: 1 | -1): void {
 }
 
 function onFilterTouchStart(event: TouchEvent): void {
+  if (document.querySelector('[role="dialog"]')) {
+    filterTouchStart = null
+    return
+  }
   if (event.touches.length !== 1) {
     filterTouchStart = null
     return
@@ -263,23 +267,27 @@ const linkedTrade = computed(() => {
   )
 })
 
-watch(linkedTrade, (trade) => (selected.value = trade), { immediate: true })
+watch(linkedTrade, (trade) => (selected.value = trade))
+// Set a deep-linked trade after this view mounts so the drawer transition can observe its
+// closed -> open edge instead of rendering an already-open drawer in the first frame.
+onMounted(() => {
+  selected.value = linkedTrade.value
+})
 </script>
 
 <template>
-  <div class="stack">
+  <div
+    class="stack trades-swipe-surface"
+    data-swipe-tabs
+    :data-swipe-index="FILTERS.indexOf(filter)"
+    :data-swipe-count="FILTERS.length"
+    @touchstart="onFilterTouchStart"
+    @touchend="onFilterTouchEnd"
+    @touchcancel="onFilterTouchCancel"
+  >
     <section class="panel">
       <div class="panel__head">
-        <div
-          ref="filterSeg"
-          class="seg"
-          data-swipe-tabs
-          :data-swipe-index="FILTERS.indexOf(filter)"
-          :data-swipe-count="FILTERS.length"
-          @touchstart="onFilterTouchStart"
-          @touchend="onFilterTouchEnd"
-          @touchcancel="onFilterTouchCancel"
-        >
+        <div ref="filterSeg" class="seg">
           <button
             type="button"
             class="seg__item"
@@ -528,7 +536,7 @@ watch(linkedTrade, (trade) => (selected.value = trade), { immediate: true })
   cursor: pointer;
 }
 
-.seg[data-swipe-tabs] {
+.trades-swipe-surface {
   touch-action: pan-y;
 }
 

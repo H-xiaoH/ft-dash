@@ -1,10 +1,16 @@
 import { expect, test, type Page } from '@playwright/test'
 import { connect, livePage, mockApi, segBlockMatches } from './support/fixtures'
 
-const touchAt = (page: Page, type: 'touchstart' | 'touchmove' | 'touchend', x: number, y: number) =>
+const touchAt = (
+  page: Page,
+  type: 'touchstart' | 'touchmove' | 'touchend',
+  x: number,
+  y: number,
+  selector = '[data-swipe-tabs]',
+) =>
   page.evaluate(
-    ({ type, x, y }) => {
-      const target = document.querySelector('[data-swipe-tabs]') as Element
+    ({ type, x, y, selector }) => {
+      const target = document.querySelector(selector) as Element
       const point = new Touch({ identifier: 1, target, clientX: x, clientY: y })
       target.dispatchEvent(
         new TouchEvent(type, {
@@ -15,7 +21,7 @@ const touchAt = (page: Page, type: 'touchstart' | 'touchmove' | 'touchend', x: n
         }),
       )
     },
-    { type, x, y },
+    { type, x, y, selector },
   )
 
 const trackX = (page: Page) =>
@@ -132,6 +138,48 @@ test('the overview recently closed rows open the matching trades tab', async ({ 
   await expect(page.locator('.overlay--drawer .drawer')).toContainText(pair)
 })
 
+test('opening an overview trade animates the detail drawer', async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 800 })
+  await page.goto('/#/')
+  await expect(livePage(page).locator('table tbody tr').first()).toBeVisible()
+
+  await page.evaluate(() => {
+    const frames: number[] = []
+    ;(window as unknown as { __drawerTravel?: number[] }).__drawerTravel = frames
+    const started = performance.now()
+    const tick = () => {
+      const drawer = document.querySelector('.overlay--drawer .drawer')
+      if (drawer) {
+        const transform = getComputedStyle(drawer).transform
+        const offset =
+          transform === 'none'
+            ? 0
+            : (() => {
+                const matrix = new DOMMatrixReadOnly(transform)
+                return Math.round(Math.abs(matrix.m41) + Math.abs(matrix.m42))
+              })()
+        frames.push(offset)
+      }
+      if (performance.now() - started < 900) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+
+  await livePage(page)
+    .locator('.panel')
+    .filter({ has: page.locator('.panel__title', { hasText: '当前持仓' }) })
+    .locator('table tbody tr')
+    .first()
+    .click()
+  await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
+  await page.waitForTimeout(350)
+
+  const travel = await page.evaluate(
+    () => (window as unknown as { __drawerTravel?: number[] }).__drawerTravel ?? [],
+  )
+  expect(travel.some((offset) => offset > 10)).toBe(true)
+})
+
 test('browser back closes the drawer on the same trades list', async ({ page }) => {
   await livePage(page).locator('table tbody tr').first().click()
   await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
@@ -206,8 +254,9 @@ test('swipe changes adjacent filters and hands off at their edges', async ({ pag
 
 test('the last filter still hands off when the filter strip overflows', async ({ page }) => {
   await page.setViewportSize({ width: 240, height: 780 })
-  const segment = livePage(page).locator('.seg[data-swipe-tabs]')
-  await expect(segment).toHaveCSS('touch-action', 'pan-y')
+  const surface = page.locator('.page-track > :not(.page-neighbor)[data-swipe-tabs]')
+  const segment = livePage(page).locator('.seg')
+  await expect(surface).toHaveCSS('touch-action', 'pan-y')
   await expect
     .poll(() => segment.evaluate((element) => element.scrollWidth > element.clientWidth))
     .toBe(true)
@@ -217,6 +266,44 @@ test('the last filter still hands off when the filter strip overflows', async ({
   await touchAt(page, 'touchend', 80, 122)
 
   await expect.poll(() => page.url()).toMatch(/#\/stats$/)
+})
+
+test('a swipe on the trades page changes its filter before page navigation', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 })
+  const tabs = livePage(page).locator('.seg__item')
+  const card = livePage(page).locator('.card--tappable').first()
+  const surface = page.locator('.page-track > :not(.page-neighbor)[data-swipe-tabs]')
+
+  await expect(surface).toBeVisible()
+  await expect(card).toBeVisible()
+  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
+
+  // Start on the list itself, not on the segmented control. The filter owns an inward swipe.
+  const liveCardSelector = '.page-track > :not(.page-neighbor) .card--tappable'
+  await touchAt(page, 'touchstart', 120, 420, liveCardSelector)
+  await touchAt(page, 'touchmove', 300, 422, liveCardSelector)
+  await touchAt(page, 'touchend', 300, 422, liveCardSelector)
+  await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
+  expect(new URL(page.url()).hash).toMatch(/^#\/trades\?filter=closed$/)
+
+  await touchAt(page, 'touchstart', 300, 420, liveCardSelector)
+  await touchAt(page, 'touchmove', 120, 422, liveCardSelector)
+  await touchAt(page, 'touchend', 120, 422, liveCardSelector)
+  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
+  expect(new URL(page.url()).hash).toBe('#/trades')
+})
+
+test('an open trade drawer keeps filter swipes out of the page', async ({ page }) => {
+  const tabs = livePage(page).locator('.seg__item')
+  await livePage(page).locator('table tbody tr').first().click()
+  await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
+
+  await touchAt(page, 'touchstart', 120, 420)
+  await touchAt(page, 'touchmove', 300, 422)
+  await touchAt(page, 'touchend', 300, 422)
+
+  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
+  expect(new URL(page.url()).hash).toBe('#/trades?trade=99')
 })
 
 test('a deep link opens its trade even when the page boots empty', async ({ page }) => {

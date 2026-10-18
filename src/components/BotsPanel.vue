@@ -33,6 +33,8 @@ const removeTarget = ref<Bot | null>(null)
 /** Set when switching to a bot whose password is not at hand. */
 const passwordTarget = ref<Bot | null>(null)
 const passwordDraft = ref('')
+/** Only the newest switch may report its result; older requests can finish later. */
+let switchRequest = 0
 
 const canSave = computed(() => {
   const entry = form.value
@@ -147,6 +149,7 @@ async function testConnection(entry: Bot) {
 async function switchTo(entry: Bot) {
   if (entry.id === settings.activeBotId) return
   if (!entry.password) {
+    switchRequest += 1
     passwordTarget.value = entry
     passwordDraft.value = ''
     return
@@ -155,6 +158,7 @@ async function switchTo(entry: Bot) {
 }
 
 async function runSwitch(entry: Bot) {
+  const request = ++switchRequest
   // A write in flight belongs to the bot on screen; leaving it behind mid-request is
   // exactly the mix-up the single-active model exists to prevent.
   if (bot.actionPending !== null) {
@@ -162,6 +166,7 @@ async function runSwitch(entry: Bot) {
     return
   }
   const ok = await bot.switchBot(entry.id)
+  if (request !== switchRequest) return
   pushToast(
     ok ? t('bots.switched', { name: entry.name }) : t(bot.errorKey?.key ?? 'actions.failed'),
     ok ? 'good' : 'bad',
