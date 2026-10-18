@@ -682,22 +682,20 @@
 .toast-stack {
   position: fixed;
   bottom: calc(var(--sp-4) + env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  transform: translateX(-50%);
+  right: var(--sp-4);
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: var(--sp-2);
   z-index: 60;
   width: max-content;
   max-width: calc(100vw - 32px);
 }
 
-/* A wide window has room to keep the middle free, so the stack sits in the corner instead. */
-@media (min-width: 901px) {
+/* Leave the mobile tab bar and its safe area clear while keeping the same right-hand anchor. */
+@media (max-width: 900px) {
   .toast-stack {
-    left: auto;
-    right: var(--sp-4);
-    transform: none;
+    bottom: calc(var(--tabbar-space) + var(--sp-4) + env(safe-area-inset-bottom, 0px));
   }
 }
 

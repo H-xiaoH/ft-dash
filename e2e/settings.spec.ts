@@ -44,6 +44,16 @@ test('the language and time zone dropdown triggers share the settings presentati
 }) => {
   const language = fieldMenu(page, '语言')
   const timezone = fieldMenu(page, '时区')
+  const buttonPresentation = (menu: Awaited<ReturnType<typeof fieldMenu>>) =>
+    menu.locator('.filter-menu__button').evaluate((element) => {
+      const style = getComputedStyle(element)
+      return {
+        height: style.height,
+        justifyContent: style.justifyContent,
+        padding: style.padding,
+        borderRadius: style.borderRadius,
+      }
+    })
   const [languageBox, timezoneBox] = await Promise.all([
     language.locator('.filter-menu__button').boundingBox(),
     timezone.locator('.filter-menu__button').boundingBox(),
@@ -52,6 +62,37 @@ test('the language and time zone dropdown triggers share the settings presentati
   await expect(language).toHaveClass(/settings__filter/)
   await expect(timezone).toHaveClass(/settings__filter/)
   expect(Math.round(languageBox!.width)).toBe(Math.round(timezoneBox!.width))
+  expect(await buttonPresentation(language)).toEqual(await buttonPresentation(timezone))
+
+  const popupPresentation = () =>
+    page.locator('.filter-menu__list').evaluate((element) => {
+      const style = getComputedStyle(element)
+      return {
+        borderRadius: style.borderRadius,
+        borderColor: style.borderColor,
+        backgroundColor: style.backgroundColor,
+        boxShadow: style.boxShadow,
+      }
+    })
+
+  await language.locator('.filter-menu__button').click()
+  const languagePopup = page.locator('.filter-menu__list')
+  await expect(languagePopup).toBeVisible()
+  await expect(languagePopup.locator('.filter-menu__search')).toHaveCount(0)
+  const languagePopupBox = (await languagePopup.boundingBox())!
+  const languageTriggerBox = (await language.locator('.filter-menu__button').boundingBox())!
+  expect(Math.round(languagePopupBox.x)).toBe(Math.round(languageTriggerBox.x))
+  const languagePopupStyle = await popupPresentation()
+  await page.locator('.filter-menu__backdrop').click()
+
+  await timezone.locator('.filter-menu__button').click()
+  const timezonePopup = page.locator('.filter-menu__list')
+  await expect(timezonePopup).toBeVisible()
+  await expect(timezonePopup.locator('.filter-menu__search')).toBeVisible()
+  const timezonePopupBox = (await timezonePopup.boundingBox())!
+  const timezoneTriggerBox = (await timezone.locator('.filter-menu__button').boundingBox())!
+  expect(Math.round(timezonePopupBox.x)).toBe(Math.round(timezoneTriggerBox.x))
+  expect(await popupPresentation()).toEqual(languagePopupStyle)
 })
 
 test('the stream-auth block slides to the choice you pick', async ({ page }) => {
@@ -68,7 +109,7 @@ test('the stream-auth block slides to the choice you pick', async ({ page }) => 
   await expect.poll(() => segBlockMatches(seg)).toBe(true)
 })
 
-test('toasts take the corner on wide screens and the middle on phones', async ({ page }) => {
+test('toasts stay in the lower-right corner above the mobile tab bar', async ({ page }) => {
   await livePage(page).locator('button', { hasText: '重试实时推送' }).click()
   const toast = page.locator('.toast').first()
   await expect(toast).toBeVisible()
@@ -79,11 +120,14 @@ test('toasts take the corner on wide screens and the middle on phones', async ({
   expect(Math.round(wide.width)).toBeLessThan(460)
 
   await page.setViewportSize({ width: 390, height: 780 })
+  const tabbar = page.locator('.tabbar')
+  await expect(tabbar).toBeVisible()
   const narrow = (await toast.boundingBox())!
-  expect(Math.round(narrow.x)).toBeLessThan(390 / 2)
-  expect(Math.round(narrow.x + narrow.width)).toBeGreaterThan(390 / 2)
+  const tabbarBox = (await tabbar.boundingBox())!
+  expect(Math.round(narrow.x + narrow.width)).toBeGreaterThan(390 - 40)
   expect(narrow.x).toBeGreaterThanOrEqual(16)
   expect(narrow.x + narrow.width).toBeLessThanOrEqual(390 - 16)
+  expect(Math.round(narrow.y + narrow.height)).toBeLessThanOrEqual(Math.round(tabbarBox.y) - 12)
 
   await toast.click()
   await expect(toast).toHaveCount(0)

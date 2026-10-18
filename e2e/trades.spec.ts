@@ -168,22 +168,32 @@ test('an unresolved trade query clears the stale trade drawer', async ({ page })
   await expect(page.locator('.overlay--drawer')).toHaveCount(0)
 })
 
-test('swipe changes adjacent trade filters without dragging the page', async ({ page }) => {
+test('swipe changes adjacent filters and hands off at their edges', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 })
   const tabs = livePage(page).locator('.seg__item')
 
   const swipe = async (fromX: number, toX: number, fromY = 120, toY = 122) => {
     await touchAt(page, 'touchstart', fromX, fromY)
     await touchAt(page, 'touchmove', toX, toY)
-    expect(await trackX(page)).toBe(0)
     await touchAt(page, 'touchend', toX, toY)
   }
 
   await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
-  await swipe(300, 270)
+  await swipe(300, 296)
   await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
-  await swipe(300, 260, 120, 240)
+  await expect.poll(() => trackX(page)).toBe(0)
+  await swipe(300, 295, 120, 240)
   await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
+  expect(await trackX(page)).toBe(0)
+  await swipe(300, 120)
+  await expect.poll(() => page.url()).toMatch(/#\/stats$/)
+
+  await page.locator('.tabbar__item').nth(1).click()
+  await expect.poll(() => page.url()).toMatch(/#\/trades(?:\?|$)/)
+  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
+
+  await swipe(120, 300)
+  await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
   await swipe(300, 120)
   await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
   await swipe(120, 300)
@@ -191,9 +201,22 @@ test('swipe changes adjacent trade filters without dragging the page', async ({ 
   await swipe(120, 300)
   await expect(tabs.nth(0)).toHaveAttribute('aria-pressed', 'true')
   await swipe(120, 300)
-  await expect(tabs.nth(0)).toHaveAttribute('aria-pressed', 'true')
-  await swipe(300, 120)
-  await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(() => page.url()).toMatch(/#\/$/)
+})
+
+test('the last filter still hands off when the filter strip overflows', async ({ page }) => {
+  await page.setViewportSize({ width: 240, height: 780 })
+  const segment = livePage(page).locator('.seg[data-swipe-tabs]')
+  await expect(segment).toHaveCSS('touch-action', 'pan-y')
+  await expect
+    .poll(() => segment.evaluate((element) => element.scrollWidth > element.clientWidth))
+    .toBe(true)
+
+  await touchAt(page, 'touchstart', 200, 120)
+  await touchAt(page, 'touchmove', 80, 122)
+  await touchAt(page, 'touchend', 80, 122)
+
+  await expect.poll(() => page.url()).toMatch(/#\/stats$/)
 })
 
 test('a deep link opens its trade even when the page boots empty', async ({ page }) => {

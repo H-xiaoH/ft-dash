@@ -446,7 +446,7 @@ watch(
 @media (max-width: 900px) {
   .shell {
     --shell-pad: var(--sp-3);
-    --shell-pad-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    --shell-pad-bottom: calc(var(--tabbar-space) + env(safe-area-inset-bottom, 0px));
     grid-template-columns: minmax(0, 1fr);
   }
 

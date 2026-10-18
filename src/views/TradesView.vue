@@ -160,6 +160,10 @@ function moveFilter(delta: 1 | -1): void {
 }
 
 function onFilterTouchStart(event: TouchEvent): void {
+  if (event.touches.length !== 1) {
+    filterTouchStart = null
+    return
+  }
   const touch = event.touches[0]
   filterTouchStart = touch ? { x: touch.clientX, y: touch.clientY } : null
 }
@@ -168,12 +172,16 @@ function onFilterTouchEnd(event: TouchEvent): void {
   const start = filterTouchStart
   const touch = event.changedTouches[0]
   filterTouchStart = null
-  if (!start || !touch) return
+  if (!start || !touch || event.touches.length !== 0 || event.changedTouches.length !== 1) return
 
   const dx = touch.clientX - start.x
   const dy = touch.clientY - start.y
   if (Math.abs(dx) < FILTER_SWIPE_PX || Math.abs(dx) <= Math.abs(dy)) return
   moveFilter(dx < 0 ? 1 : -1)
+}
+
+function onFilterTouchCancel(): void {
+  filterTouchStart = null
 }
 
 function openTrade(trade: Trade): void {
@@ -266,8 +274,11 @@ watch(linkedTrade, (trade) => (selected.value = trade), { immediate: true })
           ref="filterSeg"
           class="seg"
           data-swipe-tabs
+          :data-swipe-index="FILTERS.indexOf(filter)"
+          :data-swipe-count="FILTERS.length"
           @touchstart="onFilterTouchStart"
           @touchend="onFilterTouchEnd"
+          @touchcancel="onFilterTouchCancel"
         >
           <button
             type="button"
