@@ -257,6 +257,14 @@ test('force exit requires the exact pair and Escape only closes its confirmation
   const confirmation = page.locator('.overlay[role="dialog"]:not(.overlay--drawer)')
   await forceExit.click()
   await expect(confirmation).toBeVisible()
+  await expect(confirmation.locator('.dialog')).toBeFocused()
+
+  const firstFocusable = confirmation.getByRole('button').first()
+  const lastFocusable = confirmation.getByRole('button', { name: '取消' })
+  await page.keyboard.press('Shift+Tab')
+  await expect(lastFocusable).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(firstFocusable).toBeFocused()
 
   const input = confirmation.locator('input')
   const confirm = confirmation.getByRole('button', { name: '平仓' })

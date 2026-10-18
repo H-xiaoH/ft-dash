@@ -1,4 +1,4 @@
-import { computed, nextTick, onBeforeUnmount, shallowRef, watch, type Ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, shallowRef, watch, type Ref } from 'vue'
 
 let activeLockCount = 0
 let savedBodyOverflow: string | null = null
@@ -13,6 +13,15 @@ interface ModalEntry {
 }
 
 const modalStack = shallowRef<ModalEntry[]>([])
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  'a[href]',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+  '[contenteditable="true"]',
+].join(',')
 
 /**
  * The part of `<dialog>` the app cannot get for free: park the page behind the modal so
@@ -120,6 +129,48 @@ export function useModalFocus(open: Ref<boolean>, panel: Ref<HTMLElement | null>
 
   const isTopModal = computed(() => entry?.active && open.value && topModal()?.id === entry.id)
 
+  function trapTab(event: KeyboardEvent) {
+    if (event.key !== 'Tab' || !isTopModal.value) return
+    const currentPanel = panel.value
+    if (!currentPanel) return
+
+    const focusable = Array.from(
+      currentPanel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+    ).filter(
+      (element) =>
+        element.tabIndex >= 0 &&
+        !element.matches(':disabled') &&
+        !element.closest('[hidden], [aria-hidden="true"]'),
+    )
+    if (focusable.length === 0) {
+      event.preventDefault()
+      currentPanel.focus()
+      return
+    }
+
+    const active = document.activeElement
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    const activeIndex = active instanceof HTMLElement ? focusable.indexOf(active) : -1
+    const activeIsUnknown =
+      active === currentPanel || !currentPanel.contains(active) || activeIndex < 0
+
+    if (activeIsUnknown) {
+      event.preventDefault()
+      const target = event.shiftKey ? last : first
+      target.focus()
+      return
+    }
+
+    if (event.shiftKey && activeIndex === 0) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && activeIndex === focusable.length - 1) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+
   watch(
     open,
     async (isOpen) => {
@@ -141,6 +192,9 @@ export function useModalFocus(open: Ref<boolean>, panel: Ref<HTMLElement | null>
     focusRequest += 1
     releaseLock()
   })
+
+  onMounted(() => window.addEventListener('keydown', trapTab))
+  onBeforeUnmount(() => window.removeEventListener('keydown', trapTab))
 
   return { isTopModal }
 }

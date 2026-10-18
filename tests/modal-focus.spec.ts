@@ -182,4 +182,62 @@ describe('useModalFocus through ConfirmDialog', () => {
     await nextTick()
     expect(document.activeElement).toBe(backgroundButton)
   })
+
+  it('keeps Tab focus inside the top nested modal', async () => {
+    const shell = document.createElement('div')
+    shell.className = 'shell'
+    document.body.append(shell)
+
+    mountDialog()
+    await nextTick()
+    mountDialog()
+    await nextTick()
+
+    const innerPanel = document.body.querySelectorAll<HTMLElement>('.dialog')[1]
+    const buttons = innerPanel.querySelectorAll<HTMLButtonElement>('button')
+    const first = buttons.item(0)
+    const last = buttons.item(buttons.length - 1)
+    expect(first).toBeDefined()
+    expect(last).toBeDefined()
+
+    first.focus()
+    const forward = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true })
+    window.dispatchEvent(forward)
+    expect(forward.defaultPrevented).toBe(false)
+    expect(document.activeElement).toBe(first)
+
+    last.focus()
+    const backward = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      shiftKey: true,
+      cancelable: true,
+    })
+    window.dispatchEvent(backward)
+    expect(backward.defaultPrevented).toBe(false)
+    expect(document.activeElement).toBe(last)
+
+    const nonTabStop = innerPanel.querySelector<HTMLElement>('.dialog__title')
+    nonTabStop?.setAttribute('tabindex', '-1')
+    nonTabStop?.focus()
+    const fromUnknown = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true })
+    window.dispatchEvent(fromUnknown)
+    expect(fromUnknown.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(first)
+
+    last.focus()
+    const wrapForward = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true })
+    window.dispatchEvent(wrapForward)
+    expect(wrapForward.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(first)
+
+    first.focus()
+    const wrapBackward = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      shiftKey: true,
+      cancelable: true,
+    })
+    window.dispatchEvent(wrapBackward)
+    expect(wrapBackward.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(last)
+  })
 })
