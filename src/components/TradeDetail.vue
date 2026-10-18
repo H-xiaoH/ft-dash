@@ -6,6 +6,13 @@ import { useModalFocus } from '@/composables/useModalFocus'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
 
+let nextTradeDetailTitleId = 0
+
+function createTradeDetailTitleId(): string {
+  nextTradeDetailTitleId += 1
+  return `trade-detail-title-${nextTradeDetailTitleId}`
+}
+
 const props = defineProps<{ trade: Trade | null }>()
 const emit = defineEmits<{ close: []; forceExit: [trade: Trade] }>()
 
@@ -15,10 +22,12 @@ const bot = useBotStore()
 
 const panel = ref<HTMLElement | null>(null)
 
-useModalFocus(
+const { isTopModal } = useModalFocus(
   computed(() => props.trade !== null),
   panel,
 )
+
+const dialogTitleId = createTradeDetailTitleId()
 
 const stake = computed(() => bot.stakeCurrency)
 
@@ -39,10 +48,22 @@ const totalFees = computed(() => {
 })
 
 const orders = computed(() => props.trade?.orders ?? [])
+const orderRows = computed(() => {
+  const occurrences = new Map<string, number>()
+  return orders.value.map((order) => {
+    const identity = order.order_id ? `id:${order.order_id}` : `value:${JSON.stringify(order)}`
+    const occurrence = occurrences.get(identity) ?? 0
+    occurrences.set(identity, occurrence + 1)
+    return { key: `${identity}:${occurrence}`, order }
+  })
+})
 
 /** Escape dismisses the drawer, matching the charts and the search box. */
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && props.trade) emit('close')
+  if (event.key !== 'Escape' || !props.trade || !isTopModal.value) return
+  event.preventDefault()
+  event.stopPropagation()
+  emit('close')
 }
 
 onMounted(() => window.addEventListener('keydown', onKeydown))
@@ -53,7 +74,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   <Teleport to="body">
     <Transition name="drawer-overlay">
       <div v-if="trade" class="overlay overlay--drawer" @click.self="emit('close')">
-        <aside ref="panel" class="drawer" role="dialog" aria-modal="true" tabindex="-1">
+        <aside
+          ref="panel"
+          class="drawer"
+          role="dialog"
+          aria-modal="true"
+          :aria-labelledby="dialogTitleId"
+          tabindex="-1"
+        >
           <header class="drawer__head">
             <div>
               <div class="row">
@@ -61,7 +89,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
                   class="table__side"
                   :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
                 />
-                <span class="drawer__pair num">{{ trade.pair }}</span>
+                <span :id="dialogTitleId" class="drawer__pair num">{{ trade.pair }}</span>
                 <span class="chip" :class="trade.is_open ? 'chip--accent' : ''">
                   {{ trade.is_open ? t('trades.open') : t('trades.closed') }}
                 </span>
@@ -153,18 +181,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-for="(order, index) in orders" :key="order.order_id ?? index">
-                        <td>{{ order.ft_order_side ?? order.side ?? '—' }}</td>
-                        <td>{{ order.order_type ?? '—' }}</td>
+                      <tr v-for="row in orderRows" :key="row.key">
+                        <td>{{ row.order.ft_order_side ?? row.order.side ?? '—' }}</td>
+                        <td>{{ row.order.order_type ?? '—' }}</td>
                         <td class="num">
-                          {{ format.price(order.average ?? order.price ?? null) }}
+                          {{ format.price(row.order.average ?? row.order.price ?? null) }}
                         </td>
                         <td class="num">
-                          {{ format.number(order.filled ?? null, 4) }} /
-                          {{ format.number(order.amount ?? null, 4) }}
+                          {{ format.number(row.order.filled ?? null, 4) }} /
+                          {{ format.number(row.order.amount ?? null, 4) }}
                         </td>
-                        <td>{{ order.status ?? '—' }}</td>
-                        <td class="num">{{ format.dateTime(order.order_timestamp ?? null) }}</td>
+                        <td>{{ row.order.status ?? '—' }}</td>
+                        <td class="num">
+                          {{ format.dateTime(row.order.order_timestamp ?? null) }}
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -237,6 +267,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 .drawer__body {
   padding: var(--sp-4);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .drawer__pnl {

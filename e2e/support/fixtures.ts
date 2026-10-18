@@ -365,12 +365,13 @@ export async function mockApi(
     rejectAuth?: boolean
     tradeCount?: number
     pairCount?: number
+    whitelistCount?: number
     staleHeartbeat?: boolean
     secondBot?: boolean
   } = {},
 ) {
   const calls: string[] = []
-  const { tradeCount, pairCount } = options
+  const { tradeCount, pairCount, whitelistCount } = options
   /**
    * Health is answered relative to the moment of the request: the heartbeat alert
    * compares against the real clock, so a frozen timestamp would look days stale.
@@ -408,6 +409,17 @@ export async function mockApi(
       }))
     : undefined
 
+  const whitelistPayload =
+    whitelistCount === undefined
+      ? RESPONSES.whitelist
+      : {
+          whitelist: Array.from(
+            { length: whitelistCount },
+            (_, index) => `P${String(index + 1).padStart(2, '0')}/USDT`,
+          ),
+          length: whitelistCount,
+        }
+
   /** One answerer per origin; `overrides` swaps individual payloads per instance. */
   const serve =
     (overrides: Record<string, unknown> = {}, rejectAuth = false) =>
@@ -440,9 +452,11 @@ export async function mockApi(
           ? tradesPayload
           : pairCount && path === 'performance'
             ? performancePayload
-            : path === 'health'
-              ? healthPayload()
-              : (overrides[path] ?? bodyFor(url, request.method()))
+            : path === 'whitelist'
+              ? (overrides[path] ?? whitelistPayload)
+              : path === 'health'
+                ? healthPayload()
+                : (overrides[path] ?? bodyFor(url, request.method()))
       if (body === undefined) {
         await route.fulfill({
           status: 404,

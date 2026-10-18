@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import AppIcon from '@/components/AppIcon.vue'
+import InlineConfirm from '@/components/InlineConfirm.vue'
 import { pushToast } from '@/composables/useToast'
 import { describeError, FreqtradeApi, normalizeBaseUrl } from '@/lib/api'
 import { defaultBotName, type Bot } from '@/lib/bots'
@@ -24,10 +24,11 @@ const settings = useSettingsStore()
 const bot = useBotStore()
 
 const form = ref<BotForm | null>(null)
+const nameTouched = ref(false)
 const saving = ref(false)
 const testing = ref<string | null>(null)
 /** Last manual probe result, kept per bot so it survives the toast. */
-const testResult = ref<Record<string, 'ok' | 'fail'>>({})
+const testResult = ref<Record<string, 'ok'>>({})
 const removeTarget = ref<Bot | null>(null)
 /** Set when switching to a bot whose password is not at hand. */
 const passwordTarget = ref<Bot | null>(null)
@@ -52,10 +53,12 @@ const duplicateName = computed(() => {
 })
 
 function startAdd() {
+  nameTouched.value = false
   form.value = { id: null, name: '', baseUrl: '', username: '', password: '', wsToken: '' }
 }
 
 function startEdit(entry: Bot) {
+  nameTouched.value = true
   form.value = {
     id: entry.id,
     name: entry.name,
@@ -66,6 +69,14 @@ function startEdit(entry: Bot) {
     wsToken: entry.wsToken,
   }
 }
+
+watch(
+  () => form.value?.username,
+  (username) => {
+    if (!form.value || nameTouched.value) return
+    form.value.name = username?.trim() ?? ''
+  },
+)
 
 function cancelEdit() {
   form.value = null
@@ -112,6 +123,9 @@ async function testConnection(entry: Bot) {
     return
   }
   testing.value = entry.id
+  const nextResult = { ...testResult.value }
+  delete nextResult[entry.id]
+  testResult.value = nextResult
   try {
     const api = new FreqtradeApi({
       baseUrl: entry.baseUrl,
@@ -124,7 +138,6 @@ async function testConnection(entry: Bot) {
     pushToast(t('bots.testOk'), 'good')
   } catch (error) {
     const described = describeError(error)
-    testResult.value = { ...testResult.value, [entry.id]: 'fail' }
     pushToast(t(described.key, described.params ?? {}), 'bad')
   } finally {
     testing.value = null
@@ -239,12 +252,6 @@ async function confirmRemove() {
             <span v-if="entry.id === settings.activeBotId" class="chip chip--good">
               {{ t('bots.current') }}
             </span>
-            <span v-if="testResult[entry.id] === 'ok'" class="chip chip--good">
-              {{ t('bots.testOk') }}
-            </span>
-            <span v-else-if="testResult[entry.id] === 'fail'" class="chip chip--bad">
-              {{ t('connect.failed') }}
-            </span>
             <span class="num small muted bots__url">{{ entry.baseUrl }}</span>
           </div>
           <div class="row row--wrap">
@@ -263,11 +270,12 @@ async function confirmRemove() {
             <button
               type="button"
               class="btn btn--sm"
+              :class="{ 'bots__test--ok': testResult[entry.id] === 'ok' }"
               :disabled="testing === entry.id"
               @click="testConnection(entry)"
             >
               <AppIcon name="wifi" />
-              {{ t('bots.test') }}
+              {{ testResult[entry.id] === 'ok' ? t('bots.testSucceeded') : t('bots.test') }}
             </button>
             <button type="button" class="btn btn--sm btn--danger" @click="removeTarget = entry">
               <AppIcon name="trash" />
@@ -301,6 +309,16 @@ async function confirmRemove() {
         </li>
       </ul>
 
+      <InlineConfirm
+        :open="removeTarget !== null"
+        :message="t('bots.removeBody', { name: removeTarget?.name ?? '' })"
+        :confirm-label="t('bots.remove')"
+        :cancel-label="t('common.cancel')"
+        :pending="bot.actionPending !== null"
+        @cancel="removeTarget = null"
+        @confirm="confirmRemove"
+      />
+
       <form v-if="form" class="bots__editor" @submit.prevent="submit">
         <div class="bots__grid">
           <label class="field">
@@ -310,6 +328,7 @@ async function confirmRemove() {
               class="input"
               type="text"
               :placeholder="t('bots.nameOptional')"
+              @input="nameTouched = true"
             />
             <span v-if="duplicateName" class="field__hint">{{ t('bots.duplicateName') }}</span>
           </label>
@@ -367,16 +386,6 @@ async function confirmRemove() {
         </span>
       </label>
     </div>
-
-    <ConfirmDialog
-      :open="removeTarget !== null"
-      tone="danger"
-      :title="t('bots.removeTitle')"
-      :body="t('bots.removeBody', { name: removeTarget?.name ?? '' })"
-      :confirm-label="t('bots.remove')"
-      @cancel="removeTarget = null"
-      @confirm="confirmRemove"
-    />
   </section>
 </template>
 
@@ -417,6 +426,11 @@ async function confirmRemove() {
 
 .bots__url {
   overflow-wrap: anywhere;
+}
+
+.bots__test--ok {
+  color: var(--long);
+  border-color: color-mix(in srgb, var(--long) 35%, transparent);
 }
 
 .bots__prompt,

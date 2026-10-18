@@ -4,6 +4,7 @@ import {
   direction,
   formatCompact,
   formatDateTime,
+  formatDateTimeParts,
   formatDay,
   formatDuration,
   formatMoney,
@@ -14,6 +15,7 @@ import {
   formatShortStamp,
   formatSignedMoney,
   parseTimestamp,
+  type DateTimeParts,
   type DurationLabels,
   type Numberish,
 } from '@/lib/format'
@@ -31,6 +33,7 @@ export interface Formatter {
   price: (value: Numberish) => string
   duration: (ms: Numberish) => string
   dateTime: (value: Numberish) => string
+  dateTimeParts: (value: Numberish) => DateTimeParts
   day: (value: Numberish) => string
   stamp: (value: Numberish) => string
   toneClass: (value: Numberish) => string
@@ -67,6 +70,7 @@ export function useFormat(): Formatter {
     price: (value) => formatPrice(value, current.value),
     duration: (ms) => formatDuration(ms, durationLabels.value),
     dateTime: (value) => formatDateTime(value, current.value, '—', zone.value),
+    dateTimeParts: (value) => formatDateTimeParts(value, current.value, '—', zone.value),
     day: (value) => formatDay(value, current.value),
     stamp: (value) => formatShortStamp(value, current.value, '—', zone.value),
     toneClass: (value) => {

@@ -5,6 +5,8 @@ import AppIcon from '@/components/AppIcon.vue'
 import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
 import { useFormat } from '@/composables/useFormat'
+import type { DateTimeParts } from '@/lib/format'
+import type { LogsResponse } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
 
 const LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'] as const
@@ -20,12 +22,19 @@ const follow = ref(true)
 
 const levelOptions: FilterOption[] = LEVELS.map((level) => ({ value: level, label: level }))
 
-const lines = computed(() => {
+interface DisplayLogLine {
+  key: string
+  line: LogsResponse['logs'][number]
+  dateTime: DateTimeParts
+}
+
+const lines = computed<DisplayLogLine[]>(() => {
   const minIndex = Math.max(0, LEVELS.indexOf(minLevel.value as Level))
   const query = search.value.trim().toLowerCase()
   const rows = bot.logs?.logs ?? []
   return rows
-    .filter((line) => {
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => {
       const level = (line[3] ?? '').toUpperCase().replace('WARN', 'WARNING')
       const index = LEVELS.indexOf(level as Level)
       if (index !== -1 && index < minIndex) return false
@@ -34,6 +43,11 @@ const lines = computed(() => {
     })
     .slice()
     .reverse()
+    .map(({ line, index }) => ({
+      key: `${line[1]}:${index}`,
+      line,
+      dateTime: format.dateTimeParts(line[0]),
+    }))
 })
 
 function levelClass(level: string): string {
@@ -80,11 +94,14 @@ function levelClass(level: string): string {
       <div v-if="!lines.length" class="empty">{{ t('logs.empty') }}</div>
       <!-- Keyboard users need a focus stop to scroll the log (WCAG 2.1.1). -->
       <div v-else class="logs" tabindex="0" role="region" :aria-label="t('logs.title')">
-        <div v-for="(line, index) in lines" :key="`${line[1]}-${index}`" class="logs__line">
-          <span class="logs__time num">{{ format.dateTime(line[0]) }}</span>
-          <span class="chip" :class="levelClass(line[3])">{{ line[3] }}</span>
-          <span class="logs__source num">{{ line[2] }}</span>
-          <span class="logs__message">{{ line[4] }}</span>
+        <div v-for="entry in lines" :key="entry.key" class="logs__line">
+          <span class="logs__time num">
+            <span class="logs__date">{{ entry.dateTime.date }}</span>
+            <span class="logs__clock">{{ entry.dateTime.time }}</span>
+          </span>
+          <span class="chip" :class="levelClass(entry.line[3])">{{ entry.line[3] }}</span>
+          <span class="logs__source num">{{ entry.line[2] }}</span>
+          <span class="logs__message">{{ entry.line[4] }}</span>
         </div>
       </div>
     </div>
@@ -134,6 +151,11 @@ function levelClass(level: string): string {
   color: var(--text-3);
   font-size: var(--fs-xs);
   white-space: nowrap;
+}
+
+.logs__date,
+.logs__clock {
+  display: block;
 }
 
 .logs__source {

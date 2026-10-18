@@ -202,7 +202,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="stack">
+  <div class="stack market-page">
     <!-- Candles come first: pick a pair from the selector here or from the list below. -->
     <section class="panel">
       <div class="panel__head">
@@ -255,7 +255,7 @@ onMounted(() => {
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel market__pairs">
       <div class="panel__head">
         <div ref="listSeg" class="seg">
           <button
@@ -534,8 +534,18 @@ onMounted(() => {
   flex: none;
 }
 
+.market-page {
+  height: calc(100dvh - var(--topbar-h) - var(--shell-pad) - var(--shell-pad-bottom));
+}
+
+.market__pairs {
+  flex: 1;
+  min-height: 0;
+}
+
 .market__scroll {
-  max-height: 62vh;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 

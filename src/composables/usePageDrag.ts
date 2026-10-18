@@ -57,7 +57,7 @@ export function usePageDrag(isBlocked: () => boolean) {
   /** A gesture that belongs to a dialog, or to a component that owns horizontal drags. */
   function gestureIsTaken(target: EventTarget | null) {
     if (isBlocked() || document.querySelector('[role="dialog"]')) return true
-    return target instanceof Element && target.closest('[data-scrub]') !== null
+    return target instanceof Element && target.closest('[data-scrub], [data-swipe-tabs]') !== null
   }
 
   /** A sideways scroller under the finger keeps the gesture for itself. */

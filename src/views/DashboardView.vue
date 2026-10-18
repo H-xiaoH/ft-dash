@@ -25,6 +25,13 @@ const exitTarget = ref<Trade | null>(null)
 function openTradesTab(filter: 'open' | 'closed') {
   void router.push({ path: '/trades', query: { filter } })
 }
+
+function openOverviewTrade(trade: Trade, filter: 'open' | 'closed'): void {
+  void router.push({
+    path: '/trades',
+    query: { filter, trade: String(trade.trade_id) },
+  })
+}
 const pnlChartHeight = useChartHeight(150, 0.2, 230)
 /** The overview stays a summary: only the newest closed trades are listed. */
 const OVERVIEW_CLOSED_ROWS = 6
@@ -188,9 +195,7 @@ async function confirmExit() {
                 <tr
                   v-for="trade in bot.openTrades"
                   :key="trade.trade_id"
-                  @click="
-                    router.push({ path: '/trades', query: { trade: String(trade.trade_id) } })
-                  "
+                  @click="openOverviewTrade(trade, 'open')"
                 >
                   <td>
                     <div class="table__pair">
@@ -263,9 +268,7 @@ async function confirmExit() {
                 <tr
                   v-for="trade in bot.closedByRecency.slice(0, OVERVIEW_CLOSED_ROWS)"
                   :key="trade.trade_id"
-                  @click="
-                    router.push({ path: '/trades', query: { trade: String(trade.trade_id) } })
-                  "
+                  @click="openOverviewTrade(trade, 'closed')"
                 >
                   <td>
                     <div class="table__pair">

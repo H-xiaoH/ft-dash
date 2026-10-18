@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
   API_BASE,
+  PASSWORD,
   SECOND_BASE,
   connect,
   livePage,
@@ -38,6 +39,21 @@ const fieldMenu = (page: Page, label: string) =>
     .locator('.field', { has: page.locator('.field__label', { hasText: label }) })
     .locator('.filter-menu')
 
+test('the language and time zone dropdown triggers share the settings presentation', async ({
+  page,
+}) => {
+  const language = fieldMenu(page, '语言')
+  const timezone = fieldMenu(page, '时区')
+  const [languageBox, timezoneBox] = await Promise.all([
+    language.locator('.filter-menu__button').boundingBox(),
+    timezone.locator('.filter-menu__button').boundingBox(),
+  ])
+
+  await expect(language).toHaveClass(/settings__filter/)
+  await expect(timezone).toHaveClass(/settings__filter/)
+  expect(Math.round(languageBox!.width)).toBe(Math.round(timezoneBox!.width))
+})
+
 test('the stream-auth block slides to the choice you pick', async ({ page }) => {
   // Scoped to its field: the page carries more than one segmented control.
   const seg = livePage(page)
@@ -60,11 +76,33 @@ test('toasts take the corner on wide screens and the middle on phones', async ({
   // 1440 wide in this spec: the stack hugs the right edge instead of the centre.
   const wide = (await toast.boundingBox())!
   expect(Math.round(wide.x + wide.width)).toBeGreaterThan(1440 - 40)
+  expect(Math.round(wide.width)).toBeLessThan(460)
 
   await page.setViewportSize({ width: 390, height: 780 })
   const narrow = (await toast.boundingBox())!
   expect(Math.round(narrow.x)).toBeLessThan(390 / 2)
   expect(Math.round(narrow.x + narrow.width)).toBeGreaterThan(390 / 2)
+  expect(narrow.x).toBeGreaterThanOrEqual(16)
+  expect(narrow.x + narrow.width).toBeLessThanOrEqual(390 - 16)
+
+  await toast.click()
+  await expect(toast).toHaveCount(0)
+
+  const longName = '这是一个用于验证很长提示文案会在手机窄屏内自动换行而不会溢出的机器人名称'
+  await livePage(page).locator('button', { hasText: '添加机器人' }).click()
+  const editor = livePage(page).locator('.bots__editor')
+  await editor.getByLabel('机器人名称').fill(longName)
+  await editor.locator('input[inputmode="url"]').fill(API_BASE)
+  await editor.getByLabel('用户名').fill('long-toast')
+  await editor.getByLabel('密码').fill(PASSWORD)
+  await editor.locator('button[type="submit"]').click()
+
+  const longToast = page.locator('.toast', { hasText: longName })
+  await expect(longToast).toBeVisible()
+  const wrapped = (await longToast.boundingBox())!
+  expect(wrapped.x).toBeGreaterThanOrEqual(16)
+  expect(wrapped.x + wrapped.width).toBeLessThanOrEqual(390 - 16)
+  expect(wrapped.height).toBeGreaterThan(narrow.height)
 })
 
 test('the footer reads the app build next to the bot version', async ({ page }) => {
@@ -141,6 +179,18 @@ test('the time zone setting decides what clock the app reads by', async ({ page 
   await page.locator('.filter-menu__item', { hasText: /^UTC$/ }).click()
   await page.goto('/#/logs')
   await expect(logTime()).toContainText('11:59')
+})
+
+test('logs render the date and time on separate lines', async ({ page }) => {
+  await page.goto('/#/logs')
+  const stamp = livePage(page).locator('.logs__line .logs__time').last()
+  const date = stamp.locator('.logs__date')
+  const time = stamp.locator('.logs__clock')
+
+  await expect(date).not.toBeEmpty()
+  await expect(time).toHaveText('19:59')
+  await expect(date).toHaveCSS('display', 'block')
+  await expect(time).toHaveCSS('display', 'block')
 })
 
 test('the time zone list offers every zone and searches them by name', async ({ page }) => {
@@ -265,6 +315,64 @@ test('carries the default bot name over from the connect form', async ({ page })
   // The connect form never asked for a name, so the bot is named after its username.
   await expect(bots.first()).toContainText('tester')
   await expect(bots.first()).toContainText('当前')
+})
+
+test('test connection moves success into the bot test button', async ({ page }) => {
+  const row = livePage(page).locator('.bots__row').first()
+  const button = row.getByRole('button', {
+    name: /测试连接|连接成功|Test connection|Connected|Connection successful/,
+  })
+
+  await button.click()
+
+  await expect(button).toContainText('连接成功')
+  await expect(row.locator('.bots__meta .chip', { hasText: '连接成功' })).toHaveCount(0)
+
+  const language = fieldMenu(page, '语言').locator('.filter-menu__button')
+  await language.click()
+  await page.locator('.filter-menu__item', { hasText: 'English' }).click()
+  await expect(button).toContainText('Connection successful')
+})
+
+test('the bot name follows username until the name is edited', async ({ page }) => {
+  await livePage(page).locator('button', { hasText: '添加机器人' }).click()
+  const editor = livePage(page).locator('.bots__editor')
+  const name = editor.getByLabel('机器人名称')
+  const username = editor.getByLabel('用户名')
+
+  await username.fill('second')
+  await expect(name).toHaveValue('second')
+  await name.fill('我的机器人')
+  await username.fill('third')
+  await expect(name).toHaveValue('我的机器人')
+})
+
+test('delete bot opens an inline confirmation instead of a dialog', async ({ page }) => {
+  const botsPanel = panel(page, '机器人')
+  await botsPanel.locator('.bots__row').first().locator('button', { hasText: '删除' }).click()
+
+  await expect(botsPanel.locator('.inline-confirm')).toContainText(
+    '将从本机移除 tester，需要重新输入凭据才能再次添加。',
+  )
+  await expect(page.locator('[role="dialog"]')).toHaveCount(0)
+})
+
+test('the clear local data confirmation message stays centered', async ({ page }) => {
+  const dataPanel = panel(page, '本机数据')
+  await dataPanel.locator('button', { hasText: '清除本机数据' }).click()
+  const confirmation = dataPanel.locator('.inline-confirm')
+  const message = confirmation.locator('.inline-confirm__message')
+  const [confirmationBox, messageBox] = await Promise.all([
+    confirmation.boundingBox(),
+    message.boundingBox(),
+  ])
+
+  await expect(message).toHaveText('这会把保存的凭据与偏好一并删除。')
+  expect(
+    Math.abs(
+      confirmationBox!.x + confirmationBox!.width / 2 - (messageBox!.x + messageBox!.width / 2),
+    ),
+  ).toBeLessThanOrEqual(1)
 })
 
 test('adding a second bot and switching moves the dashboard to it', async ({ page }) => {
