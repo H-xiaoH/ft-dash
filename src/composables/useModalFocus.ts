@@ -20,33 +20,33 @@ const modalStack = shallowRef<ModalEntry[]>([])
  * it once it closes.
  */
 export function useModalFocus(open: Ref<boolean>, panel: Ref<HTMLElement | null>) {
-  const entry: ModalEntry = {
-    id: ++nextModalId,
-    panel,
-    opener: null,
-    parent: null,
-    active: false,
-  }
+  // Each opening owns a fresh entry. A still-open child may retain the previous entry as
+  // its parent while this same component closes and reopens around it.
+  let entry: ModalEntry | null = null
   let focusRequest = 0
   const shell = () => document.querySelector('.shell')
   const topModal = () => modalStack.value[modalStack.value.length - 1]
 
   function activeElement(): HTMLElement | null {
-    return document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const element = document.activeElement
+    return element instanceof HTMLElement && element !== document.body ? element : null
   }
 
   function resolveFocusContext(modal: ModalEntry): HTMLElement | null {
-    if (modal.parent) {
-      if (modal.parent.active) {
-        const parentPanel = modal.parent.panel.value
-        if (parentPanel?.isConnected) return parentPanel
-      }
-
-      const parentContext = resolveFocusContext(modal.parent)
-      if (parentContext) return parentContext
+    const visited = new Set<ModalEntry>()
+    const chain: ModalEntry[] = []
+    let current: ModalEntry | null = modal
+    while (current && !visited.has(current)) {
+      visited.add(current)
+      chain.push(current)
+      const parent: ModalEntry | null = current.parent
+      if (parent?.active && parent.panel.value?.isConnected) return parent.panel.value
+      current = parent
     }
-
-    return modal.opener?.isConnected ? modal.opener : null
+    for (const ancestor of chain.reverse()) {
+      if (ancestor.opener?.isConnected) return ancestor.opener
+    }
+    return null
   }
 
   function focusFallback() {
@@ -79,25 +79,32 @@ export function useModalFocus(open: Ref<boolean>, panel: Ref<HTMLElement | null>
   }
 
   function acquireLock() {
-    if (entry.active) return
-    entry.parent = topModal() ?? null
-    entry.opener = activeElement()
-    entry.active = true
+    if (entry?.active) return
+    const modal: ModalEntry = {
+      id: ++nextModalId,
+      panel,
+      opener: activeElement(),
+      parent: topModal() ?? null,
+      active: true,
+    }
+    entry = modal
     if (activeLockCount === 0) {
       savedBodyOverflow = document.body.style.overflow
       document.body.style.overflow = 'hidden'
     }
     activeLockCount += 1
-    modalStack.value = [...modalStack.value, entry]
+    modalStack.value = [...modalStack.value, modal]
     shell()?.setAttribute('inert', '')
   }
 
   function releaseLock() {
-    if (!entry.active) return false
-    const index = modalStack.value.indexOf(entry)
-    const wasTop = topModal()?.id === entry.id
-    entry.active = false
-    if (index >= 0) modalStack.value = modalStack.value.filter((modal) => modal !== entry)
+    const modal = entry
+    if (!modal?.active) return false
+    entry = null
+    const index = modalStack.value.indexOf(modal)
+    const wasTop = topModal()?.id === modal.id
+    modal.active = false
+    if (index >= 0) modalStack.value = modalStack.value.filter((item) => item !== modal)
     activeLockCount = Math.max(0, activeLockCount - 1)
     if (activeLockCount > 0) {
       if (wasTop) focusTopModal()
@@ -107,11 +114,11 @@ export function useModalFocus(open: Ref<boolean>, panel: Ref<HTMLElement | null>
     shell()?.removeAttribute('inert')
     document.body.style.overflow = savedBodyOverflow ?? ''
     savedBodyOverflow = null
-    restoreFocus(entry)
+    restoreFocus(modal)
     return true
   }
 
-  const isTopModal = computed(() => entry.active && open.value && topModal()?.id === entry.id)
+  const isTopModal = computed(() => entry?.active && open.value && topModal()?.id === entry.id)
 
   watch(
     open,

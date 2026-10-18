@@ -92,6 +92,60 @@ describe('useModalFocus through ConfirmDialog', () => {
     expect(document.activeElement).toBe(backgroundButton)
   })
 
+  it('restores background focus after the outer modal closes and reopens around a nested modal', async () => {
+    const shell = document.createElement('div')
+    shell.className = 'shell'
+    const backgroundButton = document.createElement('button')
+    backgroundButton.textContent = '背景动作'
+    shell.append(backgroundButton)
+    document.body.append(shell)
+    backgroundButton.focus()
+
+    const outer = mountDialog()
+    await nextTick()
+    const inner = mountDialog()
+    await nextTick()
+
+    // Browser back removes the drawer while its confirmation stays open; forward reopens it.
+    await outer.setProps({ open: false })
+    await outer.setProps({ open: true })
+    await nextTick()
+    expect(shell.hasAttribute('inert')).toBe(true)
+
+    await outer.setProps({ open: false })
+    await inner.setProps({ open: false })
+    await nextTick()
+    expect(shell.hasAttribute('inert')).toBe(false)
+    expect(document.body.style.overflow).toBe('')
+    expect(document.activeElement).toBe(backgroundButton)
+  })
+
+  it('keeps the reopened outer modal focused when the older nested modal closes first', async () => {
+    const shell = document.createElement('div')
+    shell.className = 'shell'
+    const backgroundButton = document.createElement('button')
+    shell.append(backgroundButton)
+    document.body.append(shell)
+    backgroundButton.focus()
+
+    const outer = mountDialog()
+    await nextTick()
+    const inner = mountDialog()
+    await nextTick()
+    await outer.setProps({ open: false })
+    await outer.setProps({ open: true })
+    await nextTick()
+
+    const outerPanel = document.body.querySelector<HTMLElement>('.dialog')
+    await inner.setProps({ open: false })
+    await nextTick()
+    expect(document.activeElement).toBe(outerPanel)
+
+    await outer.setProps({ open: false })
+    await nextTick()
+    expect(document.activeElement).toBe(backgroundButton)
+  })
+
   it('restores focus to the outer panel and lets only the top modal handle Escape', async () => {
     const shell = document.createElement('div')
     shell.className = 'shell'

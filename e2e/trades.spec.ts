@@ -276,6 +276,36 @@ test('force exit requires the exact pair and Escape only closes its confirmation
   await expect(page.locator('.toast', { hasText: '指令已发送' })).toBeVisible()
 })
 
+test('back and forward around an open force-exit confirmation restores focus safely', async ({
+  page,
+}) => {
+  const pageErrors: Error[] = []
+  page.on('pageerror', (error) => pageErrors.push(error))
+
+  await page.goto('/#/settings')
+  await livePage(page).getByRole('button', { name: '我了解风险，开启控制功能' }).click()
+  await page.goto('/#/trades')
+  await livePage(page).locator('table tbody tr', { hasText: 'OPEN/USDT' }).click()
+
+  const drawer = page.locator('.overlay--drawer .drawer')
+  const confirmation = page.locator('.overlay[role="dialog"]:not(.overlay--drawer)')
+  await drawer.getByRole('button', { name: '平仓' }).click()
+  await expect(confirmation).toBeVisible()
+
+  await page.goBack()
+  await expect(drawer).toHaveCount(0)
+  await expect(confirmation).toBeVisible()
+  await page.goForward()
+  await expect(drawer).toBeVisible()
+  await page.goBack()
+  await expect(drawer).toHaveCount(0)
+
+  await confirmation.getByRole('button', { name: '取消' }).click()
+  await expect(confirmation).toHaveCount(0)
+  await expect(page.locator('.shell')).not.toHaveAttribute('inert', '')
+  expect(pageErrors).toEqual([])
+})
+
 test('trade details scroll inside the drawer without moving the page', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 480 })
   await page.goto('/#/trades?trade=1')
