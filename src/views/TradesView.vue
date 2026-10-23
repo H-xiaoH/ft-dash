@@ -12,6 +12,7 @@ import { useFormat } from '@/composables/useFormat'
 import { useSegBlock } from '@/composables/useSegBlock'
 import { pushToast } from '@/composables/useToast'
 import { downloadCsv } from '@/lib/csv'
+import { isStandalone } from '@/lib/navigation'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
 
@@ -197,6 +198,11 @@ function closeDrawer() {
   selected.value = null
   const query = { ...route.query }
   delete query.trade
+  if (isStandalone.value) {
+    // Detail opened with push: Back removes that entry instead of leaving a duplicate list page.
+    void router.back()
+    return
+  }
   void router.replace({ query })
 }
 
@@ -271,7 +277,22 @@ watch(linkedTrade, (trade) => (selected.value = trade))
 // Set a deep-linked trade after this view mounts so the drawer transition can observe its
 // closed -> open edge instead of rendering an already-open drawer in the first frame.
 onMounted(() => {
-  selected.value = linkedTrade.value
+  if (!isStandalone.value || typeof route.query.trade !== 'string') {
+    selected.value = linkedTrade.value
+    return
+  }
+
+  // A standalone deep link has no list entry behind it. Build that one history layer before
+  // restoring the detail URL, so the system Back action closes the drawer inside the app.
+  const detailQuery = { ...route.query }
+  const listQuery = { ...detailQuery }
+  delete listQuery.trade
+  void router
+    .replace({ query: listQuery })
+    .then(() => router.push({ query: detailQuery }))
+    .catch(() => {
+      selected.value = linkedTrade.value
+    })
 })
 </script>
 

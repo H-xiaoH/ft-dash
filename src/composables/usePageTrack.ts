@@ -1,5 +1,6 @@
 import { computed, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { navigatePage } from '@/lib/navigation'
 import { NAV_ROUTES } from '@/router'
 
 /** A page held on the track, ready to be slid into view. */
@@ -152,7 +153,7 @@ export function usePageTrack() {
    */
   async function goTo(index: number) {
     const entry = NAV_ROUTES[index]
-    if (entry && index !== routeIndex()) await router.push(entry.path)
+    if (entry && index !== routeIndex()) await navigatePage(router, entry.path)
   }
 
   /** Waits out the settle animation, so the page swap happens after the slide. */
@@ -175,7 +176,7 @@ export function usePageTrack() {
       // the swap would land on an empty track.
       await resolvePage(index)
       handoff.value = true
-      await router.push(entry.path)
+      await navigatePage(router, entry.path)
       // The reset waits for the enter to finish — clearing the handoff earlier re-arms the
       // slide, and the page you just swiped to slides in a second time. This is the safety
       // net for an enter that never reports back.

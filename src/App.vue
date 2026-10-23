@@ -8,6 +8,7 @@ import StatusStrip from '@/components/StatusStrip.vue'
 import ConnectView from '@/views/ConnectView.vue'
 import { usePageDrag } from '@/composables/usePageDrag'
 import { useToasts } from '@/composables/useToast'
+import { navigatePage } from '@/lib/navigation'
 import { NAV_ROUTES } from '@/router'
 import { useBotStore } from '@/stores/bot'
 import { useEventsStore } from '@/stores/events'
@@ -105,7 +106,11 @@ async function refresh() {
 
 /** The live tape lives on the System page. */
 function openTape() {
-  if (route.name !== 'system') void router.push('/system')
+  if (route.name !== 'system') void navigatePage(router, '/system')
+}
+
+function openSettings() {
+  void navigatePage(router, '/settings')
 }
 
 onMounted(async () => {
@@ -194,7 +199,7 @@ watch(
           <div>{{ connectionBanner }}</div>
         </div>
         <div class="spacer" />
-        <button type="button" class="btn btn--sm" @click="router.push('/settings')">
+        <button type="button" class="btn btn--sm" @click="openSettings">
           {{ t('bots.openSettings') }}
         </button>
         <button type="button" class="btn btn--sm" @click="refresh">{{ t('common.retry') }}</button>

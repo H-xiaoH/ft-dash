@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 import type { RouteRecordName } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
+import { isStandalone } from '@/lib/navigation'
 import { NAV_ROUTES } from '@/router'
 
 interface Props {
@@ -46,6 +47,7 @@ function forwardRailWheel(event: WheelEvent) {
       v-for="item in NAV_ROUTES"
       :key="item.name"
       :to="item.path"
+      :replace="isStandalone"
       class="rail__item"
       :class="{ 'is-active': activeRouteName === item.name }"
       :aria-current="activeRouteName === item.name ? 'page' : undefined"
@@ -74,6 +76,7 @@ function forwardRailWheel(event: WheelEvent) {
       v-for="(item, index) in NAV_ROUTES"
       :key="item.name"
       :to="item.path"
+      :replace="isStandalone"
       class="tabbar__item"
       :class="{ 'is-active': activeRouteName === item.name }"
       :aria-current="activeRouteName === item.name ? 'page' : undefined"

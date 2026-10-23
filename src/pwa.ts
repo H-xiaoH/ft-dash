@@ -1,10 +1,12 @@
 import { ref } from 'vue'
 import { registerSW } from 'virtual:pwa-register'
 import { startUpdateChecks } from '@/lib/update'
+import { detectStandalone, isStandalone } from '@/lib/navigation'
+
+export { isStandalone } from '@/lib/navigation'
 
 export const offlineReady = ref(false)
 export const canInstall = ref(false)
-export const isStandalone = ref(false)
 
 let installPrompt: BeforeInstallPromptEvent | null = null
 
@@ -34,7 +36,7 @@ export function setupPwa() {
     installPrompt = null
   })
 
-  isStandalone.value = window.matchMedia('(display-mode: standalone)').matches
+  isStandalone.value = detectStandalone()
   if (isStandalone.value) {
     canInstall.value = false
   }

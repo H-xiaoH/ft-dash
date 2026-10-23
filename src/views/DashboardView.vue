@@ -11,6 +11,7 @@ import Sparkline from '@/components/Sparkline.vue'
 import { useFormat } from '@/composables/useFormat'
 import { pushToast } from '@/composables/useToast'
 import { useChartHeight } from '@/composables/useChartHeight'
+import { isStandalone, navigatePage } from '@/lib/navigation'
 import { toIsoDate } from '@/lib/format'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
@@ -23,14 +24,22 @@ const router = useRouter()
 const exitTarget = ref<Trade | null>(null)
 /** Deep-links the overview panels into the matching trades tab. */
 function openTradesTab(filter: 'open' | 'closed') {
-  void router.push({ path: '/trades', query: { filter } })
+  void navigatePage(router, { path: '/trades', query: { filter } })
 }
 
-function openOverviewTrade(trade: Trade, filter: 'open' | 'closed'): void {
-  void router.push({
+async function openOverviewTrade(trade: Trade, filter: 'open' | 'closed'): Promise<void> {
+  const detail = {
     path: '/trades',
     query: { filter, trade: String(trade.trade_id) },
-  })
+  }
+  if (!isStandalone.value) {
+    await router.push(detail)
+    return
+  }
+
+  // Keep a real trades-list entry behind the detail so the system Back action closes the drawer.
+  await navigatePage(router, { path: '/trades', query: { filter } })
+  await router.push(detail)
 }
 const pnlChartHeight = useChartHeight(150, 0.2, 230)
 /** The overview stays a summary: only the newest closed trades are listed. */
@@ -142,7 +151,7 @@ async function confirmExit() {
         <div class="panel__head">
           <span class="panel__title">{{ t('dashboard.dailyPnl') }}</span>
           <div class="panel__actions">
-            <button type="button" class="link-btn small" @click="router.push('/stats')">
+            <button type="button" class="link-btn small" @click="navigatePage(router, '/stats')">
               {{ t('dashboard.viewAll') }}
             </button>
           </div>
