@@ -94,7 +94,6 @@ export const useBotStore = defineStore('bot', () => {
   const openTrades = ref<Trade[]>([])
   const count = ref<StatusCountResponse | null>(null)
   const trades = ref<Trade[]>([])
-  const tradesTotal = ref(0)
   const tradeStats = ref<TradeStats | null>(null)
   // Named `performanceStats` because the global `performance` is used for latency.
   const performanceStats = ref<PerformanceEntry[]>([])
@@ -285,20 +284,7 @@ export const useBotStore = defineStore('bot', () => {
     if (epoch !== botEpoch) return
     if (result) {
       trades.value = result.trades
-      tradesTotal.value = result.total_trades
     }
-  }
-
-  /** Explicit paged fetch used by the trades view's "load more". */
-  async function fetchTrades(limit: number) {
-    const epoch = botEpoch
-    const result = await track(() => ensureClient().trades({ limit }))
-    if (epoch !== botEpoch) return result
-    if (result) {
-      trades.value = result.trades
-      tradesTotal.value = result.total_trades
-    }
-    return result
   }
 
   async function refreshAnalytics() {
@@ -503,7 +489,6 @@ export const useBotStore = defineStore('bot', () => {
     openTrades.value = []
     count.value = null
     trades.value = []
-    tradesTotal.value = 0
     tradeStats.value = null
     performanceStats.value = []
     daily.value = null
@@ -529,7 +514,6 @@ export const useBotStore = defineStore('bot', () => {
     openTrades: Trade[]
     count: StatusCountResponse | null
     trades: Trade[]
-    tradesTotal: number
     tradeStats: TradeStats | null
     performanceStats: PerformanceEntry[]
     daily: DailyResponse | null
@@ -555,7 +539,6 @@ export const useBotStore = defineStore('bot', () => {
       openTrades: openTrades.value,
       count: count.value,
       trades: trades.value,
-      tradesTotal: tradesTotal.value,
       tradeStats: tradeStats.value,
       performanceStats: performanceStats.value,
       daily: daily.value,
@@ -581,7 +564,6 @@ export const useBotStore = defineStore('bot', () => {
     openTrades.value = snapshot.openTrades
     count.value = snapshot.count
     trades.value = snapshot.trades
-    tradesTotal.value = snapshot.tradesTotal
     tradeStats.value = snapshot.tradeStats
     performanceStats.value = snapshot.performanceStats
     daily.value = snapshot.daily
@@ -1048,7 +1030,6 @@ export const useBotStore = defineStore('bot', () => {
     openTrades,
     count,
     trades,
-    tradesTotal,
     tradeStats,
     performance: performanceStats,
     daily,
@@ -1082,7 +1063,6 @@ export const useBotStore = defineStore('bot', () => {
     refreshAll,
     refreshCore,
     refreshTrades,
-    fetchTrades,
     refreshAnalytics,
     refreshMarket,
     refreshSystem,

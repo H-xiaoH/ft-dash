@@ -1,22 +1,32 @@
+<div align="center">
+
 # ft-dash
 
-[![Deploy to GitHub Pages](https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml/badge.svg)](https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml)
+<p><strong>给 Freqtrade 的移动优先控制台。</strong><br />
+可安装为 App 的 Vue PWA，让浏览器、机器人和数据保持最短链路。</p>
 
-[English](README.md) · **简体中文**
+<p>
+  <a href="https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml"><img src="https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml/badge.svg" alt="Deploy to GitHub Pages" /></a>
+  <a href="https://vuejs.org/"><img src="https://img.shields.io/badge/Vue-3-42b883?logo=vuedotjs&logoColor=white" alt="Vue 3" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0f766e.svg" alt="MIT license" /></a>
+</p>
 
-面向 [Freqtrade](https://www.freqtrade.io/) 机器人的移动优先、可安装为 App 的 Web 控制台。
-它是一个纯静态的 Vue PWA：浏览器直接与你的机器人 REST API 通信，不需要部署后端，中间也没有
-任何第三方。
+<p><a href="README.md">English</a> · <strong>简体中文</strong></p>
 
-## 功能
+</div>
+
+> **纯前端。** 浏览器直接访问 [Freqtrade](https://www.freqtrade.io/) 的 REST API，不需要部署后端，
+> 也没有任何中间服务接触你的凭据。
+
+## 功能亮点
 
 - **总览** — 账户净值、浮动/总/今日盈亏、交易笔数与盈亏比，配每日盈亏柱状图（可按住滑动查看
   每一根柱子）、当前持仓与最近平仓。
 - **交易** — 持仓中 / 已平仓 / 全部交易（"全部"会把实时持仓与历史合并）列表，含方向、投入、
   开仓价与当前价、盈亏、持仓时长；表头点击排序，搜索按钮点开才展开，结果过滤（全部 / 盈利 /
   亏损），单笔详情抽屉（订单、手续费、资金费、杠杆、止损、强平价）与 CSV 导出。手机端同一
-  数据以卡片列表呈现，不需要横向滚动。每页固定 20 条并带翻页控件，切换筛选、搜索或排序会
-  自动回到第 1 页。
+  数据以卡片列表呈现，不需要横向滚动。已加载的历史记录在浏览器内按每页 20 条翻页，切换筛选、
+  搜索或排序会自动回到第 1 页。
 - **统计** — 按交易对的总计，外加胜率（含盈利/亏损笔数）、平均持仓时长、手续费、成交额与最近
   平仓时间（由已加载的成交明细推导，不额外请求接口；超出该窗口的老交易对显示 `—`）；日/周/月
   收益图表与周期表格；以及平均持仓时长。表头点击排序，搜索在当前列表内过滤。

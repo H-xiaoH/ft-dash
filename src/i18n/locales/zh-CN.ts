@@ -156,7 +156,6 @@ export default {
     orderStatus: '状态',
     orderDate: '时间',
     noClosed: '还没有平仓记录。',
-    loadMore: '加载更多',
     exportCsv: '导出 CSV',
     filterStatus: '{filter}，显示 {count} 笔交易。',
     filterStatusOne: '{filter}，显示 1 笔交易。',

@@ -31,7 +31,6 @@ const sortKey = ref<SortKey>('open_timestamp')
 const sortDir = ref<'asc' | 'desc'>('desc')
 const selected = ref<Trade | null>(null)
 const exitTarget = ref<Trade | null>(null)
-const limit = ref(300)
 /** Rows per page; paging happens in the browser over everything already loaded. */
 const PAGE_SIZE = 20
 const page = ref(1)
@@ -212,12 +211,6 @@ function exportCsv() {
     trade.exit_reason ?? '',
   ])
   downloadCsv(`ft-dash-trades-${new Date().toISOString().slice(0, 10)}.csv`, [header, ...body])
-}
-
-async function loadMore() {
-  // No artificial ceiling: keep paging until every available trade is loaded.
-  limit.value += 300
-  await bot.fetchTrades(limit.value)
 }
 
 /**
@@ -475,16 +468,6 @@ onMounted(() => {
           >
             {{ t('common.next') }}
             <AppIcon name="chevronRight" />
-          </button>
-          <button
-            v-if="bot.tradesTotal > rows.length"
-            type="button"
-            class="btn btn--sm"
-            :disabled="bot.actionPending !== null"
-            @click="loadMore"
-          >
-            {{ t('trades.loadMore') }}
-            <span class="muted small">({{ bot.tradesTotal - rows.length }})</span>
           </button>
         </div>
       </div>

@@ -1,14 +1,24 @@
+<div align="center">
+
 # ft-dash
 
-[![Deploy to GitHub Pages](https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml/badge.svg)](https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml)
+<p><strong>A calm, mobile-first command center for Freqtrade.</strong><br />
+An installable Vue PWA that keeps the browser, your bot and your data in one short path.</p>
 
-**English** · [简体中文](README.zh-CN.md)
+<p>
+  <a href="https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml"><img src="https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml/badge.svg" alt="Deploy to GitHub Pages" /></a>
+  <a href="https://vuejs.org/"><img src="https://img.shields.io/badge/Vue-3-42b883?logo=vuedotjs&logoColor=white" alt="Vue 3" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0f766e.svg" alt="MIT license" /></a>
+</p>
 
-A mobile-first, installable web console for [Freqtrade](https://www.freqtrade.io/) bots.
-It is a static Vue PWA: your browser talks straight to your bot's REST API, so there is no
-backend to host and nothing to trust in the middle.
+<p><strong>English</strong> · <a href="README.zh-CN.md">简体中文</a></p>
 
-## What it does
+</div>
+
+> **Frontend only.** The browser talks directly to the [Freqtrade](https://www.freqtrade.io/)
+> REST API. There is no backend to host and no service in the middle that needs your credentials.
+
+## Highlights
 
 - **Overview** — equity, open/closed/today's P&L, trade count and profit factor over a daily
   P&L chart, plus the open positions and recently closed trades.
@@ -16,8 +26,8 @@ backend to host and nothing to trust in the middle.
   staked amount, prices, P&L and duration; sortable columns, a search that expands from the
   toolbar, an outcome filter (all / profitable / losing), per-trade detail (orders, fees,
   funding, leverage, stop loss, liquidation) and CSV export. On phones the same data is a
-  card list instead of a wide table. 20 rows per page, with a pager that resets whenever the
-  filter, search or sort changes.
+  card list instead of a wide table. The loaded history is paged locally at 20 rows per page;
+  the pager resets whenever the filter, search or sort changes.
 - **Statistics** — per-pair totals plus win rate, average holding time, fees, volume and last
   close (derived from the loaded trades, so pairs older than the loaded window show —); a
   daily/weekly/monthly chart with period table; and average holding times. Column headers

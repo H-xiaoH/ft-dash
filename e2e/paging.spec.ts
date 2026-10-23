@@ -20,6 +20,7 @@ test('long histories are paged at 20 rows per page', async ({ page }) => {
 
   await expect(rows).toHaveCount(20)
   await expect(pager).toContainText('第 1 / 3 页')
+  await expect(pager.getByRole('button', { name: /加载更多/ })).toHaveCount(0)
 
   await pager.locator('button', { hasText: '下一页' }).click()
   await expect(rows).toHaveCount(20)

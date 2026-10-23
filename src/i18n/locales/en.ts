@@ -157,7 +157,6 @@ export default {
     orderStatus: 'Status',
     orderDate: 'Time',
     noClosed: 'No closed trades yet.',
-    loadMore: 'Load more',
     exportCsv: 'Export CSV',
     filterStatus: '{filter}, showing {count} trades.',
     filterStatusOne: '{filter}, showing 1 trade.',
