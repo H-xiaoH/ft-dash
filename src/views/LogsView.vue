@@ -16,11 +16,17 @@ const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
 
-const minLevel = ref<string>('INFO')
+const minLevel = ref<Level>('INFO')
 const search = ref('')
 const follow = ref(true)
 
-const levelOptions: FilterOption[] = LEVELS.map((level) => ({ value: level, label: level }))
+const levelOptions: FilterOption<Level>[] = LEVELS.map((level) => ({ value: level, label: level }))
+
+function normalizeLevel(level: string): Level | null {
+  const normalized = level.trim().toUpperCase()
+  if (normalized === 'WARN' || normalized === 'WARNING') return 'WARNING'
+  return LEVELS.includes(normalized as Level) ? (normalized as Level) : null
+}
 
 interface DisplayLogLine {
   key: string
@@ -29,15 +35,16 @@ interface DisplayLogLine {
 }
 
 const lines = computed<DisplayLogLine[]>(() => {
-  const minIndex = Math.max(0, LEVELS.indexOf(minLevel.value as Level))
+  const minIndex = LEVELS.indexOf(minLevel.value)
   const query = search.value.trim().toLowerCase()
   const rows = bot.logs?.logs ?? []
   return rows
     .map((line, index) => ({ line, index }))
     .filter(({ line }) => {
-      const level = (line[3] ?? '').toUpperCase().replace('WARN', 'WARNING')
-      const index = LEVELS.indexOf(level as Level)
-      if (index !== -1 && index < minIndex) return false
+      const level = normalizeLevel(line[3] ?? '')
+      const index = level === null ? -1 : LEVELS.indexOf(level)
+      // Unknown levels have no defined place in the ordering, so they must not bypass the filter.
+      if (index === -1 || index < minIndex) return false
       if (query && !`${line[2]} ${line[4]}`.toLowerCase().includes(query)) return false
       return true
     })

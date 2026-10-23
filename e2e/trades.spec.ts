@@ -1,12 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
-import { connect, livePage, mockApi, segBlockMatches } from './support/fixtures'
+import { connect, livePage, mockApi } from './support/fixtures'
 
 const touchAt = (
   page: Page,
   type: 'touchstart' | 'touchmove' | 'touchend',
   x: number,
   y: number,
-  selector = '[data-swipe-tabs]',
+  selector: string,
 ) =>
   page.evaluate(
     ({ type, x, y, selector }) => {
@@ -24,12 +24,6 @@ const touchAt = (
     { type, x, y, selector },
   )
 
-const trackX = (page: Page) =>
-  page.locator('.page-track').evaluate((element) => {
-    const transform = getComputedStyle(element).transform
-    return transform === 'none' ? 0 : Math.round(new DOMMatrixReadOnly(transform).m41)
-  })
-
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
   await page.goto('/#/trades')
@@ -37,15 +31,66 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('.shell')).toBeVisible()
 })
 
-test('the filter block slides to the tab you pick', async ({ page }) => {
-  const seg = livePage(page).locator('.seg')
-  await expect.poll(() => segBlockMatches(seg)).toBe(true)
-  // It travels rather than jumping.
-  await expect(seg.locator('.seg__block')).toHaveCSS('transition-property', 'transform, width')
+test('switching trade filters transitions the result and announces its scope', async ({ page }) => {
+  const tabs = livePage(page).locator('.seg__item')
+  const status = livePage(page).locator('[data-filter-status]')
 
-  await livePage(page).locator('.seg__item', { hasText: '全部交易' }).click()
-  await expect(livePage(page).locator('.seg__item[aria-pressed="true"]')).toContainText('全部交易')
-  await expect.poll(() => segBlockMatches(seg)).toBe(true)
+  await expect(status).toContainText('全部交易')
+  await expect(livePage(page).locator('.seg__block')).toHaveCount(0)
+  await expect(livePage(page).locator('[data-swipe-tabs]')).toHaveCount(0)
+  await page.evaluate(() => {
+    const frames: { opacity: number; translateY: number }[] = []
+    ;(
+      window as unknown as {
+        __tradeFilterFrames?: { opacity: number; translateY: number }[]
+      }
+    ).__tradeFilterFrames = frames
+    const started = performance.now()
+    const tick = () => {
+      const content = document.querySelector('[data-filter-content]')
+      if (content) {
+        const style = getComputedStyle(content)
+        const transform = style.transform
+        frames.push({
+          opacity: Number(style.opacity),
+          translateY: transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42,
+        })
+      }
+      if (performance.now() - started < 700) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+
+  await tabs.nth(1).click()
+  await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
+  await expect(livePage(page).locator('table tbody tr')).toHaveCount(4)
+  await expect(status).toHaveText('已平仓，显示 4 笔交易。')
+  await page.waitForTimeout(400)
+
+  const frames = await page.evaluate(
+    () =>
+      (window as unknown as { __tradeFilterFrames?: { opacity: number; translateY: number }[] })
+        .__tradeFilterFrames ?? [],
+  )
+  expect(
+    frames.some(({ opacity, translateY }) => opacity < 0.99 || Math.abs(translateY) > 0.5),
+  ).toBe(true)
+})
+
+test('a horizontal swipe on trade results stays a page navigation', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 })
+  await page.goto('/#/trades?filter=closed')
+
+  const tabs = livePage(page).locator('.seg__item')
+  const cardSelector = '.page-track > :not(.page-neighbor) .card--tappable'
+  await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator(cardSelector).first()).toBeVisible()
+
+  await touchAt(page, 'touchstart', 300, 420, cardSelector)
+  await touchAt(page, 'touchmove', 120, 422, cardSelector)
+  await touchAt(page, 'touchend', 120, 422, cardSelector)
+
+  await expect.poll(() => page.url()).toMatch(/#\/stats$/)
 })
 
 test('“all trades” includes the open position, not just history', async ({ page }) => {
@@ -214,96 +259,6 @@ test('an unresolved trade query clears the stale trade drawer', async ({ page })
   })
   await expect(page).toHaveURL(/trade=404/)
   await expect(page.locator('.overlay--drawer')).toHaveCount(0)
-})
-
-test('swipe changes adjacent filters and hands off at their edges', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-  const tabs = livePage(page).locator('.seg__item')
-
-  const swipe = async (fromX: number, toX: number, fromY = 120, toY = 122) => {
-    await touchAt(page, 'touchstart', fromX, fromY)
-    await touchAt(page, 'touchmove', toX, toY)
-    await touchAt(page, 'touchend', toX, toY)
-  }
-
-  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
-  await swipe(300, 296)
-  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
-  await expect.poll(() => trackX(page)).toBe(0)
-  await swipe(300, 295, 120, 240)
-  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
-  expect(await trackX(page)).toBe(0)
-  await swipe(300, 120)
-  await expect.poll(() => page.url()).toMatch(/#\/stats$/)
-
-  await page.locator('.tabbar__item').nth(1).click()
-  await expect.poll(() => page.url()).toMatch(/#\/trades(?:\?|$)/)
-  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
-
-  await swipe(120, 300)
-  await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
-  await swipe(300, 120)
-  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
-  await swipe(120, 300)
-  await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
-  await swipe(120, 300)
-  await expect(tabs.nth(0)).toHaveAttribute('aria-pressed', 'true')
-  await swipe(120, 300)
-  await expect.poll(() => page.url()).toMatch(/#\/$/)
-})
-
-test('the last filter still hands off when the filter strip overflows', async ({ page }) => {
-  await page.setViewportSize({ width: 240, height: 780 })
-  const surface = page.locator('.page-track > :not(.page-neighbor)[data-swipe-tabs]')
-  const segment = livePage(page).locator('.seg')
-  await expect(surface).toHaveCSS('touch-action', 'pan-y')
-  await expect
-    .poll(() => segment.evaluate((element) => element.scrollWidth > element.clientWidth))
-    .toBe(true)
-
-  await touchAt(page, 'touchstart', 200, 120)
-  await touchAt(page, 'touchmove', 80, 122)
-  await touchAt(page, 'touchend', 80, 122)
-
-  await expect.poll(() => page.url()).toMatch(/#\/stats$/)
-})
-
-test('a swipe on the trades page changes its filter before page navigation', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-  const tabs = livePage(page).locator('.seg__item')
-  const card = livePage(page).locator('.card--tappable').first()
-  const surface = page.locator('.page-track > :not(.page-neighbor)[data-swipe-tabs]')
-
-  await expect(surface).toBeVisible()
-  await expect(card).toBeVisible()
-  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
-
-  // Start on the list itself, not on the segmented control. The filter owns an inward swipe.
-  const liveCardSelector = '.page-track > :not(.page-neighbor) .card--tappable'
-  await touchAt(page, 'touchstart', 120, 420, liveCardSelector)
-  await touchAt(page, 'touchmove', 300, 422, liveCardSelector)
-  await touchAt(page, 'touchend', 300, 422, liveCardSelector)
-  await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
-  expect(new URL(page.url()).hash).toMatch(/^#\/trades\?filter=closed$/)
-
-  await touchAt(page, 'touchstart', 300, 420, liveCardSelector)
-  await touchAt(page, 'touchmove', 120, 422, liveCardSelector)
-  await touchAt(page, 'touchend', 120, 422, liveCardSelector)
-  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
-  expect(new URL(page.url()).hash).toBe('#/trades')
-})
-
-test('an open trade drawer keeps filter swipes out of the page', async ({ page }) => {
-  const tabs = livePage(page).locator('.seg__item')
-  await livePage(page).locator('table tbody tr').first().click()
-  await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
-
-  await touchAt(page, 'touchstart', 120, 420)
-  await touchAt(page, 'touchmove', 300, 422)
-  await touchAt(page, 'touchend', 300, 422)
-
-  await expect(tabs.nth(2)).toHaveAttribute('aria-pressed', 'true')
-  expect(new URL(page.url()).hash).toBe('#/trades?trade=99')
 })
 
 test('a deep link opens its trade even when the page boots empty', async ({ page }) => {

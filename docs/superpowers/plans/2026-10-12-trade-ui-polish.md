@@ -86,6 +86,8 @@
 
 ### Task 2: 交易筛选手势、路由上下文与详情返回
 
+> 后续用户决定移除交易页筛选专用的左右手势和滑动背景块。本任务中与交易筛选手势、`[data-swipe-tabs]` 和 `moveFilter` 相关的步骤以该决定为准：筛选只通过点击切换，横向滑动交给全局页面导航或原生滚动容器。
+
 **Files:**
 - Modify: `src/views/TradesView.vue`
 - Modify: `src/views/DashboardView.vue`
@@ -94,8 +96,8 @@
 - Modify: `e2e/navigation.spec.ts`（仅在需要验证全局手势排除时）
 
 **Interfaces:**
-- `TradesView` 继续以 `Filter = 'open' | 'closed' | 'all'` 为唯一筛选类型；增加 `moveFilter(delta: 1 | -1): void`、`onFilterTouchStart(event: TouchEvent): void`、`onFilterTouchEnd(event: TouchEvent): void`。
-- 页面手势层识别 `[data-swipe-tabs]` 为组件自有手势区域；被标记区域不进入 `usePageDrag`。
+- `TradesView` 继续以 `Filter = 'open' | 'closed' | 'all'` 为唯一筛选类型；筛选只通过点击切换。
+- 页面手势层不再识别交易筛选专用的 `[data-swipe-tabs]` 区域；横向手势继续由全局页面导航或原生滚动容器处理。
 - `DashboardView` 的 `openOverviewTrade(trade: Trade, filter: 'open' | 'closed'): void` 统一带上筛选和交易 query。
 
 - [ ] **Step 1: Add failing E2E assertions for route context and return**
@@ -111,18 +113,18 @@
 
   在 `DashboardView.vue` 用 `openOverviewTrade` 替换两处行内导航；在 `TradesView.vue` 的 `openTrade` 使用 `router.push` 保存详情历史项，监听 `route.query.trade` 从有值变为无值时清空 `selected`，保持现有 `filter` 同步和深链异步解析。
 
-- [ ] **Step 4: Add failing mobile swipe assertions**
+- [x] **Step 4: Replace the cancelled mobile filter-swipe assertions**
 
-  在 `e2e/trades.spec.ts` 设置 390px 视口，通过现有 touch helper 对 `[data-swipe-tabs]` 做左滑/右滑，断言活动筛选按相邻顺序变化、越界不变，并断言 `.page-track` 不发生页面级位移。
+  用户确认取消交易筛选左右滑动；`e2e/trades.spec.ts` 改为验证从交易结果区域横滑会进入全局页面导航，而不会改变交易筛选。
 
-- [ ] **Step 5: Implement the owned tab gesture**
+- [x] **Step 5: Remove the obsolete owned tab gesture**
 
-  在筛选容器添加 `data-swipe-tabs`、`touch-action: pan-y` 和 touch handlers；只在横向位移超过阈值且大于纵向位移时调用 `moveFilter`，阈值外或纵向手势不改变筛选。扩展 `usePageDrag.gestureIsTaken`，让该属性在页面拖拽判断前被消费。
+  移除筛选容器的 `data-swipe-tabs`、`touch-action`、touch handlers、`moveFilter` 以及 `usePageDrag` 中对应的特殊分支。
 
-- [ ] **Step 6: Run the focused trade E2E tests and verify they pass**
+- [x] **Step 6: Run the focused trade E2E tests and verify they pass**
 
-  Run: `npx playwright test e2e/trades.spec.ts --grep "matching trades tab|same trades list|recently closed rows|swipe"`
-  Expected: PASS，且既有 segment block、deep link、focus/inert 测试继续通过。
+  Run: `npx playwright test e2e/trades.spec.ts`。
+  Expected: PASS，且筛选过渡、URL 同步、全局导航横滑、deep link、focus/inert 测试继续通过。
 
 - [ ] **Step 7: Commit the trade navigation changes**
 

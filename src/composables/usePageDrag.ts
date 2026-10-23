@@ -12,11 +12,9 @@ type DragSide = 1 | -1
  *
  * A swipe pushes the page aside, one screen per finger, one page per gesture. The bottom bar
  * is not a drag surface: a touch that lands on it belongs to the tab under the finger, so a
- * tap cannot lose the gesture to a finger that wobbled sideways. A component that owns a
- * horizontal gesture can expose a `[data-swipe-tabs]` boundary; the page only takes that
- * gesture when it is moving out past the first or last tab. On wide screens the rail is the
- * page selector: the wheel walks pages there instead of scrolling the page behind it, a notch
- * at a time, a trackpad's stream continuously.
+ * tap cannot lose the gesture to a finger that wobbled sideways. On wide screens the rail is
+ * the page selector: the wheel walks pages there instead of scrolling the page behind it, a
+ * notch at a time, a trackpad's stream continuously.
  *
  * `isBlocked` lets the caller veto the whole thing (a dialog is open, or we are still on
  * the connect screen).
@@ -62,22 +60,6 @@ export function usePageDrag(isBlocked: () => boolean) {
     return target instanceof Element && target.closest('[data-scrub]') !== null
   }
 
-  /**
-   * A tab strip keeps an inward swipe for itself. Only an outward swipe at its edge is handed
-   * to the page rail, so the filter can walk one choice at a time before navigation resumes.
-   */
-  function canHandOffSwipeTabs(target: EventTarget | null, dx: number) {
-    const tabs = target instanceof Element ? target.closest<HTMLElement>('[data-swipe-tabs]') : null
-    if (!tabs) return true
-
-    const index = Number(tabs.dataset.swipeIndex)
-    const count = Number(tabs.dataset.swipeCount)
-    if (!Number.isInteger(index) || !Number.isInteger(count) || count < 2) return false
-
-    const filterDirection = dx < 0 ? 1 : -1
-    return filterDirection < 0 ? index === 0 : index === count - 1
-  }
-
   /** A sideways scroller under the finger keeps the gesture for itself. */
   function hasHorizontalScroll(target: EventTarget | null) {
     for (let node = target instanceof Element ? target : null; node; node = node.parentElement) {
@@ -116,12 +98,7 @@ export function usePageDrag(isBlocked: () => boolean) {
     if (!current.claimed) {
       // Until the gesture is clearly sideways, the scroller owns it.
       if (Math.abs(dx) < DRAG_CLAIM_PX || Math.abs(dx) < Math.abs(dy) * 1.2) return
-      const swipeTabs =
-        current.target instanceof Element
-          ? current.target.closest<HTMLElement>('[data-swipe-tabs]')
-          : null
-      if (swipeTabs && !canHandOffSwipeTabs(current.target, dx)) return
-      if (!swipeTabs && hasHorizontalScroll(current.target)) {
+      if (hasHorizontalScroll(current.target)) {
         gesture = null
         return
       }

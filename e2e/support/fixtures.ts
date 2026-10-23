@@ -324,10 +324,14 @@ export const RESPONSES: Record<string, unknown> = {
   weekly: { data: periodRows(8, 7), fiat_display_currency: 'USD', stake_currency: 'USDT' },
   monthly: { data: periodRows(3, 30), fiat_display_currency: 'USD', stake_currency: 'USDT' },
   logs: {
-    log_count: 2,
+    log_count: 6,
     logs: [
       ['2026-09-20 11:59:00', NOW - 60_000, 'freqtrade.worker', 'INFO', 'Bot heartbeat'],
       ['2026-09-20 11:58:00', NOW - 120_000, 'freqtrade.worker', 'WARNING', 'Test warning'],
+      ['2026-09-20 11:57:00', NOW - 180_000, 'freqtrade.worker', 'ERROR', 'Test error'],
+      ['2026-09-20 11:56:00', NOW - 240_000, 'freqtrade.worker', 'CRITICAL', 'Test critical'],
+      ['2026-09-20 11:55:00', NOW - 300_000, 'freqtrade.worker', 'DEBUG', 'Test debug'],
+      ['2026-09-20 11:54:00', NOW - 360_000, 'freqtrade.worker', 'NOTSET', 'Test unknown level'],
     ],
   },
   whitelist: { whitelist: ['OPEN/USDT', 'AAA/USDT', 'BBB/USDT'], length: 3 },

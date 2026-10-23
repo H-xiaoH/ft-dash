@@ -237,6 +237,31 @@ test('logs render the date and time on separate lines', async ({ page }) => {
   await expect(time).toHaveCSS('display', 'block')
 })
 
+test('the minimum log level includes all more severe levels', async ({ page }) => {
+  await page.goto('/#/logs')
+  const rows = livePage(page).locator('.logs__line')
+  const levelMenu = livePage(page).locator('.filter-menu').first()
+  const chooseLevel = async (level: string) => {
+    await levelMenu.locator('.filter-menu__button').click()
+    await page.locator('.filter-menu__item', { hasText: new RegExp(`^${level}$`) }).click()
+  }
+
+  // INFO is the default: DEBUG is below it, while the four higher levels remain visible.
+  await expect(rows).toHaveCount(4)
+  await expect(rows.filter({ hasText: 'DEBUG' })).toHaveCount(0)
+
+  await chooseLevel('DEBUG')
+  await expect(rows).toHaveCount(5)
+  await expect(rows.filter({ hasText: 'Test unknown level' })).toHaveCount(0)
+
+  // WARNING must be normalized as WARNING, not treated as an unknown level that slips through.
+  await chooseLevel('ERROR')
+  await expect(rows).toHaveCount(2)
+  await expect(rows.filter({ hasText: 'ERROR' })).toHaveCount(1)
+  await expect(rows.filter({ hasText: 'CRITICAL' })).toHaveCount(1)
+  await expect(rows.filter({ hasText: 'WARNING' })).toHaveCount(0)
+})
+
 test('the time zone list offers every zone and searches them by name', async ({ page }) => {
   const picker = fieldMenu(page, '时区')
   await picker.locator('.filter-menu__button').click()

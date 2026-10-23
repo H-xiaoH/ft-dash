@@ -9,7 +9,6 @@ import SearchToggle from '@/components/SearchToggle.vue'
 import SideBadge from '@/components/SideBadge.vue'
 import TradeDetail from '@/components/TradeDetail.vue'
 import { useFormat } from '@/composables/useFormat'
-import { useSegBlock } from '@/composables/useSegBlock'
 import { pushToast } from '@/composables/useToast'
 import { downloadCsv } from '@/lib/csv'
 import { isStandalone } from '@/lib/navigation'
@@ -18,9 +17,6 @@ import { useBotStore } from '@/stores/bot'
 
 type Filter = 'open' | 'closed' | 'all'
 type SortKey = 'open_timestamp' | 'pair' | 'profit_abs' | 'duration' | 'stake_amount'
-
-const FILTERS: readonly Filter[] = ['open', 'closed', 'all']
-const FILTER_SWIPE_PX = 48
 
 const { t } = useI18n()
 const format = useFormat()
@@ -31,15 +27,6 @@ const router = useRouter()
 const filter = ref<Filter>('all')
 const search = ref('')
 const result = ref<string>('all')
-/**
- * The block behind the trades tabs, which slides to whichever one is active. Declared after
- * `filter`: the composable watches it, and a watch runs its getter once straight away.
- */
-const filterSeg = ref<HTMLElement | null>(null)
-const { blockStyle: filterBlockStyle, blockReady: filterBlockReady } = useSegBlock(
-  filterSeg,
-  () => filter.value,
-)
 const sortKey = ref<SortKey>('open_timestamp')
 const sortDir = ref<'asc' | 'desc'>('desc')
 const selected = ref<Trade | null>(null)
@@ -48,7 +35,6 @@ const limit = ref(300)
 /** Rows per page; paging happens in the browser over everything already loaded. */
 const PAGE_SIZE = 20
 const page = ref(1)
-let filterTouchStart: { x: number; y: number } | null = null
 
 // The overview links here with ?filter=open|closed; keep the query in step with the tab.
 watch(
@@ -130,6 +116,18 @@ const rows = computed(() => {
     })
 })
 
+const filterLabel = computed(() => {
+  if (filter.value === 'open') return t('trades.open')
+  if (filter.value === 'closed') return t('trades.closed')
+  return t('trades.all')
+})
+const filterStatus = computed(() =>
+  t(rows.value.length === 1 ? 'trades.filterStatusOne' : 'trades.filterStatus', {
+    filter: filterLabel.value,
+    count: rows.value.length,
+  }),
+)
+
 const openCount = computed(() => bot.openTrades.length)
 const closedCount = computed(() => bot.profit?.closed_trade_count ?? bot.closedTrades.length)
 const allCount = computed(() => allTrades.value.length)
@@ -153,40 +151,6 @@ function toggleSort(key: SortKey) {
   }
   sortKey.value = key
   sortDir.value = key === 'pair' ? 'asc' : 'desc'
-}
-
-function moveFilter(delta: 1 | -1): void {
-  const next = FILTERS.indexOf(filter.value) + delta
-  if (next >= 0 && next < FILTERS.length) filter.value = FILTERS[next]
-}
-
-function onFilterTouchStart(event: TouchEvent): void {
-  if (document.querySelector('[role="dialog"]')) {
-    filterTouchStart = null
-    return
-  }
-  if (event.touches.length !== 1) {
-    filterTouchStart = null
-    return
-  }
-  const touch = event.touches[0]
-  filterTouchStart = touch ? { x: touch.clientX, y: touch.clientY } : null
-}
-
-function onFilterTouchEnd(event: TouchEvent): void {
-  const start = filterTouchStart
-  const touch = event.changedTouches[0]
-  filterTouchStart = null
-  if (!start || !touch || event.touches.length !== 0 || event.changedTouches.length !== 1) return
-
-  const dx = touch.clientX - start.x
-  const dy = touch.clientY - start.y
-  if (Math.abs(dx) < FILTER_SWIPE_PX || Math.abs(dx) <= Math.abs(dy)) return
-  moveFilter(dx < 0 ? 1 : -1)
-}
-
-function onFilterTouchCancel(): void {
-  filterTouchStart = null
 }
 
 function openTrade(trade: Trade): void {
@@ -297,18 +261,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div
-    class="stack trades-swipe-surface"
-    data-swipe-tabs
-    :data-swipe-index="FILTERS.indexOf(filter)"
-    :data-swipe-count="FILTERS.length"
-    @touchstart="onFilterTouchStart"
-    @touchend="onFilterTouchEnd"
-    @touchcancel="onFilterTouchCancel"
-  >
+  <div class="stack">
     <section class="panel">
       <div class="panel__head">
-        <div ref="filterSeg" class="seg">
+        <div class="seg">
           <button
             type="button"
             class="seg__item"
@@ -336,11 +292,6 @@ onMounted(() => {
             {{ t('trades.all') }}
             <span class="small muted">{{ allCount }}</span>
           </button>
-          <span
-            class="seg__block"
-            :class="{ 'is-ready': filterBlockReady }"
-            :style="filterBlockStyle"
-          />
         </div>
         <div class="panel__actions row">
           <SearchToggle v-model="search" :placeholder="t('market.searchPairs')" />
@@ -358,137 +309,152 @@ onMounted(() => {
       </div>
 
       <div class="panel__body panel__body--flush">
-        <div v-if="!rows.length" class="empty">{{ t('empty.table') }}</div>
-        <div v-else class="table-wrap u-desktop-only">
-          <table class="table table--clickable">
-            <thead>
-              <tr>
-                <th scope="col">
-                  <button type="button" class="sort" @click="toggleSort('pair')">
-                    {{ t('trades.pair') }}
-                    <AppIcon
-                      v-if="sortKey === 'pair'"
-                      :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
-                      :size="12"
-                    />
-                  </button>
-                </th>
-                <th scope="col" class="u-hide-sm side-col">{{ t('trades.side') }}</th>
-                <th scope="col" class="num">
-                  <button type="button" class="sort" @click="toggleSort('stake_amount')">
-                    {{ t('trades.stake') }}
-                    <AppIcon
-                      v-if="sortKey === 'stake_amount'"
-                      :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
-                      :size="12"
-                    />
-                  </button>
-                </th>
-                <th scope="col" class="num">{{ t('trades.entryPrice') }}</th>
-                <th scope="col" class="num">{{ t('trades.currentPrice') }}</th>
-                <th scope="col" class="num">
-                  <button type="button" class="sort" @click="toggleSort('profit_abs')">
-                    {{ t('trades.profit') }}
-                    <AppIcon
-                      v-if="sortKey === 'profit_abs'"
-                      :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
-                      :size="12"
-                    />
-                  </button>
-                </th>
-                <th scope="col" class="num">
-                  <button type="button" class="sort" @click="toggleSort('duration')">
-                    {{ t('trades.duration') }}
-                    <AppIcon
-                      v-if="sortKey === 'duration'"
-                      :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
-                      :size="12"
-                    />
-                  </button>
-                </th>
-                <th scope="col" class="num">
-                  <button type="button" class="sort" @click="toggleSort('open_timestamp')">
-                    {{ t('trades.openDate') }}
-                    <AppIcon
-                      v-if="sortKey === 'open_timestamp'"
-                      :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
-                      :size="12"
-                    />
-                  </button>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="trade in pagedRows" :key="trade.trade_id" @click="openTrade(trade)">
-                <td>
-                  <div class="table__pair">
-                    <span
-                      class="table__side"
-                      :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
-                    />
-                    <span class="num">{{ trade.pair }}</span>
-                    <SideBadge class="u-inline-sm" :is-short="trade.is_short" />
-                    <span v-if="trade.is_open" class="chip chip--accent">{{
-                      t('trades.open')
-                    }}</span>
-                  </div>
-                </td>
-                <td class="u-hide-sm side-col"><SideBadge :is-short="trade.is_short" /></td>
-                <td class="num">{{ format.money(trade.stake_amount, stake) }}</td>
-                <td class="num">{{ format.price(trade.open_rate) }}</td>
-                <td class="num">
-                  {{ format.price(trade.current_rate ?? trade.close_rate ?? null) }}
-                </td>
-                <td class="num" :class="format.toneClass(trade.profit_ratio ?? trade.close_profit)">
-                  {{
-                    format.signedMoney(trade.profit_abs ?? trade.close_profit_abs ?? null, stake)
-                  }}
-                  <div class="small muted">
-                    {{ format.ratio(trade.profit_ratio ?? trade.close_profit) }}
-                  </div>
-                </td>
-                <td class="num">{{ format.duration(durationOf(trade)) }}</td>
-                <td class="num">{{ format.dateTime(trade.open_timestamp) }}</td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-filter-status>
+          {{ filterStatus }}
         </div>
+        <Transition name="trade-filter" mode="out-in">
+          <div :key="filter" class="trade-filter-content" data-filter-content>
+            <div v-if="!rows.length" class="empty">{{ t('empty.table') }}</div>
+            <div v-else class="table-wrap u-desktop-only">
+              <table class="table table--clickable">
+                <thead>
+                  <tr>
+                    <th scope="col">
+                      <button type="button" class="sort" @click="toggleSort('pair')">
+                        {{ t('trades.pair') }}
+                        <AppIcon
+                          v-if="sortKey === 'pair'"
+                          :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
+                          :size="12"
+                        />
+                      </button>
+                    </th>
+                    <th scope="col" class="u-hide-sm side-col">{{ t('trades.side') }}</th>
+                    <th scope="col" class="num">
+                      <button type="button" class="sort" @click="toggleSort('stake_amount')">
+                        {{ t('trades.stake') }}
+                        <AppIcon
+                          v-if="sortKey === 'stake_amount'"
+                          :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
+                          :size="12"
+                        />
+                      </button>
+                    </th>
+                    <th scope="col" class="num">{{ t('trades.entryPrice') }}</th>
+                    <th scope="col" class="num">{{ t('trades.currentPrice') }}</th>
+                    <th scope="col" class="num">
+                      <button type="button" class="sort" @click="toggleSort('profit_abs')">
+                        {{ t('trades.profit') }}
+                        <AppIcon
+                          v-if="sortKey === 'profit_abs'"
+                          :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
+                          :size="12"
+                        />
+                      </button>
+                    </th>
+                    <th scope="col" class="num">
+                      <button type="button" class="sort" @click="toggleSort('duration')">
+                        {{ t('trades.duration') }}
+                        <AppIcon
+                          v-if="sortKey === 'duration'"
+                          :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
+                          :size="12"
+                        />
+                      </button>
+                    </th>
+                    <th scope="col" class="num">
+                      <button type="button" class="sort" @click="toggleSort('open_timestamp')">
+                        {{ t('trades.openDate') }}
+                        <AppIcon
+                          v-if="sortKey === 'open_timestamp'"
+                          :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
+                          :size="12"
+                        />
+                      </button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="trade in pagedRows" :key="trade.trade_id" @click="openTrade(trade)">
+                    <td>
+                      <div class="table__pair">
+                        <span
+                          class="table__side"
+                          :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
+                        />
+                        <span class="num">{{ trade.pair }}</span>
+                        <SideBadge class="u-inline-sm" :is-short="trade.is_short" />
+                        <span v-if="trade.is_open" class="chip chip--accent">{{
+                          t('trades.open')
+                        }}</span>
+                      </div>
+                    </td>
+                    <td class="u-hide-sm side-col"><SideBadge :is-short="trade.is_short" /></td>
+                    <td class="num">{{ format.money(trade.stake_amount, stake) }}</td>
+                    <td class="num">{{ format.price(trade.open_rate) }}</td>
+                    <td class="num">
+                      {{ format.price(trade.current_rate ?? trade.close_rate ?? null) }}
+                    </td>
+                    <td
+                      class="num"
+                      :class="format.toneClass(trade.profit_ratio ?? trade.close_profit)"
+                    >
+                      {{
+                        format.signedMoney(
+                          trade.profit_abs ?? trade.close_profit_abs ?? null,
+                          stake,
+                        )
+                      }}
+                      <div class="small muted">
+                        {{ format.ratio(trade.profit_ratio ?? trade.close_profit) }}
+                      </div>
+                    </td>
+                    <td class="num">{{ format.duration(durationOf(trade)) }}</td>
+                    <td class="num">{{ format.dateTime(trade.open_timestamp) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
-        <!-- Mobile: a card list beats a horizontally scrolling table. -->
-        <ul v-if="rows.length" class="cards u-mobile-only">
-          <li
-            v-for="trade in pagedRows"
-            :key="trade.trade_id"
-            class="card card--tappable"
-            @click="openTrade(trade)"
-          >
-            <div class="card__row">
-              <span
-                class="table__side"
-                :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
-              />
-              <span class="num card__pair">{{ trade.pair }}</span>
-              <span v-if="trade.is_open" class="chip chip--accent">{{ t('trades.open') }}</span>
-              <span class="spacer" />
-              <span
-                class="num card__pnl"
-                :class="format.toneClass(trade.profit_ratio ?? trade.close_profit)"
+            <!-- Mobile: a card list beats a horizontally scrolling table. -->
+            <ul v-if="rows.length" class="cards u-mobile-only">
+              <li
+                v-for="trade in pagedRows"
+                :key="trade.trade_id"
+                class="card card--tappable"
+                @click="openTrade(trade)"
               >
-                {{ format.signedMoney(trade.profit_abs ?? trade.close_profit_abs ?? null, stake) }}
-                <small>{{ format.ratio(trade.profit_ratio ?? trade.close_profit) }}</small>
-              </span>
-            </div>
-            <div class="card__row small muted">
-              <SideBadge :is-short="trade.is_short" />
-              <span class="num">
-                {{ format.price(trade.open_rate) }} →
-                {{ format.price(trade.current_rate ?? trade.close_rate ?? null) }}
-              </span>
-              <span class="spacer" />
-              <span class="num">{{ format.duration(durationOf(trade)) }}</span>
-            </div>
-          </li>
-        </ul>
+                <div class="card__row">
+                  <span
+                    class="table__side"
+                    :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
+                  />
+                  <span class="num card__pair">{{ trade.pair }}</span>
+                  <span v-if="trade.is_open" class="chip chip--accent">{{ t('trades.open') }}</span>
+                  <span class="spacer" />
+                  <span
+                    class="num card__pnl"
+                    :class="format.toneClass(trade.profit_ratio ?? trade.close_profit)"
+                  >
+                    {{
+                      format.signedMoney(trade.profit_abs ?? trade.close_profit_abs ?? null, stake)
+                    }}
+                    <small>{{ format.ratio(trade.profit_ratio ?? trade.close_profit) }}</small>
+                  </span>
+                </div>
+                <div class="card__row small muted">
+                  <SideBadge :is-short="trade.is_short" />
+                  <span class="num">
+                    {{ format.price(trade.open_rate) }} →
+                    {{ format.price(trade.current_rate ?? trade.close_rate ?? null) }}
+                  </span>
+                  <span class="spacer" />
+                  <span class="num">{{ format.duration(durationOf(trade)) }}</span>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </Transition>
       </div>
 
       <div class="panel__head panel__pager">
@@ -557,8 +523,25 @@ onMounted(() => {
   cursor: pointer;
 }
 
-.trades-swipe-surface {
-  touch-action: pan-y;
+.trade-filter-content {
+  min-width: 0;
+}
+
+.trade-filter-enter-active,
+.trade-filter-leave-active {
+  transition:
+    opacity var(--dur-quick) ease,
+    transform var(--dur-quick) var(--ease-out-strong);
+}
+
+.trade-filter-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.trade-filter-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 @media (max-width: 900px) {
