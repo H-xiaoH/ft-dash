@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import InlineConfirm from '@/components/InlineConfirm.vue'
 import { pushToast } from '@/composables/useToast'
-import { describeError, FreqtradeApi, normalizeBaseUrl } from '@/lib/api'
+import { describeError, FreqtradeApiClient, normalizeBaseUrl } from '@/data/freqtrade'
 import { defaultBotName, type Bot } from '@/lib/bots'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
@@ -129,7 +129,7 @@ async function testConnection(entry: Bot) {
   delete nextResult[entry.id]
   testResult.value = nextResult
   try {
-    const api = new FreqtradeApi({
+    const api = new FreqtradeApiClient({
       baseUrl: entry.baseUrl,
       username: entry.username,
       password: entry.password,

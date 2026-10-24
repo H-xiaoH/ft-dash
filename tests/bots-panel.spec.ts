@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import BotsPanel from '@/components/BotsPanel.vue'
+import ConnectView from '@/views/ConnectView.vue'
 import { i18n } from '@/i18n'
 import { useBotStore } from '@/stores/bot'
 import { useToasts } from '@/composables/useToast'
@@ -79,6 +80,34 @@ describe('BotsPanel', () => {
     expect(settings.activeBotId).toBe(thirdBot.id)
     expect(bot.switchBot).toHaveBeenNthCalledWith(1, secondBot.id)
     expect(bot.switchBot).toHaveBeenNthCalledWith(2, thirdBot.id)
+    wrapper.unmount()
+  })
+
+  it('activates the bot added from the connect view', async () => {
+    const settings = useSettingsStore()
+    settings.addBot({
+      name: 'existing',
+      baseUrl: 'https://existing.example/api/v1',
+      username: 'existing',
+      password: 'secret',
+    })
+    const bot = useBotStore()
+    vi.spyOn(bot, 'connect').mockResolvedValue(true)
+    vi.spyOn(bot, 'rebuildClient').mockImplementation(() => undefined)
+
+    const wrapper = mount(ConnectView, { global: { plugins: [i18n] } })
+    const inputs = wrapper.findAll('input')
+    await inputs[0]!.setValue('new-bot')
+    await inputs[1]!.setValue('https://new.example/api/v1')
+    await inputs[2]!.setValue('new-user')
+    await inputs[3]!.setValue('new-password')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    const added = settings.bots.find((entry) => entry.name === 'new-bot')
+    expect(added).toBeDefined()
+    expect(settings.activeBotId).toBe(added?.id)
+    expect(bot.connect).toHaveBeenCalled()
     wrapper.unmount()
   })
 })

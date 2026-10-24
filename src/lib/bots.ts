@@ -82,5 +82,7 @@ export function parseBots(raw: unknown): Bot[] {
 
 /** Storage copy. Passwords are written to disk only when they are meant to be kept. */
 export function serializeBots(bots: Bot[], includeSecrets: boolean): Bot[] {
-  return bots.map((bot) => (includeSecrets ? { ...bot } : { ...bot, password: '' }))
+  return bots.map((bot) =>
+    includeSecrets ? { ...bot } : { ...bot, password: '', wsToken: '' },
+  )
 }
