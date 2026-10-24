@@ -165,6 +165,23 @@ describe('BotSessionController', () => {
     expect(session.state.connection).toBe('online')
   })
 
+  it('marks a failed core poll unavailable and recovers after the next successful poll', async () => {
+    const status = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError('cors', 'host unreachable'))
+      .mockResolvedValue([])
+    const session = sessionFor(fakeClient({ status }))
+    session.state.connection = 'online'
+
+    await session.refreshCore()
+    expect(session.state.connection).toBe('unreachable')
+    expect(session.state.errorKey?.key).toBe('errors.cors')
+
+    await session.refreshCore()
+    expect(session.state.connection).toBe('online')
+    expect(session.state.errorKey).toBeNull()
+  })
+
   it.each([400, 422])(
     'retries candles without signal columns for a %s signal-column response',
     async (status) => {

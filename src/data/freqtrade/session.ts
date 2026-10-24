@@ -403,6 +403,20 @@ export class BotSessionController {
     if (!failed) this.state.lastFetchAt = Date.now()
   }
 
+  private updateConnectionFromResults(results: CallResult<unknown>[], epoch: number): void {
+    if (epoch !== this.state.epoch) return
+    const failed = results.find((result) => !result.ok && !result.stale)
+    if (failed) {
+      this.state.errorKey = failed.error ?? null
+      this.state.connection = failed.error?.key === 'errors.auth' ? 'unauthorized' : 'unreachable'
+      return
+    }
+    this.state.errorKey = null
+    if (this.state.connection === 'unreachable' || this.state.connection === 'unauthorized') {
+      this.state.connection = 'online'
+    }
+  }
+
   private async runGroup(
     resource: ResourceName,
     epoch: number,
@@ -462,6 +476,7 @@ export class BotSessionController {
     ])
     const stale = epoch !== this.state.epoch
     if (!stale) {
+      this.updateConnectionFromResults(results, epoch)
       this.state.coreReady = results.every((result) => result.ok)
       if (this.state.coreReady && this.state.tradesReady) this.state.snapshotStale = false
       this.state.latencyMs = Math.round(performance.now() - started)
@@ -485,6 +500,7 @@ export class BotSessionController {
     ])
     const stale = epoch !== this.state.epoch
     if (!stale) {
+      this.updateConnectionFromResults(results, epoch)
       this.state.tradesReady = results[0]?.ok === true
       if (this.state.coreReady && this.state.tradesReady) this.state.snapshotStale = false
     }
@@ -711,6 +727,10 @@ export class BotSessionController {
       const started = performance.now()
       await this.refreshAll()
       if (epoch !== this.state.epoch || client !== this.client) return false
+      if (!this.state.coreReady || !this.state.tradesReady) {
+        if (this.state.connection === 'connecting') this.state.connection = 'unreachable'
+        return false
+      }
       this.state.latencyMs ??= Math.round(performance.now() - started)
       this.state.connection = 'online'
       return true
