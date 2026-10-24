@@ -3,10 +3,11 @@ import {
   ApiError,
   absoluteBaseUrl,
   describeError,
-  FreqtradeApi,
+  FreqtradeApiClient,
+  FreqtradeApiClient as FreqtradeApi,
   normalizeBaseUrl,
   websocketUrl,
-} from '@/lib/api'
+} from '@/data/freqtrade'
 
 const credentials = {
   baseUrl: 'https://bot.example.com',
@@ -69,7 +70,9 @@ describe('FreqtradeApi', () => {
 
   it('sends basic auth and serialises query parameters', async () => {
     const fetchMock = vi.mocked(fetch)
-    fetchMock.mockResolvedValueOnce(jsonResponse({ trades: [], trades_count: 0 }))
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ trades: [], trades_count: 0, offset: 100, total_trades: 0 }),
+    )
     const api = new FreqtradeApi(credentials)
     await api.trades({ limit: 50, offset: 100 })
 
@@ -157,6 +160,78 @@ describe('FreqtradeApi', () => {
     await expect(api.request('/status', { timeoutMs: 10 })).rejects.toMatchObject({
       kind: 'timeout',
     })
+  })
+
+  it('covers a response body stall with the same request timeout', async () => {
+    let requestSignal: AbortSignal | undefined
+    vi.mocked(fetch).mockImplementationOnce((_input, init) => {
+      requestSignal = init?.signal as AbortSignal
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () =>
+          new Promise<string>((_resolve, reject) => {
+            requestSignal?.addEventListener('abort', () => reject(requestSignal?.reason))
+          }),
+      } as Response)
+    })
+    const api = new FreqtradeApiClient(credentials)
+
+    await expect(api.request('/status', { timeoutMs: 10 })).rejects.toMatchObject({
+      kind: 'timeout',
+    })
+  })
+
+  it('classifies an external abort while reading the response body', async () => {
+    const abort = new AbortController()
+    let requestSignal: AbortSignal | undefined
+    vi.mocked(fetch).mockImplementationOnce((_input, init) => {
+      requestSignal = init?.signal as AbortSignal
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () =>
+          new Promise<string>((_resolve, reject) => {
+            requestSignal?.addEventListener('abort', () => reject(requestSignal?.reason))
+          }),
+      } as Response)
+    })
+    const api = new FreqtradeApiClient(credentials)
+    const pending = api.request('/status', { signal: abort.signal, timeoutMs: 1_000 })
+
+    abort.abort()
+
+    await expect(pending).rejects.toMatchObject({ kind: 'aborted' })
+  })
+
+  it('retains endpoint, status and detail on current-contract HTTP errors', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ detail: 'schema mismatch' }, 500))
+    const api = new FreqtradeApiClient(credentials)
+
+    await expect(api.request('/status')).rejects.toMatchObject({
+      kind: 'http',
+      status: 500,
+      detail: 'schema mismatch',
+      url: 'https://bot.example.com/api/v1/status',
+    })
+  })
+
+  it('warns for a non-target Freqtrade version without rejecting the connection', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ version: '2025.12', api_version: 2.5 }))
+    const api = new FreqtradeApiClient(credentials)
+
+    await expect(api.inspectCompatibility()).resolves.toMatchObject({
+      status: 'warning',
+      detectedVersion: '2025.12',
+      apiVersion: 2.5,
+    })
+  })
+
+  it('returns an unknown warning when the version probe cannot be read', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ detail: 'Not Found' }, 404))
+    const api = new FreqtradeApiClient(credentials)
+
+    await expect(api.inspectCompatibility()).resolves.toMatchObject({ status: 'unknown' })
   })
 
   it('surfaces FastAPI validation detail', async () => {

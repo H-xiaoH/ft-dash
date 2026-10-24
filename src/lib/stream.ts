@@ -1,3 +1,5 @@
+import { WS_AUTH_UNSUPPORTED_STATUS } from '@/data/freqtrade'
+
 /**
  * Decides how the live stream authenticates.
  *
@@ -97,4 +99,3 @@ export const STREAM_FAILURE_LIMIT = 3
 export function nextRetryDelay(attempt: number): number {
   return Math.min(60_000, 1_500 * 2 ** Math.min(Math.max(attempt, 1), 6))
 }
-import { WS_AUTH_UNSUPPORTED_STATUS } from './api'

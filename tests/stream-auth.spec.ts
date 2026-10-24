@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError } from '@/lib/api'
+import { ApiError } from '@/data/freqtrade'
 import {
   classifyJwtFailure,
   nextRetryDelay,
