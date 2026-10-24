@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildPairStats } from '@/lib/stats'
+import { hideFreqtradeSentinel } from '@/lib/format'
 import type { PerformanceEntry, Trade } from '@/lib/types'
 
 function performance(
@@ -40,6 +41,12 @@ function trade(overrides: Partial<Trade> & { pair: string }): Trade {
 }
 
 describe('buildPairStats', () => {
+  it('hides Freqtrade profit-factor sentinel values instead of displaying a number', () => {
+    expect(hideFreqtradeSentinel(-100)).toBeNull()
+    expect(hideFreqtradeSentinel('-100')).toBeNull()
+    expect(hideFreqtradeSentinel(1.25)).toBe(1.25)
+  })
+
   it('keeps the authoritative totals from /performance', () => {
     const [row] = buildPairStats([performance('BTC/USDT', 3, 1.5, 0.05)], [])
     expect(row).toMatchObject({ pair: 'BTC/USDT', count: 3, profitAbs: 1.5, profitRatio: 0.05 })

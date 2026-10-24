@@ -18,4 +18,10 @@ describe('toCsv', () => {
   it('renders empty cells for null and undefined', () => {
     expect(toCsv([[null, undefined, 'x']])).toBe(',,x')
   })
+
+  it('prefixes formula-like strings so spreadsheet apps do not execute them', () => {
+    expect(toCsv([['=SUM(A1:A2)', '+cmd', '-cmd', '@cmd', -1]])).toBe(
+      "'=SUM(A1:A2),'+cmd,'-cmd,'@cmd,-1",
+    )
+  })
 })

@@ -9,7 +9,7 @@ import type { BarItem } from '@/components/charts'
 import { useFormat } from '@/composables/useFormat'
 import { useChartHeight } from '@/composables/useChartHeight'
 import { useSegBlock } from '@/composables/useSegBlock'
-import { toNumber, type Numberish } from '@/lib/format'
+import { hideFreqtradeSentinel, toNumber, type Numberish } from '@/lib/format'
 import { buildPairStats, type PairStats } from '@/lib/stats'
 import { useBotStore } from '@/stores/bot'
 
@@ -191,7 +191,10 @@ function drawdownPercent(value: number | null | undefined) {
         :tone="winRateTone(bot.winRate)"
         :sub="`${t('kpi.expectancy')} ${format.number(summary?.expectancy ?? null, 3)}`"
       />
-      <MetricTile :label="t('kpi.profitFactor')" :value="summary?.profit_factor ?? null" />
+      <MetricTile
+        :label="t('kpi.profitFactor')"
+        :value="hideFreqtradeSentinel(summary?.profit_factor ?? null)"
+      />
       <MetricTile
         :label="t('kpi.sharpe')"
         :value="summary?.sharpe ?? null"

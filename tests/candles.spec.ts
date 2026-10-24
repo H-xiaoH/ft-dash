@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Candle } from '@/components/charts'
-import { collectCandleMarks } from '@/lib/candles'
+import { collectCandleMarks, SIGNAL_COLUMNS } from '@/lib/candles'
 import type { PairCandlesResponse, Trade } from '@/lib/types'
 
 // Five candles, one every five minutes, as Freqtrade hands them over: UTC, no zone.
@@ -56,6 +56,28 @@ describe('collectCandleMarks', () => {
     ])
   })
 
+  it('includes short signal columns and reverses their direction', () => {
+    expect(SIGNAL_COLUMNS).toEqual(['enter_long', 'exit_long', 'enter_short', 'exit_short'])
+    const marks = collectCandleMarks({
+      meta: meta(
+        ['date', 'enter_short', 'exit_short'],
+        [
+          [times[0], 0, 0],
+          [times[1], 1, 0],
+          [times[2], 0, 1],
+        ],
+      ),
+      candles,
+      trades: [],
+      pair: 'AAA/USDT',
+    })
+
+    expect(marks).toEqual([
+      { index: 1, side: 'sell', kind: 'signal' },
+      { index: 2, side: 'buy', kind: 'signal' },
+    ])
+  })
+
   it('marks both legs of the trades on this pair, at the price they happened', () => {
     const marks = collectCandleMarks({
       meta: null,
@@ -82,6 +104,28 @@ describe('collectCandleMarks', () => {
     })
 
     expect(marks).toEqual([{ index: 2, side: 'buy', kind: 'fill', price: 1.03 }])
+  })
+
+  it('reverses entry and exit fill directions for a short trade', () => {
+    const marks = collectCandleMarks({
+      meta: null,
+      candles,
+      trades: [
+        trade({
+          is_short: true,
+          open_date: times[1],
+          open_rate: 1.03,
+          close_date: times[3],
+          close_rate: 1.01,
+        }),
+      ],
+      pair: 'AAA/USDT',
+    })
+
+    expect(marks).toEqual([
+      { index: 1, side: 'sell', kind: 'fill', price: 1.03 },
+      { index: 3, side: 'buy', kind: 'fill', price: 1.01 },
+    ])
   })
 
   it('drops marks that fall outside the window the chart is showing', () => {

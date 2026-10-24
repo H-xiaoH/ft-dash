@@ -12,7 +12,7 @@ import { useFormat } from '@/composables/useFormat'
 import { pushToast } from '@/composables/useToast'
 import { useChartHeight } from '@/composables/useChartHeight'
 import { isStandalone, navigatePage } from '@/lib/navigation'
-import { toIsoDate } from '@/lib/format'
+import { hideFreqtradeSentinel, toIsoDate } from '@/lib/format'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
 
@@ -140,7 +140,7 @@ async function confirmExit() {
       />
       <MetricTile
         :label="t('kpi.profitFactor')"
-        :value="bot.profit?.profit_factor ?? null"
+        :value="hideFreqtradeSentinel(bot.profit?.profit_factor ?? null)"
         kind="number"
         :sub="`${t('kpi.sharpe')} ${format.number(bot.profit?.sharpe ?? null, 2)}`"
       />
