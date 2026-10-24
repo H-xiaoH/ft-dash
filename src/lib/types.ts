@@ -316,7 +316,8 @@ export interface PairCandlesResponse {
   length: number
   buy_signals?: number
   sell_signals?: number
-  last_analyzed?: number | null
+  /** Freqtrade serializes this datetime as an ISO string. */
+  last_analyzed?: string | null
   last_analyzed_ts?: number | null
 }
 

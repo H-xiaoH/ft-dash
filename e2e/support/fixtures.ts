@@ -353,6 +353,7 @@ function bodyFor(url: URL, method: string): unknown | undefined {
       length: 60,
       buy_signals: 1,
       sell_signals: 1,
+      last_analyzed: '2026-10-25T00:00:00+00:00',
       last_analyzed_ts: NOW,
     }
   }

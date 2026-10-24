@@ -62,6 +62,10 @@ function isNullableNumber(value: unknown): value is number | null {
   return value === null || isNumber(value)
 }
 
+function isNullableString(value: unknown): value is string | null {
+  return value === null || isString(value)
+}
+
 function invalid(context: ParseContext, field: string, expected: string): never {
   const detail = `${field}: expected ${expected}`
   throw new ApiError('parse', `Invalid response from ${context.endpoint} at ${field}`, {
@@ -455,7 +459,8 @@ function parsePairCandles(value: unknown, context: ParseContext): PairCandlesRes
   required(object, 'length', isNumber, context, 'a number')
   optional(object, 'buy_signals', isNumber, context, 'a number')
   optional(object, 'sell_signals', isNumber, context, 'a number')
-  optional(object, 'last_analyzed', isNullableNumber, context, 'a number or null')
+  // PairHistory declares this as a datetime, which FastAPI serializes as an ISO string.
+  optional(object, 'last_analyzed', isNullableString, context, 'a string or null')
   optional(object, 'last_analyzed_ts', isNullableNumber, context, 'a number or null')
   return asResponse<PairCandlesResponse>(object)
 }

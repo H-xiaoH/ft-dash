@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { registerSW } from 'virtual:pwa-register'
-import { startUpdateChecks } from '@/lib/update'
+import { checkForUpdate, startUpdateChecks, UPDATE_CHECK_MS } from '@/lib/update'
 import { detectStandalone, isStandalone } from '@/lib/navigation'
 
 export { isStandalone } from '@/lib/navigation'
@@ -9,6 +9,8 @@ export const offlineReady = ref(false)
 export const canInstall = ref(false)
 
 let installPrompt: BeforeInstallPromptEvent | null = null
+let serviceWorkerRegistration: ServiceWorkerRegistration | undefined
+let stopUpdateChecks: (() => void) | null = null
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -18,12 +20,19 @@ interface BeforeInstallPromptEvent extends Event {
 export function setupPwa() {
   registerSW({
     immediate: true,
+    onRegisteredSW(_scriptUrl, registration) {
+      serviceWorkerRegistration = registration
+      // Ask immediately after registration. This avoids waiting for the first timer tick when
+      // a CDN has just published a new service-worker script.
+      if (registration) void checkForUpdate(registration)
+    },
     onOfflineReady() {
       offlineReady.value = true
     },
   })
   // A new build reloads the page on its own; this is what notices it while the tab is open.
-  startUpdateChecks()
+  stopUpdateChecks?.()
+  stopUpdateChecks = startUpdateChecks(UPDATE_CHECK_MS, () => serviceWorkerRegistration)
 
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault()

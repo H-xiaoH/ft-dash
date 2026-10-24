@@ -258,6 +258,39 @@ describe('FreqtradeApi', () => {
       status: 422,
     })
   })
+
+  it('parses the current pair candles datetime field', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({
+        strategy: 'SampleStrategy',
+        pair: 'BTC/USDT',
+        timeframe: '5m',
+        timeframe_ms: 300_000,
+        columns: ['date', 'open', 'high', 'low', 'close', 'volume'],
+        data: [['2026-10-25T00:00:00+00:00', 100, 101, 99, 100.5, 12]],
+        length: 1,
+        buy_signals: 0,
+        sell_signals: 0,
+        last_analyzed: '2026-10-25T00:05:00+00:00',
+        last_analyzed_ts: 1792886700,
+      }),
+    )
+    const api = new FreqtradeApiClient(credentials)
+
+    const response = await api.pairCandles('BTC/USDT', '5m', 180, [
+      'date',
+      'open',
+      'high',
+      'low',
+      'close',
+      'volume',
+    ])
+
+    expect(response.last_analyzed).toBe('2026-10-25T00:05:00+00:00')
+    expect(response.data).toHaveLength(1)
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+    expect(init.method).toBe('POST')
+  })
 })
 
 describe('describeError', () => {
