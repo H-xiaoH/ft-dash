@@ -11,8 +11,11 @@ import { useSettingsStore } from '@/stores/settings'
  */
 
 const showConfig = (botName: string) => ({
+  version: '2026.8',
+  api_version: 2.5,
   bot_name: botName,
   stake_currency: 'USDT',
+  stake_amount: 'unlimited',
   dry_run: true,
   max_open_trades: 3,
 })
@@ -45,7 +48,11 @@ function addTestBots() {
 }
 
 function jsonResponse(body: unknown) {
-  return new Response(JSON.stringify(body), {
+  const normalizedBody =
+    body && typeof body === 'object' && !Array.isArray(body) && Object.keys(body).length === 0
+      ? { status: 'pong' }
+      : body
+  return new Response(JSON.stringify(normalizedBody), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   })
@@ -388,7 +395,14 @@ describe('switching bots', () => {
         if (url.startsWith('https://first.example')) firstHealthCalls += 1
         if (url.startsWith('https://second.example')) secondHealthCalls += 1
         return Promise.resolve(
-          jsonResponse({ last_process: '1970-01-01T00:00:00Z', last_process_ts: 0 }),
+          jsonResponse({
+            last_process: '1970-01-01T00:00:00Z',
+            last_process_ts: 0,
+            bot_start: '1970-01-01T00:00:00Z',
+            bot_start_ts: 0,
+            bot_startup: '1970-01-01T00:00:00Z',
+            bot_startup_ts: 0,
+          }),
         )
       }
       if (url.includes('/show_config'))
