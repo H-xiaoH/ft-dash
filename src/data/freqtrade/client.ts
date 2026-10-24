@@ -616,61 +616,75 @@ export class FreqtradeApiClient {
     })
   }
 
-  /**
-   * Reads the current API's own version fields. A failed or incomplete probe is deliberately
-   * a warning: compatibility policy never turns version uncertainty into a connection ban.
-   */
-  async inspectCompatibility(): Promise<CompatibilityResult> {
+  private compatibilityFor(
+    detectedVersion: string | null,
+    apiVersion: number | null,
+  ): CompatibilityResult {
     const base: Pick<CompatibilityResult, 'referenceContract'> = {
       referenceContract: REFERENCE_CONTRACT,
     }
-    let value: unknown
-    try {
-      value = await this.transport.request<unknown>('/show_config')
-    } catch {
+    if (!detectedVersion || apiVersion === null) {
       return {
         ...base,
         status: 'unknown',
-        detectedVersion: null,
-        apiVersion: null,
+        detectedVersion,
+        apiVersion,
         warningKey: 'compatibility.versionUnknown',
       }
     }
-
-    if (!isObject(value) || !isString(value.version) || !isNumber(value.api_version)) {
-      return {
-        ...base,
-        status: 'unknown',
-        detectedVersion: isObject(value) && isString(value.version) ? value.version : null,
-        apiVersion: isObject(value) && isNumber(value.api_version) ? value.api_version : null,
-        warningKey: 'compatibility.versionUnknown',
-      }
-    }
-
     const versionMatches = new RegExp(
       `^${REFERENCE_FREQTRADE_VERSION_SERIES.replace('.', '\\.')}(?:\\.|$)`,
-    ).test(value.version)
-    const apiMatches = value.api_version === REFERENCE_API_VERSION
+    ).test(detectedVersion)
+    const apiMatches = apiVersion === REFERENCE_API_VERSION
     if (versionMatches && apiMatches) {
       return {
         ...base,
         status: 'compatible',
-        detectedVersion: value.version,
-        apiVersion: value.api_version,
+        detectedVersion,
+        apiVersion,
       }
     }
     return {
       ...base,
       status: 'warning',
-      detectedVersion: value.version,
-      apiVersion: value.api_version,
+      detectedVersion,
+      apiVersion,
       warningKey: 'compatibility.versionMismatch',
       warningParams: {
-        detectedVersion: value.version,
-        apiVersion: value.api_version,
+        detectedVersion,
+        apiVersion,
         referenceContract: REFERENCE_CONTRACT,
       },
     }
+  }
+
+  /**
+   * Reads the version endpoint first. Some current Freqtrade responses expose only the release
+   * there, so the API version is completed from show_config; a missing or broken probe remains
+   * a warning and never turns the subsequent connection into a ban.
+   */
+  async inspectCompatibility(): Promise<CompatibilityResult> {
+    let value: unknown
+    try {
+      value = await this.transport.request<unknown>('/version')
+    } catch {
+      return this.compatibilityFor(null, null)
+    }
+
+    if (!isObject(value) || !isString(value.version)) {
+      return this.compatibilityFor(null, null)
+    }
+
+    let apiVersion = isNumber(value.api_version) ? value.api_version : null
+    if (apiVersion === null) {
+      try {
+        const config = await this.transport.request<unknown>('/show_config')
+        apiVersion = isObject(config) && isNumber(config.api_version) ? config.api_version : null
+      } catch {
+        // Keep the release in the warning so the operator can still identify the bot.
+      }
+    }
+    return this.compatibilityFor(value.version, apiVersion)
   }
 
   // --- write endpoints -----------------------------------------------------

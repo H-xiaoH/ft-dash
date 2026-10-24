@@ -531,14 +531,24 @@ test('landing on a page refreshes once, after the pages stop changing', async ({
   page.on('request', (request) => {
     if (request.url().includes('/performance')) analytics.push(Date.now())
   })
+  // The shell is mounted while the first connect refresh is still in flight. Wait for
+  // that refresh to finish before taking the baseline, or its performance request can
+  // arrive during the navigation below and look like a page-settle refresh.
+  await expect(page.locator('.strip__actions .btn--icon')).toBeEnabled()
   await railAt(page, 0)
   const before = analytics.length
 
-  await page.mouse.wheel(0, 100)
-  await page.mouse.wheel(0, 100)
-  await page.mouse.wheel(0, 100)
+  const lastWheelAt = await page.evaluate(() => {
+    const rail = document.querySelector('.rail__item')!
+    for (let i = 0; i < 3; i += 1) {
+      rail.dispatchEvent(
+        new WheelEvent('wheel', { deltaY: 100, deltaMode: 0, bubbles: true, cancelable: true }),
+      )
+    }
+    return Date.now()
+  })
   await expect.poll(() => hash(page)).toBe('#/market')
-  // Three pages in one walk, and nothing fetched while it was still moving.
-  expect(analytics.length - before).toBe(0)
+  // Three pages in one walk; the refresh is allowed only after the 300ms settle window.
   await expect.poll(() => analytics.length - before).toBe(1)
+  expect(analytics[before]).toBeGreaterThanOrEqual(lastWheelAt + 250)
 })

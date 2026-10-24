@@ -134,6 +134,38 @@ describe('BotSessionController', () => {
     expect(session.state.resourceErrors.market).toBeNull()
   })
 
+  it('rebuilds the client with updated credentials', () => {
+    const created: (typeof credentials)[] = []
+    const session = new BotSessionController({
+      botId: 'first',
+      credentials,
+      clientFactory: (nextCredentials) => {
+        created.push({ ...nextCredentials })
+        return fakeClient()
+      },
+    })
+
+    session.ensureClient()
+    session.updateCredentials({ ...credentials, password: 'rotated' })
+    session.ensureClient()
+
+    expect(created.map((entry) => entry.password)).toEqual(['secret', 'rotated'])
+  })
+
+  it('does not let an older resource refresh clear newer readiness', async () => {
+    const firstStatus = deferred<unknown>()
+    const status = vi.fn().mockReturnValueOnce(firstStatus.promise).mockResolvedValue([])
+    const session = sessionFor(fakeClient({ status }))
+
+    const older = session.refreshCore()
+    const newer = session.refreshCore()
+    await newer
+    firstStatus.resolve([])
+    await older
+
+    expect(session.state.coreReady).toBe(true)
+  })
+
   it('serializes actions and old finally cannot clear the next action', async () => {
     const gate = deferred<string>()
     const session = sessionFor(fakeClient())
@@ -163,6 +195,63 @@ describe('BotSessionController', () => {
     await expect(session.connect()).resolves.toBe(true)
     expect(session.state.compatibility?.status).toBe('warning')
     expect(session.state.connection).toBe('online')
+  })
+
+  it('drops a stale compatibility result after switching bots', async () => {
+    const compatibility = deferred<{
+      status: 'warning'
+      detectedVersion: string
+      apiVersion: number
+      referenceContract: 'freqtrade-2026.8-api-v2.5'
+      warningKey: 'compatibility.versionMismatch'
+    }>()
+    const inspectCompatibility = vi.fn().mockReturnValue(compatibility.promise)
+    const session = sessionFor(fakeClient({ inspectCompatibility }))
+    const connecting = session.connect()
+
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(inspectCompatibility).toHaveBeenCalledOnce()
+
+    session.setBot('second', { ...credentials, baseUrl: 'https://second.example.com/api/v1' })
+    compatibility.resolve({
+      status: 'warning',
+      detectedVersion: '2025.12',
+      apiVersion: 2.5,
+      referenceContract: 'freqtrade-2026.8-api-v2.5',
+      warningKey: 'compatibility.versionMismatch',
+    })
+
+    await expect(connecting).resolves.toBe(false)
+    expect(session.state.compatibility).toBeNull()
+  })
+
+  it('stays connected when compatibility cannot be confirmed', async () => {
+    const client = fakeClient({
+      inspectCompatibility: vi.fn().mockResolvedValue({
+        status: 'unknown',
+        detectedVersion: null,
+        apiVersion: null,
+        referenceContract: 'freqtrade-2026.8-api-v2.5',
+        warningKey: 'compatibility.versionUnknown',
+      }),
+    })
+    const session = sessionFor(client)
+
+    await expect(session.connect()).resolves.toBe(true)
+    expect(session.state.connection).toBe('online')
+    expect(session.state.compatibility?.warningKey).toBe('compatibility.versionUnknown')
+  })
+
+  it('does not report a successful connect after a transport failure', async () => {
+    const client = fakeClient({
+      status: vi.fn().mockRejectedValue(new ApiError('cors', 'host unreachable')),
+    })
+    const session = sessionFor(client)
+
+    await expect(session.connect()).resolves.toBe(false)
+    expect(session.state.connection).toBe('unreachable')
+    expect(session.state.errorKey?.key).toBe('errors.cors')
   })
 
   it('marks a failed core poll unavailable and recovers after the next successful poll', async () => {

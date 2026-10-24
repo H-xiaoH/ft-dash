@@ -7,7 +7,7 @@ import AppNavigation from '@/components/AppNavigation.vue'
 import StatusStrip from '@/components/StatusStrip.vue'
 import ConnectView from '@/views/ConnectView.vue'
 import { usePageDrag } from '@/composables/usePageDrag'
-import { useToasts } from '@/composables/useToast'
+import { pushToast, useToasts } from '@/composables/useToast'
 import { navigatePage } from '@/lib/navigation'
 import { NAV_ROUTES } from '@/router'
 import { useBotStore } from '@/stores/bot'
@@ -21,6 +21,24 @@ const events = useEventsStore()
 const route = useRoute()
 const router = useRouter()
 const { toasts, dismissToast } = useToasts()
+
+let compatibilityNoticeBotId = ''
+watch(
+  () => [settings.activeBotId, bot.connection, bot.compatibility] as const,
+  ([botId, connection, compatibility]) => {
+    if (
+      connection !== 'online' ||
+      !botId ||
+      !compatibility?.warningKey ||
+      compatibilityNoticeBotId === botId
+    ) {
+      return
+    }
+    compatibilityNoticeBotId = botId
+    pushToast(t(compatibility.warningKey, compatibility.warningParams ?? {}), 'bad', 7000)
+  },
+  { deep: true },
+)
 
 /**
  * Credentials were restored from storage, so the connect form is not what this visit is
@@ -73,7 +91,9 @@ const connectionBanner = computed(() => {
    * operator that the bot they had just picked was broken.
    */
   if (bot.connection === 'unauthorized') return t('errors.auth')
-  if (bot.connection === 'unreachable') return t('errors.cors')
+  if (bot.connection === 'unreachable') {
+    return bot.errorKey ? t(bot.errorKey.key, bot.errorKey.params ?? {}) : t('errors.cors')
+  }
   return null
 })
 
