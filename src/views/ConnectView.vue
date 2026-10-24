@@ -34,24 +34,6 @@ const canSubmit = computed(
   () => baseUrl.value.trim().length > 0 && username.value.trim() && password.value.length > 0,
 )
 
-let compatibilityNoticeBotId = ''
-watch(
-  () => [settings.activeBotId, bot.connection, bot.compatibility] as const,
-  ([botId, connection, compatibility]) => {
-    if (
-      connection !== 'online' ||
-      !botId ||
-      !compatibility?.warningKey ||
-      compatibilityNoticeBotId === botId
-    ) {
-      return
-    }
-    compatibilityNoticeBotId = botId
-    pushToast(t(compatibility.warningKey, compatibility.warningParams ?? {}), 'bad', 7000)
-  },
-  { deep: true },
-)
-
 // Suggest the name the bot would get anyway (the username); edit it only if it is wrong.
 watch(username, (value) => {
   if (!nameTouched.value) name.value = value.trim()

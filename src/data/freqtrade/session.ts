@@ -124,6 +124,11 @@ interface RefreshRun {
   promise: Promise<RefreshSummary>
 }
 
+interface GroupResult {
+  generation: number
+  results: CallResult<unknown>[]
+}
+
 const EMPTY_DATA: SessionData = {
   showConfig: null,
   health: null,
@@ -222,6 +227,17 @@ function canDropSignalColumns(error: ErrorDescription | undefined, columns?: str
   return (status === 400 || status === 422) && /(column|signal|enter_|exit_)/i.test(detail)
 }
 
+function isTransportFailure(error: ErrorDescription | null | undefined): boolean {
+  const status = Number(error?.params?.status)
+  return (
+    error?.key === 'errors.auth' ||
+    error?.key === 'errors.cors' ||
+    error?.key === 'errors.offline' ||
+    error?.key === 'errors.timeout' ||
+    (error?.key === 'errors.http' && status >= 500)
+  )
+}
+
 /**
  * Owns one bot's REST lifecycle. It never commits a response unless both the session epoch and
  * the individual request generation still match, so a slow old request can finish naturally
@@ -234,6 +250,7 @@ export class BotSessionController {
   private readonly clientFactory: (credentials: Credentials) => FreqtradeApiClient
   private client: FreqtradeApiClient | null = null
   private readonly generations = new Map<string, number>()
+  private readonly groupGenerations = new Map<ResourceName, number>()
   private readonly requests = new Map<string, RequestRun>()
   private refreshRun: RefreshRun | null = null
   private nextRefreshToken = 0
@@ -278,6 +295,11 @@ export class BotSessionController {
   ensureClient(): FreqtradeApiClient {
     if (!this.client) this.client = this.clientFactory(this.credentials)
     return this.client
+  }
+
+  updateCredentials(credentials: Credentials): void {
+    this.credentials = { ...credentials }
+    this.client = null
   }
 
   captureSnapshot(): BotSessionSnapshot {
@@ -375,6 +397,16 @@ export class BotSessionController {
     return run
   }
 
+  private beginGroup(resource: ResourceName): number {
+    const generation = (this.groupGenerations.get(resource) ?? 0) + 1
+    this.groupGenerations.set(resource, generation)
+    return generation
+  }
+
+  private isCurrentGroup(resource: ResourceName, generation: number, epoch: number): boolean {
+    return epoch === this.state.epoch && this.groupGenerations.get(resource) === generation
+  }
+
   private async call<T>(
     key: string,
     task: (client: FreqtradeApiClient, options: RequestOptions) => Promise<T>,
@@ -405,12 +437,16 @@ export class BotSessionController {
 
   private updateConnectionFromResults(results: CallResult<unknown>[], epoch: number): void {
     if (epoch !== this.state.epoch) return
-    const failed = results.find((result) => !result.ok && !result.stale)
-    if (failed) {
-      this.state.errorKey = failed.error ?? null
-      this.state.connection = failed.error?.key === 'errors.auth' ? 'unauthorized' : 'unreachable'
+    const transportFailure = results.find(
+      (result) => !result.ok && !result.stale && isTransportFailure(result.error),
+    )
+    if (transportFailure) {
+      const key = transportFailure.error?.key
+      this.state.errorKey = transportFailure.error ?? null
+      this.state.connection = key === 'errors.auth' ? 'unauthorized' : 'unreachable'
       return
     }
+    if (results.some((result) => !result.ok && !result.stale)) return
     this.state.errorKey = null
     if (this.state.connection === 'unreachable' || this.state.connection === 'unauthorized') {
       this.state.connection = 'online'
@@ -427,22 +463,27 @@ export class BotSessionController {
         apply: (value: unknown) => void,
       ]
     >,
-  ): Promise<CallResult<unknown>[]> {
+  ): Promise<GroupResult> {
+    const generation = this.beginGroup(resource)
     const results = await Promise.all(
       calls.map(async ([key, task, apply]) => {
         const result = await this.call(key, task)
-        if (result.ok && !result.stale && epoch === this.state.epoch) apply(result.value)
+        if (result.ok && !result.stale && this.isCurrentGroup(resource, generation, epoch)) {
+          apply(result.value)
+        }
         return result
       }),
     )
-    this.setGroupResult(resource, results, epoch)
-    return results
+    if (this.isCurrentGroup(resource, generation, epoch)) {
+      this.setGroupResult(resource, results, epoch)
+    }
+    return { generation, results }
   }
 
   async refreshCore(): Promise<RefreshSummary> {
     const epoch = this.state.epoch
     const started = performance.now()
-    const results = await this.runGroup('core', epoch, [
+    const group = await this.runGroup('core', epoch, [
       [
         'core.status',
         (client, options) => client.status(options),
@@ -474,7 +515,8 @@ export class BotSessionController {
         (value) => (this.state.data.sysinfo = value as SysInfoResponse),
       ],
     ])
-    const stale = epoch !== this.state.epoch
+    const { generation, results } = group
+    const stale = !this.isCurrentGroup('core', generation, epoch)
     if (!stale) {
       this.updateConnectionFromResults(results, epoch)
       this.state.coreReady = results.every((result) => result.ok)
@@ -491,14 +533,15 @@ export class BotSessionController {
 
   async refreshTrades(): Promise<RefreshSummary> {
     const epoch = this.state.epoch
-    const results = await this.runGroup('trades', epoch, [
+    const group = await this.runGroup('trades', epoch, [
       [
         'trades.list',
         (client, options) => client.trades({ limit: TRADES_PAGE_SIZE }, options),
         (value) => (this.state.data.trades = (value as TradesResponse).trades),
       ],
     ])
-    const stale = epoch !== this.state.epoch
+    const { generation, results } = group
+    const stale = !this.isCurrentGroup('trades', generation, epoch)
     if (!stale) {
       this.updateConnectionFromResults(results, epoch)
       this.state.tradesReady = results[0]?.ok === true
@@ -513,7 +556,7 @@ export class BotSessionController {
 
   async refreshAnalytics(): Promise<RefreshSummary> {
     const epoch = this.state.epoch
-    const results = await this.runGroup('analytics', epoch, [
+    const group = await this.runGroup('analytics', epoch, [
       [
         'analytics.stats',
         (client, options) => client.tradeStats(options),
@@ -545,7 +588,8 @@ export class BotSessionController {
         (value) => (this.state.data.profitAll = value as ProfitAllResponse),
       ],
     ])
-    const stale = epoch !== this.state.epoch
+    const { generation, results } = group
+    const stale = !this.isCurrentGroup('analytics', generation, epoch)
     return {
       ...summary(epoch, { analytics: { ok: results.every((result) => result.ok), stale } }, stale),
       succeeded: results.every((result) => result.ok) ? ['analytics'] : [],
@@ -555,7 +599,7 @@ export class BotSessionController {
 
   async refreshMarket(): Promise<RefreshSummary> {
     const epoch = this.state.epoch
-    const results = await this.runGroup('market', epoch, [
+    const group = await this.runGroup('market', epoch, [
       [
         'market.whitelist',
         (client, options) => client.whitelist(options),
@@ -572,7 +616,8 @@ export class BotSessionController {
         (value) => (this.state.data.locks = value as LocksResponse),
       ],
     ])
-    const stale = epoch !== this.state.epoch
+    const { generation, results } = group
+    const stale = !this.isCurrentGroup('market', generation, epoch)
     return {
       ...summary(epoch, { market: { ok: results.every((result) => result.ok), stale } }, stale),
       succeeded: results.every((result) => result.ok) ? ['market'] : [],
@@ -582,7 +627,7 @@ export class BotSessionController {
 
   async refreshSystem(): Promise<RefreshSummary> {
     const epoch = this.state.epoch
-    const results = await this.runGroup('system', epoch, [
+    const group = await this.runGroup('system', epoch, [
       [
         'system.config',
         (client, options) => client.showConfig(options),
@@ -594,7 +639,8 @@ export class BotSessionController {
         (value) => (this.state.data.logs = value as LogsResponse),
       ],
     ])
-    const stale = epoch !== this.state.epoch
+    const { generation, results } = group
+    const stale = !this.isCurrentGroup('system', generation, epoch)
     return {
       ...summary(epoch, { system: { ok: results.every((result) => result.ok), stale } }, stale),
       succeeded: results.every((result) => result.ok) ? ['system'] : [],
@@ -710,10 +756,11 @@ export class BotSessionController {
       const client = this.ensureClient()
       await client.ping()
       if (epoch !== this.state.epoch || client !== this.client) return false
+      let compatibility: CompatibilityResult
       try {
-        this.state.compatibility = await client.inspectCompatibility()
+        compatibility = await client.inspectCompatibility()
       } catch {
-        this.state.compatibility = {
+        compatibility = {
           status: 'unknown',
           detectedVersion: null,
           apiVersion: null,
@@ -721,17 +768,29 @@ export class BotSessionController {
           warningKey: 'compatibility.versionUnknown',
         }
       }
+      if (epoch !== this.state.epoch || client !== this.client) return false
+      this.state.compatibility = compatibility
       const config = await client.showConfig()
       if (epoch !== this.state.epoch || client !== this.client) return false
       this.state.data.showConfig = config
       const started = performance.now()
-      await this.refreshAll()
+      const refreshed = await this.refreshAll()
       if (epoch !== this.state.epoch || client !== this.client) return false
-      if (!this.state.coreReady || !this.state.tradesReady) {
-        if (this.state.connection === 'connecting') this.state.connection = 'unreachable'
+      this.state.latencyMs ??= Math.round(performance.now() - started)
+      const requiredResource = refreshed.failed.find(
+        (resource): resource is 'core' | 'trades' =>
+          (resource === 'core' || resource === 'trades') &&
+          isTransportFailure(this.state.resourceErrors[resource]),
+      )
+      const requiredError = requiredResource
+        ? this.state.resourceErrors[requiredResource]
+        : undefined
+      if (requiredError && isTransportFailure(requiredError)) {
+        this.state.errorKey = requiredError
+        this.state.connection = requiredError.key === 'errors.auth' ? 'unauthorized' : 'unreachable'
         return false
       }
-      this.state.latencyMs ??= Math.round(performance.now() - started)
+      if (this.state.connection !== 'connecting') return false
       this.state.connection = 'online'
       return true
     } catch (error) {

@@ -214,7 +214,8 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   function rebuildClient() {
-    session.value?.rebuildClient()
+    const current = ensureSession()
+    current.updateCredentials(currentCredentials())
     client.value = null
   }
 
@@ -312,6 +313,8 @@ export const useBotStore = defineStore('bot', () => {
     const current = ensureSession()
     if (current.state.botId !== settings.activeBotId) {
       current.setBot(settings.activeBotId, currentCredentials())
+    } else {
+      current.updateCredentials(currentCredentials())
     }
     return connectForLifecycle(token)
   }
