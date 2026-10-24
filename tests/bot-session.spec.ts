@@ -25,9 +25,9 @@ function fakeClient(overrides: Record<string, unknown> = {}): FreqtradeApiClient
     showConfig: vi.fn().mockResolvedValue({}),
     inspectCompatibility: vi.fn().mockResolvedValue({
       status: 'compatible',
-      detectedVersion: '2026.8',
+      detectedVersion: '2026.9',
       apiVersion: 2.5,
-      referenceContract: 'freqtrade-2026.8-api-v2.5',
+      referenceContract: 'freqtrade-2026.9-api-v2.5',
     }),
     status: vi.fn().mockResolvedValue([]),
     count: vi.fn().mockResolvedValue({}),
@@ -186,7 +186,7 @@ describe('BotSessionController', () => {
         status: 'warning',
         detectedVersion: '2025.12',
         apiVersion: 2.5,
-        referenceContract: 'freqtrade-2026.8-api-v2.5',
+        referenceContract: 'freqtrade-2026.9-api-v2.5',
         warningKey: 'compatibility.versionMismatch',
       }),
     })
@@ -202,7 +202,7 @@ describe('BotSessionController', () => {
       status: 'warning'
       detectedVersion: string
       apiVersion: number
-      referenceContract: 'freqtrade-2026.8-api-v2.5'
+      referenceContract: 'freqtrade-2026.9-api-v2.5'
       warningKey: 'compatibility.versionMismatch'
     }>()
     const inspectCompatibility = vi.fn().mockReturnValue(compatibility.promise)
@@ -218,7 +218,7 @@ describe('BotSessionController', () => {
       status: 'warning',
       detectedVersion: '2025.12',
       apiVersion: 2.5,
-      referenceContract: 'freqtrade-2026.8-api-v2.5',
+      referenceContract: 'freqtrade-2026.9-api-v2.5',
       warningKey: 'compatibility.versionMismatch',
     })
 
@@ -232,7 +232,7 @@ describe('BotSessionController', () => {
         status: 'unknown',
         detectedVersion: null,
         apiVersion: null,
-        referenceContract: 'freqtrade-2026.8-api-v2.5',
+        referenceContract: 'freqtrade-2026.9-api-v2.5',
         warningKey: 'compatibility.versionUnknown',
       }),
     })

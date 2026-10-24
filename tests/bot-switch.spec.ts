@@ -11,7 +11,7 @@ import { useSettingsStore } from '@/stores/settings'
  */
 
 const showConfig = (botName: string) => ({
-  version: '2026.8',
+  version: '2026.9',
   api_version: 2.5,
   bot_name: botName,
   stake_currency: 'USDT',

@@ -2,6 +2,7 @@ import { reactive } from 'vue'
 import {
   describeError,
   FreqtradeApiClient,
+  REFERENCE_CONTRACT,
   type CompatibilityResult,
   type Credentials,
   type RequestOptions,
@@ -764,7 +765,7 @@ export class BotSessionController {
           status: 'unknown',
           detectedVersion: null,
           apiVersion: null,
-          referenceContract: 'freqtrade-2026.8-api-v2.5',
+          referenceContract: REFERENCE_CONTRACT,
           warningKey: 'compatibility.versionUnknown',
         }
       }

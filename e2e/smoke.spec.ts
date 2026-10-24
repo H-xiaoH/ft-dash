@@ -64,7 +64,7 @@ test.describe('connect screen', () => {
 
     await expect(page.locator('.strip__state-label')).toHaveText('不可用')
     // The sentence still exists — in the banner that can act on it.
-    await expect(page.locator('.shell__banner')).toContainText('请求被浏览器拦截')
+    await expect(page.locator('.global-notices')).toContainText('请求被浏览器拦截')
   })
 })
 

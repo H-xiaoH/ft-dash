@@ -244,7 +244,7 @@ Never commit a real host, username or password: `.env*` files are git-ignored.
 
 ## Compatibility
 
-Built against **Freqtrade 2026.8 / API v2.5** and verified end to end against a live futures
+Built against **Freqtrade 2026.9 / API v2.5** and verified end to end against a live futures
 instance. It reads `/ping`, `/show_config`, `/version`, `/health`, `/sysinfo`, `/balance`,
 `/profit`, `/profit_all`, `/status`, `/count`, `/trades`, `/performance`, `/stats`,
 `/daily`, `/weekly`, `/monthly`, `/logs`, `/whitelist`, `/blacklist`, `/locks` and

@@ -2,12 +2,12 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterView, useRoute, useRouter } from 'vue-router'
-import AppIcon from '@/components/AppIcon.vue'
 import AppNavigation from '@/components/AppNavigation.vue'
+import GlobalNotices from '@/components/GlobalNotices.vue'
 import StatusStrip from '@/components/StatusStrip.vue'
 import ConnectView from '@/views/ConnectView.vue'
 import { usePageDrag } from '@/composables/usePageDrag'
-import { pushToast, useToasts } from '@/composables/useToast'
+import { useToasts } from '@/composables/useToast'
 import { navigatePage } from '@/lib/navigation'
 import { NAV_ROUTES } from '@/router'
 import { useBotStore } from '@/stores/bot'
@@ -21,24 +21,6 @@ const events = useEventsStore()
 const route = useRoute()
 const router = useRouter()
 const { toasts, dismissToast } = useToasts()
-
-let compatibilityNoticeBotId = ''
-watch(
-  () => [settings.activeBotId, bot.connection, bot.compatibility] as const,
-  ([botId, connection, compatibility]) => {
-    if (
-      connection !== 'online' ||
-      !botId ||
-      !compatibility?.warningKey ||
-      compatibilityNoticeBotId === botId
-    ) {
-      return
-    }
-    compatibilityNoticeBotId = botId
-    pushToast(t(compatibility.warningKey, compatibility.warningParams ?? {}), 'bad', 7000)
-  },
-  { deep: true },
-)
 
 /**
  * Credentials were restored from storage, so the connect form is not what this visit is
@@ -84,19 +66,6 @@ const {
   loadAllPages,
   onRailWheel,
 } = usePageDrag(() => showConnect.value)
-const connectionBanner = computed(() => {
-  /*
-   * Failures only. A connect in flight is not news — the status strip already shows it —
-   * and this banner is titled "connection failed", so rendering it mid-switch told the
-   * operator that the bot they had just picked was broken.
-   */
-  if (bot.connection === 'unauthorized') return t('errors.auth')
-  if (bot.connection === 'unreachable') {
-    return bot.errorKey ? t(bot.errorKey.key, bot.errorKey.params ?? {}) : t('errors.cors')
-  }
-  return null
-})
-
 const pageTitle = computed(() => {
   const match = NAV_ROUTES.find((entry) => entry.name === route.name)
   return match ? t(match.titleKey) : t('app.name')
@@ -211,19 +180,11 @@ watch(
 
     <div class="main">
       <StatusStrip @refresh="refresh" @open-tape="openTape" />
-
-      <div v-if="connectionBanner" class="banner banner--bad shell__banner" role="status">
-        <AppIcon name="alert" :size="18" />
-        <div>
-          <div class="banner__title">{{ t('connect.failed') }}</div>
-          <div>{{ connectionBanner }}</div>
-        </div>
-        <div class="spacer" />
-        <button type="button" class="btn btn--sm" @click="openSettings">
-          {{ t('bots.openSettings') }}
-        </button>
-        <button type="button" class="btn btn--sm" @click="refresh">{{ t('common.retry') }}</button>
-      </div>
+      <GlobalNotices
+        @open-settings="openSettings"
+        @retry="refresh"
+        @retry-stream="bot.retryStream()"
+      />
 
       <div class="shell__body">
         <main class="content">
@@ -413,10 +374,6 @@ watch(
   left: 0;
   width: 100%;
   contain: paint;
-}
-
-.shell__banner {
-  margin: var(--sp-4) var(--sp-4) 0;
 }
 
 /*

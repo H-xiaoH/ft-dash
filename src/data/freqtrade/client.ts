@@ -26,9 +26,9 @@ import type {
 import { ApiError } from './errors'
 import { FreqtradeTransport, type Credentials, type RequestOptions } from './transport'
 
-export const REFERENCE_FREQTRADE_VERSION_SERIES = '2026.8'
+export const REFERENCE_FREQTRADE_VERSION_SERIES = '2026.9'
 export const REFERENCE_API_VERSION = 2.5
-export const REFERENCE_CONTRACT = 'freqtrade-2026.8-api-v2.5'
+export const REFERENCE_CONTRACT = 'freqtrade-2026.9-api-v2.5'
 
 export type CompatibilityStatus = 'compatible' | 'warning' | 'unknown'
 

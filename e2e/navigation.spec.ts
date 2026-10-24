@@ -527,16 +527,27 @@ test('landing on a page refreshes once, after the pages stop changing', async ({
    * twelfth tick — so in the first seconds of a session it is the walk's own refresh
    * talking, not the cadence underneath it.
    */
-  const analytics: number[] = []
-  page.on('request', (request) => {
-    if (request.url().includes('/performance')) analytics.push(Date.now())
-  })
   // The shell is mounted while the first connect refresh is still in flight. Wait for
   // that refresh to finish before taking the baseline, or its performance request can
   // arrive during the navigation below and look like a page-settle refresh.
   await expect(page.locator('.strip__actions .btn--icon')).toBeEnabled()
   await railAt(page, 0)
-  const before = analytics.length
+  await page.evaluate(() => {
+    const performanceRequests: number[] = []
+    Object.defineProperty(window, '__performanceRequests', {
+      configurable: true,
+      value: performanceRequests,
+    })
+    const originalFetch = window.fetch.bind(window)
+    window.fetch = (input, init) => {
+      const url = input instanceof Request ? input.url : String(input)
+      if (url.includes('/performance')) performanceRequests.push(Date.now())
+      return originalFetch(input, init)
+    }
+  })
+  const before = await page.evaluate(
+    () => (window as unknown as { __performanceRequests: number[] }).__performanceRequests.length,
+  )
 
   const lastWheelAt = await page.evaluate(() => {
     const rail = document.querySelector('.rail__item')!
@@ -549,6 +560,18 @@ test('landing on a page refreshes once, after the pages stop changing', async ({
   })
   await expect.poll(() => hash(page)).toBe('#/market')
   // Three pages in one walk; the refresh is allowed only after the 300ms settle window.
-  await expect.poll(() => analytics.length - before).toBe(1)
-  expect(analytics[before]).toBeGreaterThanOrEqual(lastWheelAt + 250)
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __performanceRequests: number[] }).__performanceRequests.length,
+      ),
+    )
+    .toBe(before + 1)
+  const performanceAt = await page.evaluate(
+    (index) =>
+      (window as unknown as { __performanceRequests: number[] }).__performanceRequests[index],
+    before,
+  )
+  expect(performanceAt).toBeGreaterThanOrEqual(lastWheelAt + 250)
 })

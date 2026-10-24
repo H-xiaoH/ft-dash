@@ -134,14 +134,6 @@ async function install() {
   <div class="stack settings">
     <BotsPanel />
 
-    <section v-if="bot.compatibility?.warningKey" class="banner banner--warn small">
-      <AppIcon name="alert" :size="18" />
-      <div>
-        <strong>{{ t('compatibility.title') }}</strong>
-        <div>{{ t(bot.compatibility.warningKey, bot.compatibility.warningParams ?? {}) }}</div>
-      </div>
-    </section>
-
     <div class="settings__columns">
       <div class="settings__col">
         <section class="panel">
@@ -202,9 +194,6 @@ async function install() {
                 </button>
               </div>
               <p class="small muted">{{ t('settings.streamAuthHint') }}</p>
-              <p v-if="bot.streamReasonKey" class="banner banner--warn small">
-                {{ t(bot.streamReasonKey) }}
-              </p>
               <div class="settings__grid">
                 <div class="field">
                   <span class="field__label">{{ t('settings.streamAuth') }}</span>
