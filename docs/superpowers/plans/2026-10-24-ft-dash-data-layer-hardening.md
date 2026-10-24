@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- 本次以 Freqtrade API v1 的当前目标契约为参考，不实现旧版本的 endpoint、字段或响应形状兼容分支。
+- 本次以仓库已记录的 Freqtrade 2026.8 / API v2.5 和 `/api/v1` endpoint 契约为参考，不实现旧版本的 endpoint、字段或响应形状兼容分支。
 - 版本不匹配不阻断连接，只显示可能出现问题和错误的提示。
 - 当前机器人是唯一实时数据源；切换机器人是切换数据源，不是并行轮询。
 - 机器人快照只用于切换回来时先画一帧；真实刷新完成前所有写操作必须保持禁用。
@@ -50,7 +50,7 @@
 - Produces `Credentials`, `RequestOptions`, `ApiErrorKind`, `ApiError`, `describeError`, `normalizeBaseUrl`, `absoluteBaseUrl`, `websocketUrl`。
 - Produces `FreqtradeTransport.request<T>(path: string, options?: RequestOptions): Promise<T>`；transport 负责 Basic/JWT、一次 bearer→Basic 重试、完整响应体 timeout、外部 AbortSignal 和 `cache: no-store`。
 - Produces `FreqtradeApiClient`，保留当前 `FreqtradeApi` 的 endpoint 方法签名（`ping`, `showConfig`, `health`, `status`, `trades`, `pairCandles`, 所有 analytics/read/write endpoints），但严格按目标 API v1 的响应模型解析，不提供旧形状 fallback。
-- Produces `inspectCompatibility(): Promise<CompatibilityResult>`，结果包括 `status: 'compatible' | 'warning' | 'unknown'`、检测到的版本、参考契约标识和可展示的 warning key；探测失败不抛出阻断连接的错误。
+- Produces `inspectCompatibility(): Promise<CompatibilityResult>`，以 Freqtrade 2026.8 系列和 API 版本 2.5 为参考；结果包括 `status: 'compatible' | 'warning' | 'unknown'`、检测到的版本、参考契约标识和可展示的 warning key；探测失败不抛出阻断连接的错误。
 
 - [ ] **Step 1: 写 transport/client 的失败测试。**
 
