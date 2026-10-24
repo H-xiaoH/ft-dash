@@ -4,7 +4,8 @@ export type CsvValue = string | number | boolean | null | undefined
 
 function escapeCell(value: CsvValue): string {
   if (value === null || value === undefined) return ''
-  const text = String(value)
+  const raw = String(value)
+  const text = typeof value === 'string' && /^[=+\-@]/.test(raw) ? `'${raw}` : raw
   if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`
   return text
 }

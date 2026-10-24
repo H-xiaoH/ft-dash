@@ -4,7 +4,7 @@ import type { PairCandlesResponse, Trade } from './types'
 
 /** The candle columns the chart always asks for, and the two only some strategies expose. */
 export const CANDLE_COLUMNS = ['date', 'open', 'high', 'low', 'close', 'volume']
-export const SIGNAL_COLUMNS = ['enter_long', 'exit_long']
+export const SIGNAL_COLUMNS = ['enter_long', 'exit_long', 'enter_short', 'exit_short']
 
 /**
  * Something worth marking on a candle: what the strategy signalled, or what the bot actually
@@ -23,6 +23,8 @@ export interface CandleMark {
 const SIGNALS = [
   { column: 'enter_long', side: 'buy' },
   { column: 'exit_long', side: 'sell' },
+  { column: 'enter_short', side: 'sell' },
+  { column: 'exit_short', side: 'buy' },
 ] as const
 
 /**
@@ -66,9 +68,10 @@ export function collectCandleMarks(input: {
   for (const trade of trades) {
     if (trade.pair !== pair) continue
     // Both legs of a trade: the entry it opened at, and the exit it closed at.
+    const isShort = trade.is_short === true
     const legs = [
-      { side: 'buy', date: trade.open_date, price: trade.open_rate },
-      { side: 'sell', date: trade.close_date, price: trade.close_rate },
+      { side: isShort ? 'sell' : 'buy', date: trade.open_date, price: trade.open_rate },
+      { side: isShort ? 'buy' : 'sell', date: trade.close_date, price: trade.close_rate },
     ] as const
     for (const leg of legs) {
       const index = indexOf(leg.date)

@@ -22,6 +22,11 @@ export function toNumber(value: Numberish): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+/** Freqtrade uses -100 as "not meaningful" for a few derived metrics. */
+export function hideFreqtradeSentinel(value: Numberish, sentinel = -100): Numberish {
+  return toNumber(value) === sentinel ? null : value
+}
+
 export function formatNumber(value: Numberish, locale = 'en', digits = 2, fallback = '—'): string {
   const n = toNumber(value)
   if (n === null) return fallback
