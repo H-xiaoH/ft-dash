@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
@@ -33,7 +33,7 @@ const { blockStyle: listBlockStyle, blockReady: listBlockReady } = useSegBlock(
 )
 const search = ref('')
 const positionsOnly = ref(false)
-const selectedPair = ref('')
+const selectedPair = ref(bot.openTrades[0]?.pair ?? bot.whitelist?.whitelist[0] ?? '')
 const loadingCandles = ref(false)
 const candleError = ref(false)
 const blacklistInput = ref('')
@@ -140,11 +140,27 @@ const chartMarks = computed(() =>
  */
 const isCurrentPage = () => route.name === 'market'
 
-async function loadCandles() {
-  if (!selectedPair.value || !isCurrentPage()) return
+let candleRequestGeneration = 0
+
+async function loadCandles(
+  pair: string,
+  currentTimeframe: string,
+  generation: number,
+  isCurrent: () => boolean,
+) {
+  if (!pair || !isCurrentPage() || !isCurrent()) return
   loadingCandles.value = true
   candleError.value = false
-  const result = await bot.fetchCandles(selectedPair.value, timeframe.value, 180)
+  const result = await bot.fetchCandles(pair, currentTimeframe, 180)
+  if (
+    !isCurrent() ||
+    generation !== candleRequestGeneration ||
+    !isCurrentPage() ||
+    pair !== selectedPair.value ||
+    currentTimeframe !== timeframe.value
+  ) {
+    return
+  }
   candleError.value = !result
   loadingCandles.value = false
 }
@@ -178,12 +194,19 @@ async function confirmLockDelete() {
 }
 
 watch(
-  () => [selectedPair.value, timeframe.value],
-  () => {
-    if (selectedPair.value && !bot.candleCache[`${selectedPair.value}|${timeframe.value}`]) {
-      void loadCandles()
+  () => [selectedPair.value, timeframe.value, route.name] as const,
+  ([pair, currentTimeframe], _, onCleanup) => {
+    if (!pair || !isCurrentPage()) return
+    const generation = ++candleRequestGeneration
+    let cancelled = false
+    onCleanup(() => {
+      cancelled = true
+    })
+    if (!bot.candleCache[`${pair}|${currentTimeframe}`]) {
+      void loadCandles(pair, currentTimeframe, generation, () => !cancelled)
     }
   },
+  { immediate: true },
 )
 
 watch(
@@ -194,11 +217,6 @@ watch(
     }
   },
 )
-
-onMounted(() => {
-  selectedPair.value = bot.openTrades[0]?.pair ?? bot.whitelist?.whitelist[0] ?? ''
-  if (selectedPair.value) void loadCandles()
-})
 </script>
 
 <template>

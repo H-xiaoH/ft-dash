@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
@@ -19,6 +19,7 @@ const bot = useBotStore()
 const minLevel = ref<Level>('INFO')
 const search = ref('')
 const follow = ref(true)
+const logsRef = useTemplateRef<HTMLDivElement>('logs')
 
 const levelOptions: FilterOption<Level>[] = LEVELS.map((level) => ({ value: level, label: level }))
 
@@ -56,6 +57,16 @@ const lines = computed<DisplayLogLine[]>(() => {
       dateTime: format.dateTimeParts(line[0]),
     }))
 })
+
+watch(
+  () => lines.value.length,
+  async (length, previousLength) => {
+    if (!follow.value || previousLength === undefined || length <= previousLength) return
+    await nextTick()
+    const container = logsRef.value
+    if (container) container.scrollTop = container.scrollHeight
+  },
+)
 
 function levelClass(level: string): string {
   const normalized = level.toUpperCase()
@@ -100,7 +111,7 @@ function levelClass(level: string): string {
     <div class="panel__body panel__body--flush">
       <div v-if="!lines.length" class="empty">{{ t('logs.empty') }}</div>
       <!-- Keyboard users need a focus stop to scroll the log (WCAG 2.1.1). -->
-      <div v-else class="logs" tabindex="0" role="region" :aria-label="t('logs.title')">
+      <div v-else ref="logs" class="logs" tabindex="0" role="region" :aria-label="t('logs.title')">
         <div v-for="entry in lines" :key="entry.key" class="logs__line">
           <span class="logs__time num">
             <span class="logs__date">{{ entry.dateTime.date }}</span>

@@ -213,6 +213,15 @@ function summary(
   return { epoch, ok: !stale && failed.length === 0, stale, succeeded, failed }
 }
 
+function canDropSignalColumns(error: ErrorDescription | undefined, columns?: string[]): boolean {
+  if (error?.key !== 'errors.http' || !columns?.some((column) => /^(enter|exit)_/.test(column))) {
+    return false
+  }
+  const status = Number(error.params?.status)
+  const detail = String(error.params?.detail ?? '')
+  return (status === 400 || status === 422) && /(column|signal|enter_|exit_)/i.test(detail)
+}
+
 /**
  * Owns one bot's REST lifecycle. It never commits a response unless both the session epoch and
  * the individual request generation still match, so a slow old request can finish naturally
@@ -722,9 +731,16 @@ export class BotSessionController {
   ): Promise<PairCandlesResponse | null> {
     const key = `candles:${pair}|${timeframe}`
     const epoch = this.state.epoch
-    const result = await this.call(key, (client, options) =>
+    let result = await this.call(key, (client, options) =>
       client.pairCandles(pair, timeframe, limit, columns, options),
     )
+    // A strategy may explicitly reject requested signal columns. Only that contract-level
+    // response gets a second, plain candle request; network/auth/server failures stay failures.
+    if (!result.ok && !result.stale && canDropSignalColumns(result.error, columns)) {
+      result = await this.call(key, (client, options) =>
+        client.pairCandles(pair, timeframe, limit, undefined, options),
+      )
+    }
     if (result.ok && !result.stale && epoch === this.state.epoch) {
       this.state.data.candleCache = {
         ...this.state.data.candleCache,
