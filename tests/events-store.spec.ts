@@ -15,15 +15,18 @@ describe('events store', () => {
 
   it('ingests a fill message into a readable event', () => {
     const events = beginScope()
-    events.ingest({
-      type: 'exit_fill',
-      data: {
-        pair: 'BOME/USDT:USDT',
-        profit_ratio: 0.1234,
-        profit_abs: 1.5,
-        exit_reason: 'exit_long_quick_u_1',
+    events.ingest(
+      {
+        type: 'exit_fill',
+        data: {
+          pair: 'BOME/USDT:USDT',
+          profit_ratio: 0.1234,
+          profit_abs: 1.5,
+          exit_reason: 'exit_long_quick_u_1',
+        },
       },
-    }, { botId: 'bot-1', epoch: 1 })
+      { botId: 'bot-1', epoch: 1 },
+    )
 
     expect(events.events).toHaveLength(1)
     const [event] = events.events
@@ -63,10 +66,7 @@ describe('events store', () => {
   it('caps the tape so a busy bot cannot grow memory without bound', () => {
     const events = beginScope()
     for (let i = 0; i < 260; i += 1) {
-      events.ingest(
-        { type: 'strategy_msg', data: { msg: `m${i}` } },
-        { botId: 'bot-1', epoch: 1 },
-      )
+      events.ingest({ type: 'strategy_msg', data: { msg: `m${i}` } }, { botId: 'bot-1', epoch: 1 })
     }
     expect(events.events.length).toBeLessThanOrEqual(200)
   })
