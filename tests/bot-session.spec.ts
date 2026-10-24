@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
+import { ApiError, type FreqtradeApiClient } from '@/data/freqtrade'
 import { BotSessionController } from '@/data/freqtrade/session'
-import type { FreqtradeApiClient } from '@/data/freqtrade'
+import type { PairCandlesResponse } from '@/lib/types'
 
 const credentials = {
   baseUrl: 'https://bot.example.com/api/v1',
@@ -58,6 +59,18 @@ function sessionFor(
     credentials,
     clientFactory: (nextCredentials) => clients[nextCredentials.baseUrl] ?? client,
   })
+}
+
+function candleResponse(): PairCandlesResponse {
+  return {
+    strategy: 'TestStrategy',
+    pair: 'BTC/USDT',
+    timeframe: '5m',
+    timeframe_ms: 300_000,
+    columns: ['date', 'open', 'high', 'low', 'close', 'volume'],
+    data: [['2026-10-24 12:00:00', 1, 1.1, 0.9, 1.05, 10]],
+    length: 1,
+  }
 }
 
 describe('BotSessionController', () => {
@@ -150,5 +163,69 @@ describe('BotSessionController', () => {
     await expect(session.connect()).resolves.toBe(true)
     expect(session.state.compatibility?.status).toBe('warning')
     expect(session.state.connection).toBe('online')
+  })
+
+  it.each([400, 422])(
+    'retries candles without signal columns for a %s signal-column response',
+    async (status) => {
+      const pairCandles = vi
+        .fn()
+        .mockRejectedValueOnce(
+          new ApiError('http', 'signal column is not available', {
+            status,
+            detail: 'Column enter_long not found',
+          }),
+        )
+        .mockResolvedValueOnce(candleResponse())
+      const session = sessionFor(fakeClient({ pairCandles }))
+
+      await expect(
+        session.fetchCandles('BTC/USDT', '5m', 180, [
+          'date',
+          'open',
+          'high',
+          'low',
+          'close',
+          'volume',
+          'enter_long',
+        ]),
+      ).resolves.toEqual(candleResponse())
+
+      expect(pairCandles).toHaveBeenNthCalledWith(
+        1,
+        'BTC/USDT',
+        '5m',
+        180,
+        ['date', 'open', 'high', 'low', 'close', 'volume', 'enter_long'],
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      )
+      expect(pairCandles).toHaveBeenNthCalledWith(
+        2,
+        'BTC/USDT',
+        '5m',
+        180,
+        undefined,
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      )
+    },
+  )
+
+  it('does not retry candle requests for server errors', async () => {
+    const pairCandles = vi.fn().mockRejectedValue(
+      new ApiError('http', 'server failed', {
+        status: 500,
+        detail: 'Column enter_long not found',
+      }),
+    )
+    const session = sessionFor(fakeClient({ pairCandles }))
+
+    await expect(
+      session.fetchCandles('BTC/USDT', '5m', 180, ['date', 'enter_long']),
+    ).resolves.toBeNull()
+    expect(pairCandles).toHaveBeenCalledTimes(1)
+    expect(session.state.resourceErrors.candles).toEqual({
+      key: 'errors.http',
+      params: { status: 500, detail: 'Column enter_long not found' },
+    })
   })
 })

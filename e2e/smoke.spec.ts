@@ -68,6 +68,17 @@ test.describe('connect screen', () => {
   })
 })
 
+test('log minimum level includes higher-severity lines and excludes debug', async ({ page }) => {
+  await mockApi(page)
+  await page.goto('/')
+  await connect(page)
+  await page.goto('/#/logs')
+  const log = livePage(page)
+  const levels = log.locator('.logs__line .chip')
+  await expect(levels).toHaveText(['CRITICAL', 'ERROR', 'WARNING', 'INFO'])
+  await expect(log.locator('.logs__line', { hasText: 'Test debug' })).toHaveCount(0)
+})
+
 test.describe('navigation', () => {
   test('a page whose code cannot be fetched says so instead of hanging', async ({ page }) => {
     await mockApi(page)

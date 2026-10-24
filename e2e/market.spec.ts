@@ -75,11 +75,15 @@ test('signals and fills are marked on the chart, with a legend to read them', as
 test('a strategy that refuses the signal columns still gets its candles', async ({ page }) => {
   let refused = 0
   let asked = 0
-  await page.route('**/api/v1/pair_candles', (route) => {
+  await page.route('**/api/v1/pair_candles**', (route) => {
     asked += 1
     if (route.request().postData()?.includes('enter_long')) {
       refused += 1
-      return route.fulfill({ status: 400, json: { error: 'Column enter_long not found' } })
+      return route.fulfill({
+        status: 400,
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        json: { detail: 'Column enter_long not found' },
+      })
     }
     // The retry is the one the fixture answers, so it carries candles like any other.
     return route.fallback()
@@ -145,6 +149,27 @@ test('pair list switches the chart to another pair', async ({ page }) => {
   await selector.click()
   await page.locator('.filter-menu__item', { hasText: 'BBB/USDT' }).click()
   await expect(selector).toContainText('BBB/USDT')
+})
+
+test('switching pairs requests candles for the pair now shown', async ({ page }) => {
+  const requestedPairs: string[] = []
+  page.on('request', (request) => {
+    if (!request.url().includes('pair_candles')) return
+    const body = request.postData()
+    if (!body) return
+    try {
+      const payload = JSON.parse(body) as { pair?: string }
+      if (payload.pair) requestedPairs.push(payload.pair)
+    } catch {
+      // The URL form is used by older dev proxies; this assertion only needs POST requests.
+    }
+  })
+
+  const selector = livePage(page).locator('.panel').first().locator('.filter-menu__button')
+  await selector.click()
+  await page.locator('.filter-menu__item', { hasText: 'BBB/USDT' }).click()
+  await expect(selector).toContainText('BBB/USDT')
+  await expect.poll(() => requestedPairs.at(-1)).toBe('BBB/USDT')
 })
 
 test('an open position puts its cost basis on the chart, tagged with its P&L', async ({ page }) => {
