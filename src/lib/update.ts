@@ -15,10 +15,17 @@ export const UPDATE_CHECK_MS = 60_000
  * past the HTTP cache, so a deploy is noticed even where a CDN would still hand out the
  * previous `sw.js`.
  */
-export async function checkForUpdate() {
+type RegistrationLike = { update: () => Promise<unknown> | unknown }
+type RegistrationProvider = () => RegistrationLike | null | undefined
+
+export async function checkForUpdate(registration?: RegistrationLike | null) {
   try {
-    const registration = await navigator.serviceWorker?.getRegistration()
-    await registration?.update()
+    const current =
+      registration ??
+      (typeof navigator === 'undefined'
+        ? undefined
+        : await navigator.serviceWorker?.getRegistration())
+    await current?.update()
   } catch {
     // A check nobody asked for is not worth a word — the next one comes in a minute.
   }
@@ -28,9 +35,22 @@ export async function checkForUpdate() {
  * Asks on a timer and whenever the tab comes back to the foreground: the two moments a
  * long-lived tab would otherwise never notice a deploy.
  */
-export function startUpdateChecks(intervalMs = UPDATE_CHECK_MS) {
-  window.setInterval(() => void checkForUpdate(), intervalMs)
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) void checkForUpdate()
-  })
+export function startUpdateChecks(
+  intervalMs = UPDATE_CHECK_MS,
+  getRegistration: RegistrationProvider = () => undefined,
+): () => void {
+  const check = () => void checkForUpdate(getRegistration())
+  const timer = window.setInterval(check, intervalMs)
+  const onVisibilityChange = () => {
+    if (!document.hidden) check()
+  }
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  // The registration callback can arrive just after setup. This immediate fallback also
+  // catches a worker that was registered by a previous page visit.
+  check()
+
+  return () => {
+    window.clearInterval(timer)
+    document.removeEventListener('visibilitychange', onVisibilityChange)
+  }
 }

@@ -74,6 +74,11 @@ const blacklistRows = computed(() => {
   )
 })
 
+const availablePairKey = computed(() => {
+  const pairs = new Set<string>([...openPairs.value, ...(bot.whitelist?.whitelist ?? [])])
+  return [...pairs].join('\u0000')
+})
+
 const candles = computed<Candle[]>(() => {
   const response = bot.candleCache[`${selectedPair.value}|${timeframe.value}`]
   if (!response) return []
@@ -210,12 +215,12 @@ watch(
 )
 
 watch(
-  () => bot.whitelist?.whitelist.length,
+  availablePairKey,
   () => {
-    if (!selectedPair.value) {
-      selectedPair.value = bot.openTrades[0]?.pair ?? bot.whitelist?.whitelist[0] ?? ''
-    }
+    if (pairOptions.value.some((option) => option.value === selectedPair.value)) return
+    selectedPair.value = bot.openTrades[0]?.pair ?? bot.whitelist?.whitelist[0] ?? ''
   },
+  { immediate: true },
 )
 </script>
 

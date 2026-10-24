@@ -97,6 +97,25 @@ describe('MarketView', () => {
     wrapper.unmount()
   })
 
+  it('selects a pair when bot data arrives after the page mounted', async () => {
+    const router = await makeRouter()
+    Object.assign(bot, {
+      openTrades: [],
+      whitelist: { whitelist: [] },
+    })
+    const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })
+
+    await nextTick()
+    expect(bot.fetchCandles).not.toHaveBeenCalled()
+
+    bot.openTrades = [{ pair: 'AAA/USDT' }]
+    await nextTick()
+
+    expect(bot.fetchCandles).toHaveBeenCalledTimes(1)
+    expect(pending[0]?.pair).toBe('AAA/USDT')
+    wrapper.unmount()
+  })
+
   it('does not let an old pair response clear the current loading state', async () => {
     const router = await makeRouter()
     const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })

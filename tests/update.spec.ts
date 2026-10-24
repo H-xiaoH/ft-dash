@@ -51,7 +51,7 @@ describe('startUpdateChecks', () => {
   it('asks on the timer, again on the next tick, and when the tab comes back', async () => {
     vi.useFakeTimers()
     const getRegistration = stubServiceWorker()
-    startUpdateChecks(30_000)
+    const stop = startUpdateChecks(30_000)
 
     const beforeTimer = getRegistration.mock.calls.length
     await vi.advanceTimersByTimeAsync(30_000)
@@ -68,6 +68,18 @@ describe('startUpdateChecks', () => {
 
     setHidden(false)
     expect(getRegistration.mock.calls.length).toBeGreaterThan(beforeHidden)
+
+    stop()
+  })
+
+  it('uses the registration delivered by the service-worker bootstrap', async () => {
+    const update = vi.fn(async () => {})
+    const registration = { update }
+    const stop = startUpdateChecks(30_000, () => registration)
+
+    await Promise.resolve()
+    expect(update).toHaveBeenCalled()
+    stop()
   })
 
   it('checks about once a minute by default', () => {
