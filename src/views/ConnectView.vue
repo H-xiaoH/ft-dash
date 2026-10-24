@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import FilterMenu from '@/components/FilterMenu.vue'
 import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from '@/i18n'
-import { normalizeBaseUrl } from '@/lib/api'
+import { normalizeBaseUrl } from '@/data/freqtrade'
 import { defaultBotName } from '@/lib/bots'
 import { pushToast } from '@/composables/useToast'
 import { useBotStore } from '@/stores/bot'
@@ -34,6 +34,24 @@ const canSubmit = computed(
   () => baseUrl.value.trim().length > 0 && username.value.trim() && password.value.length > 0,
 )
 
+let compatibilityNoticeBotId = ''
+watch(
+  () => [settings.activeBotId, bot.connection, bot.compatibility] as const,
+  ([botId, connection, compatibility]) => {
+    if (
+      connection !== 'online' ||
+      !botId ||
+      !compatibility?.warningKey ||
+      compatibilityNoticeBotId === botId
+    ) {
+      return
+    }
+    compatibilityNoticeBotId = botId
+    pushToast(t(compatibility.warningKey, compatibility.warningParams ?? {}), 'bad', 7000)
+  },
+  { deep: true },
+)
+
 // Suggest the name the bot would get anyway (the username); edit it only if it is wrong.
 watch(username, (value) => {
   if (!nameTouched.value) name.value = value.trim()
@@ -60,12 +78,13 @@ async function submit() {
     })
     settings.setActiveBot(existing.id)
   } else {
-    settings.addBot({
+    const added = settings.addBot({
       name: label,
       baseUrl: normalized,
       username: username.value,
       password: password.value,
     })
+    settings.setActiveBot(added.id)
   }
   bot.rebuildClient()
   const ok = await bot.connect()

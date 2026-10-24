@@ -76,6 +76,7 @@ export const useBotStore = defineStore('bot', () => {
   const actionPending = computed(() => session.value?.state.actionPending ?? null)
   const actionError = computed(() => session.value?.state.actionError ?? null)
   const snapshotStale = computed(() => session.value?.state.snapshotStale ?? false)
+  const compatibility = computed(() => session.value?.state.compatibility ?? null)
 
   const showConfig = computed(() => session.value?.state.data.showConfig ?? null)
   const health = computed(() => session.value?.state.data.health ?? null)
@@ -288,6 +289,7 @@ export const useBotStore = defineStore('bot', () => {
     if (!isCurrentLifecycle(token) || current !== session.value) return false
     client.value = current.currentClient
     if (!ok) return false
+    events.beginScope({ botId: current.state.botId, epoch: current.currentEpoch })
     settings.persistBots()
     applyConfigMetadata()
     startPolling()
@@ -301,6 +303,7 @@ export const useBotStore = defineStore('bot', () => {
     disconnectStream()
     session.value?.stop()
     client.value = null
+    events.endScope()
   }
 
   async function connect(): Promise<boolean> {
@@ -523,7 +526,9 @@ export const useBotStore = defineStore('bot', () => {
     } catch {
       return
     }
-    events.ingest(parsed)
+    const currentSession = session.value
+    if (!currentSession) return
+    events.ingest(parsed, { botId: currentSession.state.botId, epoch })
     maybeNotify(parsed)
     if (
       ['entry_fill', 'exit_fill', 'entry_cancel', 'exit_cancel', 'protection_trigger'].includes(
@@ -639,6 +644,7 @@ export const useBotStore = defineStore('bot', () => {
     refreshing,
     actionPending,
     actionError,
+    compatibility,
     showConfig,
     health,
     sysinfo,

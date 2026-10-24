@@ -92,6 +92,12 @@ export default {
     empty: '还没有机器人，先添加一个。',
     openSettings: '去设置',
   },
+  compatibility: {
+    title: '兼容性提示',
+    versionMismatch:
+      '已连接，但检测到 Freqtrade {detectedVersion} / API {apiVersion}；当前按 {referenceContract} 处理，部分接口可能出现错误。',
+    versionUnknown: '已连接，但无法确认 Freqtrade/API 版本；部分接口可能出现错误。',
+  },
   kpi: {
     equity: '账户净值',
     availableBalance: '可用余额',

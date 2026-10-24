@@ -87,6 +87,14 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
       <div>{{ t('system.lagging') }}</div>
     </section>
 
+    <section v-if="bot.compatibility?.warningKey" class="banner banner--warn small">
+      <AppIcon name="alert" :size="18" />
+      <div>
+        <strong>{{ t('compatibility.title') }}</strong>
+        <div>{{ t(bot.compatibility.warningKey, bot.compatibility.warningParams ?? {}) }}</div>
+      </div>
+    </section>
+
     <div class="metric-grid">
       <MetricTile
         :label="t('system.cpu')"

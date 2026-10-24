@@ -83,21 +83,26 @@ function resolveTimezone(value: unknown): TimezonePreference {
  * localStorage only when the operator asked to remember them; otherwise they live in
  * sessionStorage, so a reload inside the same tab still works but nothing hits the disk.
  */
-function loadBots(): Bot[] {
+function loadBots(rememberLocalSecrets: boolean): Bot[] {
   const local = parseBots(readJson<unknown>(BOTS_KEY, []))
   const session = parseBots(readJson<unknown>(BOTS_SESSION_KEY, [], safeSessionStorage()))
   if (!local.length) return session
   return local.map((bot) => {
-    if (bot.password) return bot
+    const stored = rememberLocalSecrets ? bot : { ...bot, password: '', wsToken: '' }
     const tabCopy = session.find((entry) => entry.id === bot.id)
-    return tabCopy?.password ? { ...bot, password: tabCopy.password } : bot
+    return {
+      ...stored,
+      password: stored.password || tabCopy?.password || '',
+      wsToken: stored.wsToken || tabCopy?.wsToken || '',
+    }
   })
 }
 
 export const useSettingsStore = defineStore('settings', () => {
   const persisted = readJson<Partial<StoredSettings>>(SETTINGS_KEY, {})
 
-  const bots = ref<Bot[]>(loadBots())
+  const remember = ref(persisted.remember ?? DEFAULT_SETTINGS.remember)
+  const bots = ref<Bot[]>(loadBots(remember.value))
   const storedActive = readJson<string | null>(ACTIVE_BOT_KEY, null)
   const activeBotId = ref(
     typeof storedActive === 'string' && bots.value.some((bot) => bot.id === storedActive)
@@ -131,14 +136,16 @@ export const useSettingsStore = defineStore('settings', () => {
   const timezone = ref<TimezonePreference>(resolveTimezone(persisted.timezone))
   const streamAuth = ref(resolveStreamAuth(persisted.streamAuth))
   const wsToken = ref(
-    activeBot.value?.wsToken ?? (typeof persisted.wsToken === 'string' ? persisted.wsToken : ''),
+    activeBot.value?.wsToken ??
+      (remember.value && typeof persisted.wsToken === 'string' ? persisted.wsToken : ''),
   )
   const allowControls = ref(persisted.allowControls ?? DEFAULT_SETTINGS.allowControls)
   const notifications = ref(persisted.notifications ?? DEFAULT_SETTINGS.notifications)
-  const remember = ref(persisted.remember ?? DEFAULT_SETTINGS.remember)
   const controlsAcknowledged = ref(
     persisted.controlsAcknowledged ?? DEFAULT_SETTINGS.controlsAcknowledged,
   )
+
+  let suppressPersistence = false
 
   /** True when we already hold a full credential set at startup. */
   const hasCredentials = computed(() => Boolean(baseUrl.value && username.value && password.value))
@@ -148,13 +155,14 @@ export const useSettingsStore = defineStore('settings', () => {
   const needsPassword = computed(() => Boolean(activeBot.value) && password.value.length === 0)
 
   function persist() {
+    if (suppressPersistence) return
     writeJson(SETTINGS_KEY, {
       // The preference is what gets stored; the resolved language is derived from it.
       locale: localePreference.value,
       timezone: timezone.value,
       websocket: websocket.value,
       streamAuth: streamAuth.value,
-      wsToken: wsToken.value,
+      wsToken: remember.value ? wsToken.value : '',
       allowControls: allowControls.value,
       notifications: notifications.value,
       remember: remember.value,
@@ -163,18 +171,34 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function persistBots() {
+    if (suppressPersistence) return
     writeJson(BOTS_KEY, serializeBots(bots.value, remember.value))
     writeJson(BOTS_SESSION_KEY, serializeBots(bots.value, true), safeSessionStorage())
     writeJson(ACTIVE_BOT_KEY, activeBotId.value)
   }
 
   function clearStoredData() {
+    suppressPersistence = true
     removeKey(SETTINGS_KEY)
     removeKey(BOTS_KEY)
     removeKey(BOTS_SESSION_KEY, safeSessionStorage())
     removeKey(ACTIVE_BOT_KEY)
     bots.value = []
     activeBotId.value = ''
+    baseUrl.value = ''
+    username.value = ''
+    password.value = ''
+    localePreference.value = DEFAULT_SETTINGS.locale ?? DEFAULT_LOCALE
+    systemLocale.value = detectLocale()
+    timezone.value = DEFAULT_SETTINGS.timezone
+    websocket.value = DEFAULT_SETTINGS.websocket
+    streamAuth.value = DEFAULT_SETTINGS.streamAuth
+    wsToken.value = DEFAULT_SETTINGS.wsToken
+    allowControls.value = DEFAULT_SETTINGS.allowControls
+    notifications.value = DEFAULT_SETTINGS.notifications
+    remember.value = DEFAULT_SETTINGS.remember
+    controlsAcknowledged.value = DEFAULT_SETTINGS.controlsAcknowledged
+    suppressPersistence = false
   }
 
   /** Drops the live connection but keeps the stored bot list. */
@@ -204,7 +228,7 @@ export const useSettingsStore = defineStore('settings', () => {
       baseUrl,
       username,
       password: input.password,
-      wsToken: input.wsToken?.trim() ?? wsToken.value,
+      wsToken: input.wsToken?.trim() ?? '',
       lastUsedAt: null,
     }
     bots.value = [...bots.value, bot]
@@ -273,10 +297,11 @@ export const useSettingsStore = defineStore('settings', () => {
       controlsAcknowledged,
     ],
     persist,
+    { flush: 'sync' },
   )
 
   /** Toggling "remember" rewrites the stored list with or without the passwords. */
-  watch(remember, persistBots)
+  watch(remember, persistBots, { flush: 'sync' })
 
   return {
     bots,

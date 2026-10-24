@@ -93,6 +93,13 @@ export default {
     empty: 'No bots yet — add one.',
     openSettings: 'Open settings',
   },
+  compatibility: {
+    title: 'Compatibility warning',
+    versionMismatch:
+      'Connected, but detected Freqtrade {detectedVersion} / API {apiVersion}; this app targets {referenceContract}. Some endpoints may fail.',
+    versionUnknown:
+      'Connected, but the Freqtrade/API version could not be confirmed. Some endpoints may fail.',
+  },
   kpi: {
     equity: 'Equity',
     availableBalance: 'Available',

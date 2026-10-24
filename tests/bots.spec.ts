@@ -54,6 +54,32 @@ describe('bot helpers', () => {
     expect(serializeBots([bot()], false)[0].password).toBe('')
     expect(serializeBots([bot()], true)[0].password).toBe('secret')
   })
+
+  it('does not write passwords or ws tokens to localStorage when remember is off', async () => {
+    localStorage.clear()
+    sessionStorage.clear()
+    setActivePinia(createPinia())
+    const settings = useSettingsStore()
+    settings.addBot({
+      name: 'main',
+      baseUrl: 'https://a.example/api/v1',
+      username: 'a',
+      password: 'p',
+      wsToken: 'stream-secret',
+    })
+
+    await nextTick()
+    expect(localStorage.getItem(BOTS_KEY)).not.toContain('"password":"p"')
+    expect(localStorage.getItem(BOTS_KEY)).not.toContain('"wsToken":"stream-secret"')
+    expect(localStorage.getItem('ftdash.settings.v1')).not.toContain('stream-secret')
+    expect(sessionStorage.getItem(BOTS_SESSION_KEY)).toContain('"password":"p"')
+    expect(sessionStorage.getItem(BOTS_SESSION_KEY)).toContain('"wsToken":"stream-secret"')
+
+    settings.remember = true
+    await nextTick()
+    expect(localStorage.getItem(BOTS_KEY)).toContain('"password":"p"')
+    expect(localStorage.getItem(BOTS_KEY)).toContain('"wsToken":"stream-secret"')
+  })
 })
 
 describe('bots store', () => {
@@ -149,5 +175,66 @@ describe('bots store', () => {
     expect(reopened.bots).toHaveLength(2)
     expect(reopened.activeBotId).toBe(first.id)
     expect(reopened.password).toBe('p')
+  })
+
+  it('clears persisted data and resets in-memory controls and region preferences', async () => {
+    const settings = useSettingsStore()
+    settings.addBot({
+      name: 'main',
+      baseUrl: 'https://a.example/api/v1',
+      username: 'a',
+      password: 'p',
+      wsToken: 'stream-secret',
+    })
+    settings.localePreference = 'en'
+    settings.timezone = 'UTC'
+    settings.websocket = false
+    settings.streamAuth = 'ws_token'
+    settings.wsToken = 'stream-secret'
+    settings.allowControls = true
+    settings.notifications = true
+    settings.remember = true
+    settings.controlsAcknowledged = true
+
+    settings.clearStoredData()
+    await nextTick()
+
+    expect(settings.bots).toHaveLength(0)
+    expect(settings.activeBotId).toBe('')
+    expect(settings.baseUrl).toBe('')
+    expect(settings.username).toBe('')
+    expect(settings.password).toBe('')
+    expect(settings.wsToken).toBe('')
+    expect(settings.localePreference).toBe('system')
+    expect(settings.timezone).toBe('browser')
+    expect(settings.websocket).toBe(true)
+    expect(settings.streamAuth).toBe('auto')
+    expect(settings.allowControls).toBe(false)
+    expect(settings.notifications).toBe(false)
+    expect(settings.remember).toBe(false)
+    expect(settings.controlsAcknowledged).toBe(false)
+    expect(localStorage.getItem(BOTS_KEY)).toBeNull()
+    expect(localStorage.getItem(ACTIVE_BOT_KEY)).toBeNull()
+    expect(sessionStorage.getItem(BOTS_SESSION_KEY)).toBeNull()
+  })
+
+  it('does not let a new bot inherit the active bot ws token', () => {
+    const settings = useSettingsStore()
+    const first = settings.addBot({
+      name: 'main',
+      baseUrl: 'https://a.example/api/v1',
+      username: 'a',
+      password: 'p',
+      wsToken: 'old-token',
+    })
+    const second = settings.addBot({
+      name: 'side',
+      baseUrl: 'https://b.example/api/v1',
+      username: 'b',
+      password: 'q',
+    })
+
+    expect(first.wsToken).toBe('old-token')
+    expect(second.wsToken).toBe('')
   })
 })

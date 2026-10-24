@@ -93,9 +93,7 @@ async function clearData() {
   settings.clearStoredData()
   clearConfirm.value = false
   bot.cleanup()
-  bot.resetData()
-  events.clear()
-  settings.disconnect()
+  events.endScope()
   pushToast(t('actions.done'), 'good')
 }
 
@@ -135,6 +133,14 @@ async function install() {
 <template>
   <div class="stack settings">
     <BotsPanel />
+
+    <section v-if="bot.compatibility?.warningKey" class="banner banner--warn small">
+      <AppIcon name="alert" :size="18" />
+      <div>
+        <strong>{{ t('compatibility.title') }}</strong>
+        <div>{{ t(bot.compatibility.warningKey, bot.compatibility.warningParams ?? {}) }}</div>
+      </div>
+    </section>
 
     <div class="settings__columns">
       <div class="settings__col">

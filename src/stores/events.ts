@@ -16,6 +16,11 @@ export interface BotEvent {
   raw?: Record<string, unknown>
 }
 
+export interface EventScope {
+  botId: string
+  epoch: number
+}
+
 const MAX_EVENTS = 200
 
 function numeric(value: unknown): number | null {
@@ -33,6 +38,7 @@ export const useEventsStore = defineStore('events', () => {
   const lastMessageAt = ref<number | null>(null)
   const unread = ref(0)
   let nextId = 1
+  let activeScope: EventScope | null = null
 
   const isLive = computed(() => status.value === 'open')
 
@@ -45,6 +51,26 @@ export const useEventsStore = defineStore('events', () => {
   function clear() {
     events.value = []
     unread.value = 0
+  }
+
+  function isCurrentScope(scope: EventScope): boolean {
+    return activeScope?.botId === scope.botId && activeScope.epoch === scope.epoch
+  }
+
+  function beginScope(scope: EventScope) {
+    activeScope = { ...scope }
+    clear()
+    status.value = 'off'
+    lastError.value = null
+    lastMessageAt.value = null
+  }
+
+  function endScope() {
+    activeScope = null
+    clear()
+    status.value = 'off'
+    lastError.value = null
+    lastMessageAt.value = null
   }
 
   function markRead() {
@@ -62,7 +88,8 @@ export const useEventsStore = defineStore('events', () => {
     }
   }
 
-  function ingest(message: WsMessage) {
+  function ingest(message: WsMessage, scope: EventScope) {
+    if (!isCurrentScope(scope)) return
     lastMessageAt.value = Date.now()
     const data = (message.data ?? {}) as Record<string, unknown>
     const pair = text(data.pair)
@@ -125,6 +152,8 @@ export const useEventsStore = defineStore('events', () => {
     isLive,
     push,
     clear,
+    beginScope,
+    endScope,
     markRead,
     setStatus,
     ingest,
