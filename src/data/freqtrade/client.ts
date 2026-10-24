@@ -514,82 +514,86 @@ export class FreqtradeApiClient {
 
   // --- read-only endpoints -------------------------------------------------
 
-  ping(): Promise<{ status: string }> {
-    return this.parsed('/ping', parsePing, { timeoutMs: 12_000 })
+  ping(options: RequestOptions = {}): Promise<{ status: string }> {
+    return this.parsed('/ping', parsePing, { timeoutMs: 12_000, ...options })
   }
 
-  showConfig(): Promise<ShowConfigResponse> {
-    return this.parsed('/show_config', parseShowConfig)
+  showConfig(options: RequestOptions = {}): Promise<ShowConfigResponse> {
+    return this.parsed('/show_config', parseShowConfig, options)
   }
 
-  health(): Promise<HealthResponse> {
-    return this.parsed('/health', parseHealth, { timeoutMs: 12_000 })
+  health(options: RequestOptions = {}): Promise<HealthResponse> {
+    return this.parsed('/health', parseHealth, { timeoutMs: 12_000, ...options })
   }
 
-  sysinfo(): Promise<SysInfoResponse> {
-    return this.parsed('/sysinfo', parseSysInfo)
+  sysinfo(options: RequestOptions = {}): Promise<SysInfoResponse> {
+    return this.parsed('/sysinfo', parseSysInfo, options)
   }
 
-  balance(): Promise<BalanceResponse> {
-    return this.parsed('/balance', parseBalance)
+  balance(options: RequestOptions = {}): Promise<BalanceResponse> {
+    return this.parsed('/balance', parseBalance, options)
   }
 
-  profit(): Promise<ProfitSummary> {
-    return this.parsed('/profit', parseProfit)
+  profit(options: RequestOptions = {}): Promise<ProfitSummary> {
+    return this.parsed('/profit', parseProfit, options)
   }
 
-  profitAll(): Promise<ProfitAllResponse> {
-    return this.parsed('/profit_all', parseProfitAll)
+  profitAll(options: RequestOptions = {}): Promise<ProfitAllResponse> {
+    return this.parsed('/profit_all', parseProfitAll, options)
   }
 
-  status(): Promise<Trade[]> {
-    return this.parsed('/status', parseStatus, { timeoutMs: 25_000 })
+  status(options: RequestOptions = {}): Promise<Trade[]> {
+    return this.parsed('/status', parseStatus, { timeoutMs: 25_000, ...options })
   }
 
-  count(): Promise<StatusCountResponse> {
-    return this.parsed('/count', parseCount)
+  count(options: RequestOptions = {}): Promise<StatusCountResponse> {
+    return this.parsed('/count', parseCount, options)
   }
 
-  trades(params: { limit?: number; offset?: number } = {}): Promise<TradesResponse> {
+  trades(
+    params: { limit?: number; offset?: number } = {},
+    options: RequestOptions = {},
+  ): Promise<TradesResponse> {
     return this.parsed('/trades', parseTrades, {
       query: { limit: params.limit, offset: params.offset },
+      ...options,
     })
   }
 
-  tradeStats(): Promise<TradeStats> {
-    return this.parsed('/stats', parseTradeStats)
+  tradeStats(options: RequestOptions = {}): Promise<TradeStats> {
+    return this.parsed('/stats', parseTradeStats, options)
   }
 
-  performance(): Promise<PerformanceEntry[]> {
-    return this.parsed('/performance', parsePerformance)
+  performance(options: RequestOptions = {}): Promise<PerformanceEntry[]> {
+    return this.parsed('/performance', parsePerformance, options)
   }
 
-  daily(days?: number): Promise<DailyResponse> {
-    return this.parsed('/daily', parseDaily, { query: { timescale: days } })
+  daily(days?: number, options: RequestOptions = {}): Promise<DailyResponse> {
+    return this.parsed('/daily', parseDaily, { query: { timescale: days }, ...options })
   }
 
-  weekly(weeks?: number): Promise<DailyResponse> {
-    return this.parsed('/weekly', parseDaily, { query: { timescale: weeks } })
+  weekly(weeks?: number, options: RequestOptions = {}): Promise<DailyResponse> {
+    return this.parsed('/weekly', parseDaily, { query: { timescale: weeks }, ...options })
   }
 
-  monthly(months?: number): Promise<DailyResponse> {
-    return this.parsed('/monthly', parseDaily, { query: { timescale: months } })
+  monthly(months?: number, options: RequestOptions = {}): Promise<DailyResponse> {
+    return this.parsed('/monthly', parseDaily, { query: { timescale: months }, ...options })
   }
 
-  logs(limit = 100): Promise<LogsResponse> {
-    return this.parsed('/logs', parseLogs, { query: { limit } })
+  logs(limit = 100, options: RequestOptions = {}): Promise<LogsResponse> {
+    return this.parsed('/logs', parseLogs, { query: { limit }, ...options })
   }
 
-  whitelist(): Promise<WhitelistResponse> {
-    return this.parsed('/whitelist', parseWhitelist)
+  whitelist(options: RequestOptions = {}): Promise<WhitelistResponse> {
+    return this.parsed('/whitelist', parseWhitelist, options)
   }
 
-  blacklist(): Promise<BlacklistResponse> {
-    return this.parsed('/blacklist', parseBlacklist)
+  blacklist(options: RequestOptions = {}): Promise<BlacklistResponse> {
+    return this.parsed('/blacklist', parseBlacklist, options)
   }
 
-  locks(): Promise<LocksResponse> {
-    return this.parsed('/locks', parseLocks)
+  locks(options: RequestOptions = {}): Promise<LocksResponse> {
+    return this.parsed('/locks', parseLocks, options)
   }
 
   pairCandles(
@@ -597,15 +601,18 @@ export class FreqtradeApiClient {
     timeframe: string,
     limit = 200,
     columns?: string[],
+    options: RequestOptions = {},
   ): Promise<PairCandlesResponse> {
     if (columns?.length) {
       return this.parsed('/pair_candles', parsePairCandles, {
         method: 'POST',
         body: { pair, timeframe, limit, columns },
+        ...options,
       })
     }
     return this.parsed('/pair_candles', parsePairCandles, {
       query: { pair, timeframe, limit },
+      ...options,
     })
   }
 
@@ -668,49 +675,58 @@ export class FreqtradeApiClient {
 
   // --- write endpoints -----------------------------------------------------
 
-  start(): Promise<StatusMsg> {
-    return this.parsed('/start', parseStatusMsg, { method: 'POST' })
+  start(options: RequestOptions = {}): Promise<StatusMsg> {
+    return this.parsed('/start', parseStatusMsg, { method: 'POST', ...options })
   }
 
-  stop(): Promise<StatusMsg> {
-    return this.parsed('/stop', parseStatusMsg, { method: 'POST' })
+  stop(options: RequestOptions = {}): Promise<StatusMsg> {
+    return this.parsed('/stop', parseStatusMsg, { method: 'POST', ...options })
   }
 
-  pause(): Promise<StatusMsg> {
-    return this.parsed('/stopentry', parseStatusMsg, { method: 'POST' })
+  pause(options: RequestOptions = {}): Promise<StatusMsg> {
+    return this.parsed('/stopentry', parseStatusMsg, { method: 'POST', ...options })
   }
 
-  reloadConfig(): Promise<StatusMsg> {
-    return this.parsed('/reload_config', parseStatusMsg, { method: 'POST' })
+  reloadConfig(options: RequestOptions = {}): Promise<StatusMsg> {
+    return this.parsed('/reload_config', parseStatusMsg, { method: 'POST', ...options })
   }
 
-  forceExit(payload: ForceExitPayload): Promise<StatusMsg> {
-    return this.parsed('/forceexit', parseStatusMsg, { method: 'POST', body: payload })
+  forceExit(payload: ForceExitPayload, options: RequestOptions = {}): Promise<StatusMsg> {
+    return this.parsed('/forceexit', parseStatusMsg, { method: 'POST', body: payload, ...options })
   }
 
-  forceEnter(payload: ForceEnterPayload): Promise<Record<string, unknown>> {
-    return this.parsed('/forceenter', parseForceEnter, { method: 'POST', body: payload })
+  forceEnter(
+    payload: ForceEnterPayload,
+    options: RequestOptions = {},
+  ): Promise<Record<string, unknown>> {
+    return this.parsed('/forceenter', parseForceEnter, {
+      method: 'POST',
+      body: payload,
+      ...options,
+    })
   }
 
-  addBlacklist(pairs: string[]): Promise<BlacklistResponse> {
+  addBlacklist(pairs: string[], options: RequestOptions = {}): Promise<BlacklistResponse> {
     return this.parsed('/blacklist', parseBlacklist, {
       method: 'POST',
       body: { blacklist: pairs },
+      ...options,
     })
   }
 
-  deleteBlacklist(pairs: string[]): Promise<BlacklistResponse> {
+  deleteBlacklist(pairs: string[], options: RequestOptions = {}): Promise<BlacklistResponse> {
     return this.parsed('/blacklist', parseBlacklist, {
       method: 'DELETE',
       query: { pairs_to_delete: pairs },
+      ...options,
     })
   }
 
-  deleteLock(payload: DeleteLockPayload): Promise<LocksResponse> {
-    return this.parsed('/locks/delete', parseLocks, { method: 'POST', body: payload })
+  deleteLock(payload: DeleteLockPayload, options: RequestOptions = {}): Promise<LocksResponse> {
+    return this.parsed('/locks/delete', parseLocks, { method: 'POST', body: payload, ...options })
   }
 
-  addLocks(payload: LockPayload[]): Promise<LocksResponse> {
-    return this.parsed('/locks', parseLocks, { method: 'POST', body: payload })
+  addLocks(payload: LockPayload[], options: RequestOptions = {}): Promise<LocksResponse> {
+    return this.parsed('/locks', parseLocks, { method: 'POST', body: payload, ...options })
   }
 }
