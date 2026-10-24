@@ -1,7 +1,7 @@
 # 部署与 PWA 验收记录
 
-**验收日期：** 2026-10-24  
-**构建参考：** Freqtrade 2026.8 / API v2.5  
+**验收日期：** 2026-10-24<br>
+**构建参考：** Freqtrade 2026.9 / API v2.5<br>
 **检查范围：** FT Dash 构建产物、本地静态预览、`bot.example.com` 只读 HTTP/WebSocket 行为和 `[private-address-redacted]` 可达性。
 
 ## 依赖与构建产物

@@ -98,6 +98,12 @@ export default {
       '已连接，但检测到 Freqtrade {detectedVersion} / API {apiVersion}；当前按 {referenceContract} 处理，部分接口可能出现错误。',
     versionUnknown: '已连接，但无法确认 Freqtrade/API 版本；部分接口可能出现错误。',
   },
+  notices: {
+    title: '系统提示',
+    heartbeatTitle: '心跳延迟',
+    websocketTitle: '实时推送异常',
+    websocketDisconnected: 'WebSocket 未连接，正在尝试重新连接。',
+  },
   kpi: {
     equity: '账户净值',
     availableBalance: '可用余额',

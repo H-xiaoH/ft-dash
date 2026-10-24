@@ -1,7 +1,7 @@
 /**
  * Shapes returned by the Freqtrade REST API v1 (`/api/v1/*`).
  * Only the fields ft-dash actually renders are typed; the API returns more.
- * Reference: Freqtrade 2026.8, api_version 2.5.
+ * Reference: Freqtrade 2026.9, api_version 2.5.
  */
 
 export interface OrderTypeCount {

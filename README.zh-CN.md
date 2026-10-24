@@ -208,7 +208,7 @@ iOS Safari 15.5（2022 年 5 月）之前不覆盖，那些系统上停靠页仍
 
 ## 兼容性
 
-基于 **Freqtrade 2026.8 / API v2.5** 开发，并在实盘 futures 实例上做过端到端验证。它读取
+基于 **Freqtrade 2026.9 / API v2.5** 开发，并在实盘 futures 实例上做过端到端验证。它读取
 `/ping`、`/show_config`、`/version`、`/health`、`/sysinfo`、`/balance`、`/profit`、
 `/profit_all`、`/status`、`/count`、`/trades`、`/performance`、`/stats`、`/daily`、`/weekly`、
 `/monthly`、`/logs`、`/whitelist`、`/blacklist`、`/locks` 与 `/pair_candles`；在开启控制功能后

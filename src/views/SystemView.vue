@@ -82,19 +82,6 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
 
 <template>
   <div class="stack">
-    <section v-if="heartbeatLate" class="banner banner--warn">
-      <AppIcon name="alert" :size="18" />
-      <div>{{ t('system.lagging') }}</div>
-    </section>
-
-    <section v-if="bot.compatibility?.warningKey" class="banner banner--warn small">
-      <AppIcon name="alert" :size="18" />
-      <div>
-        <strong>{{ t('compatibility.title') }}</strong>
-        <div>{{ t(bot.compatibility.warningKey, bot.compatibility.warningParams ?? {}) }}</div>
-      </div>
-    </section>
-
     <div class="metric-grid">
       <MetricTile
         :label="t('system.cpu')"
@@ -244,22 +231,6 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
             <dt>{{ t('system.wsAuth') }}</dt>
             <dd>{{ wsAuthLabel }}</dd>
           </dl>
-
-          <p
-            v-if="bot.streamReasonKey"
-            class="banner banner--warn small"
-            style="margin-top: var(--sp-4)"
-          >
-            {{ t(bot.streamReasonKey) }}
-            <button
-              type="button"
-              class="btn btn--sm"
-              style="margin-left: 8px"
-              @click="bot.retryStream()"
-            >
-              {{ t('settings.retryStream') }}
-            </button>
-          </p>
 
           <div v-if="bot.writesAllowed" class="row row--wrap" style="margin-top: var(--sp-4)">
             <button

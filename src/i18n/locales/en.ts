@@ -100,6 +100,12 @@ export default {
     versionUnknown:
       'Connected, but the Freqtrade/API version could not be confirmed. Some endpoints may fail.',
   },
+  notices: {
+    title: 'System notices',
+    heartbeatTitle: 'Heartbeat delay',
+    websocketTitle: 'Live stream issue',
+    websocketDisconnected: 'The WebSocket is not connected and will be retried automatically.',
+  },
   kpi: {
     equity: 'Equity',
     availableBalance: 'Available',

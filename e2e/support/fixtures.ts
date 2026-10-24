@@ -221,9 +221,9 @@ function candles(count = 60) {
 
 export const RESPONSES: Record<string, unknown> = {
   ping: { status: 'pong' },
-  version: { version: '2026.8' },
+  version: { version: '2026.9' },
   show_config: {
-    version: '2026.8',
+    version: '2026.9',
     strategy_version: 'test',
     api_version: 2.5,
     dry_run: false,
