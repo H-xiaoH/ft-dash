@@ -14,6 +14,7 @@ import { downloadCsv } from '@/lib/csv'
 import { isStandalone } from '@/lib/navigation'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
+import { useSegBlock } from '@/composables/useSegBlock'
 
 type Filter = 'open' | 'closed' | 'all'
 type SortKey = 'open_timestamp' | 'pair' | 'profit_abs' | 'duration' | 'stake_amount'
@@ -31,6 +32,11 @@ const sortKey = ref<SortKey>('open_timestamp')
 const sortDir = ref<'asc' | 'desc'>('desc')
 const selected = ref<Trade | null>(null)
 const exitTarget = ref<Trade | null>(null)
+const filterSeg = ref<HTMLElement | null>(null)
+const { blockStyle: filterBlockStyle, blockReady: filterBlockReady } = useSegBlock(
+  filterSeg,
+  () => filter.value,
+)
 /** Rows per page; paging happens in the browser over everything already loaded. */
 const PAGE_SIZE = 20
 const page = ref(1)
@@ -257,7 +263,7 @@ onMounted(() => {
   <div class="stack">
     <section class="panel">
       <div class="panel__head">
-        <div class="seg">
+        <div ref="filterSeg" class="seg">
           <button
             type="button"
             class="seg__item"
@@ -285,6 +291,11 @@ onMounted(() => {
             {{ t('trades.all') }}
             <span class="small muted">{{ allCount }}</span>
           </button>
+          <span
+            class="seg__block"
+            :class="{ 'is-ready': filterBlockReady }"
+            :style="filterBlockStyle"
+          />
         </div>
         <div class="panel__actions row">
           <SearchToggle v-model="search" :placeholder="t('market.searchPairs')" />
