@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { connect, livePage, mockApi } from './support/fixtures'
+import { connect, livePage, mockApi, segBlockMatches } from './support/fixtures'
 
 const touchAt = (
   page: Page,
@@ -36,7 +36,8 @@ test('switching trade filters transitions the result and announces its scope', a
   const status = livePage(page).locator('[data-filter-status]')
 
   await expect(status).toContainText('全部交易')
-  await expect(livePage(page).locator('.seg__block')).toHaveCount(0)
+  await expect(livePage(page).locator('.seg__block')).toHaveCount(1)
+  await expect.poll(() => segBlockMatches(livePage(page).locator('.seg').first())).toBe(true)
   await expect(livePage(page).locator('[data-swipe-tabs]')).toHaveCount(0)
   await page.evaluate(() => {
     const frames: { opacity: number; translateY: number }[] = []
@@ -63,6 +64,7 @@ test('switching trade filters transitions the result and announces its scope', a
 
   await tabs.nth(1).click()
   await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(() => segBlockMatches(livePage(page).locator('.seg').first())).toBe(true)
   await expect(livePage(page).locator('table tbody tr')).toHaveCount(4)
   await expect(status).toHaveText('已平仓，显示 4 笔交易。')
   await page.waitForTimeout(400)

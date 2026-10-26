@@ -50,7 +50,7 @@ describe('LogsView', () => {
     bot.logs = logs(1)
   })
 
-  it('scrolls the actual log container to the bottom when follow is on', async () => {
+  it('scrolls the actual log container to the top when follow is on', async () => {
     const wrapper = mount(LogsView, { global: { plugins: [i18n] } })
     const element = wrapper.find('.logs').element as HTMLElement
     sizeScrollElement(element, 10)
@@ -59,7 +59,7 @@ describe('LogsView', () => {
     await nextTick()
     await nextTick()
 
-    expect(element.scrollTop).toBe(element.scrollHeight)
+    expect(element.scrollTop).toBe(0)
     wrapper.unmount()
   })
 
@@ -76,5 +76,34 @@ describe('LogsView', () => {
 
     expect(element.scrollTop).toBe(22)
     wrapper.unmount()
+  })
+
+  it('returns to the top when a filtered log list becomes visible again', async () => {
+    const wrapper = mount(LogsView, { global: { plugins: [i18n] } })
+    const scrollTop = vi.spyOn(Element.prototype, 'scrollTop', 'set')
+
+    try {
+      await wrapper.find('.filter-menu__button').trigger('click')
+      const critical = [...document.querySelectorAll<HTMLButtonElement>('.filter-menu__item')].find(
+        (item) => item.textContent?.trim() === 'CRITICAL',
+      )
+      critical?.click()
+      await nextTick()
+      await nextTick()
+      expect(wrapper.find('.logs').exists()).toBe(false)
+
+      await wrapper.find('.filter-menu__button').trigger('click')
+      const info = [...document.querySelectorAll<HTMLButtonElement>('.filter-menu__item')].find(
+        (item) => item.textContent?.trim() === 'INFO',
+      )
+      info?.click()
+      await nextTick()
+      await nextTick()
+
+      expect(scrollTop).toHaveBeenCalledWith(0)
+    } finally {
+      scrollTop.mockRestore()
+      wrapper.unmount()
+    }
   })
 })

@@ -58,15 +58,14 @@ const lines = computed<DisplayLogLine[]>(() => {
     }))
 })
 
-watch(
-  () => lines.value.length,
-  async (length, previousLength) => {
-    if (!follow.value || previousLength === undefined || length <= previousLength) return
-    await nextTick()
-    const container = logsRef.value
-    if (container) container.scrollTop = container.scrollHeight
-  },
-)
+watch(lines, async (_currentLines, previousLines) => {
+  if (!follow.value || previousLines === undefined) return
+  await nextTick()
+  const container = logsRef.value
+  // The API rows are rendered newest-first, so following the latest line means staying at
+  // the top. This also handles an empty filtered result becoming visible again.
+  if (container) container.scrollTop = 0
+})
 
 function levelClass(level: string): string {
   const normalized = level.toUpperCase()
