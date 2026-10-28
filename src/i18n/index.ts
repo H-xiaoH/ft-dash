@@ -27,11 +27,7 @@ export function detectLocale(): AppLocale {
   if (typeof navigator === 'undefined') return 'en'
   for (const candidate of navigator.languages ?? [navigator.language]) {
     if (!candidate) continue
-    if (candidate.toLowerCase().startsWith('zh')) {
-      return candidate.toLowerCase().includes('tw') || candidate.toLowerCase().includes('hk')
-        ? 'zh-CN'
-        : 'zh-CN'
-    }
+    if (candidate.toLowerCase().startsWith('zh')) return 'zh-CN'
     if (candidate.toLowerCase().startsWith('en')) return 'en'
   }
   return 'en'
