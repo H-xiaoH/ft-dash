@@ -11,6 +11,9 @@ dist-ssr/
 !.env.example
 .dev.vars
 
+# agent scratch directories (kept out of the history)
+.superpowers/
+
 # editor / os
 .DS_Store
 .idea/

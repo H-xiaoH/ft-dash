@@ -271,13 +271,15 @@ Vue 3 (`<script setup>` + TypeScript) · Vite · Pinia · vue-router · vue-i18n
 
 ```
 src/
-  lib/          API client, formatters, axis scale, pair statistics, CSV, storage helpers
-  stores/       settings, bot data + polling, live event tape
-  views/        one file per screen
-  components/   shell pieces, hand-rolled charts, toolbar controls, dialogs
-  composables/  locale-bound formatters, toasts, responsive chart heights
-  i18n/         zh-CN and en message catalogues
-tests/          unit tests (vitest)
+  data/freqtrade/ transport (auth, timeouts, error mapping), API client, bot session
+  lib/             stream client, formatters, axis scale, pair statistics, CSV, storage
+  stores/          settings, bot data + polling, live event tape
+  views/           one file per screen
+  components/      shell pieces, hand-rolled charts, toolbar controls, dialogs
+  composables/     locale-bound formatters, toasts, responsive chart heights
+  i18n/            zh-CN and en message catalogues
+tests/             unit tests (vitest)
+e2e/               end-to-end tests (playwright, every API call answered by fixtures)
 ```
 
 ## Contributing
@@ -285,8 +287,8 @@ tests/          unit tests (vitest)
 Commits follow [gitmoji](https://gitmoji.dev/) (`✨ feat:`, `🐛 fix:`, `📝 docs:`, …). Run
 `npm run lint`, `npm run format:check`, `npm test` and `npm run e2e` before opening a pull
 request; CI runs the same set. New UI strings must be added to both
-`src/i18n/locales/zh-CN.ts` and `src/i18n/locales/en.ts` (the two catalogues are expected to
-stay key-for-key identical). Participation is covered by the
+`src/i18n/locales/zh-CN.ts` and `src/i18n/locales/en.ts` (`tests/i18n.spec.ts` enforces that the
+two catalogues keep identical keys). Participation is covered by the
 [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
