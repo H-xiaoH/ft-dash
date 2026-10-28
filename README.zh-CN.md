@@ -233,22 +233,23 @@ Vue 3（`<script setup>` + TypeScript）· Vite · Pinia · vue-router · vue-i1
 
 ```
 src/
-  lib/          API 客户端、格式化、坐标刻度、交易对统计、CSV、存储
-  stores/       设置、机器人数据与轮询、实时事件带
-  views/        每个页面一个文件
-  components/   外壳组件、手写图表、工具栏控件、对话框
-  composables/  本地化格式化、Toast、随视口变化的图表高度
-  i18n/         简体中文与英文文案
-tests/          单元测试（vitest）
-e2e/            端到端测试（playwright，全部请求由固定数据应答）
+  data/freqtrade/ transport（鉴权、超时、错误映射）、API 客户端、机器人会话
+  lib/             实时推送客户端、格式化、坐标刻度、交易对统计、CSV、存储
+  stores/          设置、机器人数据与轮询、实时事件带
+  views/           每个页面一个文件
+  components/      外壳组件、手写图表、工具栏控件、对话框
+  composables/     本地化格式化、Toast、随视口变化的图表高度
+  i18n/            简体中文与英文文案
+tests/             单元测试（vitest）
+e2e/               端到端测试（playwright，全部请求由固定数据应答）
 ```
 
 ## 参与贡献
 
 提交信息遵循 [gitmoji](https://gitmoji.dev/)（`✨ feat:`、`🐛 fix:`、`📝 docs:` …）。提 PR 前请
 运行 `npm run lint`、`npm run format:check`、`npm test` 与 `npm run e2e`，CI 跑的是同一套。
-新增界面文案必须同时加到 `src/i18n/locales/zh-CN.ts` 与 `src/i18n/locales/en.ts`（两份文案要求
-键位完全一致）。参与本项目即视为遵守[行为准则](CODE_OF_CONDUCT.md)。
+新增界面文案必须同时加到 `src/i18n/locales/zh-CN.ts` 与 `src/i18n/locales/en.ts`
+（`tests/i18n.spec.ts` 会检查两份文案键位一致）。参与本项目即视为遵守[行为准则](CODE_OF_CONDUCT.md)。
 
 ## 许可证
 
