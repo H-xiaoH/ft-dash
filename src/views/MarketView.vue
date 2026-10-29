@@ -402,7 +402,13 @@ watch(
         </ul>
       </div>
 
-      <div v-else-if="tab === 'blacklist'" class="panel__body stack">
+      <div
+        v-else-if="tab === 'blacklist'"
+        class="panel__body stack market__scroll"
+        tabindex="0"
+        role="region"
+        :aria-label="t('market.blacklist')"
+      >
         <div v-if="bot.writesAllowed" class="row row--wrap">
           <input
             v-model="blacklistInput"
@@ -449,7 +455,7 @@ watch(
         </div>
       </div>
 
-      <div v-else class="panel__body panel__body--flush">
+      <div v-else class="panel__body panel__body--flush market__scroll">
         <div v-if="!bot.locks?.locks.length" class="empty">{{ t('market.noLocks') }}</div>
         <div v-else class="table-wrap u-desktop-only">
           <table class="table">
@@ -586,8 +592,6 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: min(420px, 50vh);
-  overflow-y: auto;
 }
 
 .blist__item {
