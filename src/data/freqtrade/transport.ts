@@ -76,7 +76,7 @@ function buildQuery(query: RequestOptions['query']): string {
 
 function extractDetail(payload: unknown): string | undefined {
   if (!payload || typeof payload !== 'object') return undefined
-  const detail = (payload as { detail?: unknown }).detail
+  const { detail, error } = payload as { detail?: unknown; error?: unknown }
   if (typeof detail === 'string') return detail
   if (Array.isArray(detail)) {
     const messages = detail
@@ -86,6 +86,8 @@ function extractDetail(payload: unknown): string | undefined {
       .filter((msg): msg is string => typeof msg === 'string')
     return messages.length ? messages.join('; ') : undefined
   }
+  // Freqtrade's own failures ("trader is not running") arrive as `error`, not `detail`.
+  if (typeof error === 'string' && error) return error
   return undefined
 }
 

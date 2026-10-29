@@ -64,6 +64,14 @@ describe('format helpers', () => {
     expect(parseTimestamp('nonsense')).toBeNull()
   })
 
+  it('reads the bot\'s zero timestamp as "never", not as 1970', () => {
+    // /profit sends first_trade_timestamp: 0 while no trade exists;
+    // /health sends last_process_ts: 0 on a stopped bot.
+    expect(parseTimestamp(0)).toBeNull()
+    expect(parseTimestamp('0')).toBeNull()
+    expect(formatDateTime(0, 'en', '—', 'UTC')).toBe('—')
+  })
+
   it('formats date-time parts with the requested locale and time zone', () => {
     const value = '2026-09-21T19:28:22Z'
 

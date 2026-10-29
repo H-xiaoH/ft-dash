@@ -145,8 +145,9 @@ function parseShowConfig(value: unknown, context: ParseContext): ShowConfigRespo
 
 function parseHealth(value: unknown, context: ParseContext): HealthResponse {
   const object = record(value, context)
-  required(object, 'last_process', isString, context, 'a string')
-  required(object, 'last_process_ts', isNumber, context, 'a number')
+  // A stopped bot has never processed a round: both fields are null, not absent.
+  required(object, 'last_process', isNullableString, context, 'a string or null')
+  required(object, 'last_process_ts', isNullableNumber, context, 'a number or null')
   required(object, 'bot_start', isString, context, 'a string')
   required(object, 'bot_start_ts', isNumber, context, 'a number')
   required(object, 'bot_startup', isString, context, 'a string')
