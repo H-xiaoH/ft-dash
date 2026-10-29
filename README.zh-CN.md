@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/favicon.svg" width="76" height="76" alt="ft-dash" />
+<a href="https://h-xiaoh.github.io/ft-dash/"><img src="public/favicon.svg" width="76" height="76" alt="ft-dash —— 打开在线版" /></a>
 
 # ft-dash
 
@@ -17,12 +17,15 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0f766e.svg" alt="MIT license" /></a>
 </p>
 
-<p><a href="README.md">English</a> · <strong>简体中文</strong></p>
+<p><a href="README.md">English</a> · <strong>简体中文</strong> · <a href="https://h-xiaoh.github.io/ft-dash/">在线体验</a></p>
 
 </div>
 
 > **纯前端。** 浏览器直接访问 [Freqtrade](https://www.freqtrade.io/) 的 REST API，不需要部署后端，
 > 也没有任何中间服务接触你的凭据。
+>
+> 线上构建在 [h-xiaoh.github.io/ft-dash](https://h-xiaoh.github.io/ft-dash/)。打开是连接页 —— 没有你自己的
+> 机器人在跑，它没有东西可显示，这正是这套设计的前提。
 
 ## 📸 截图
 

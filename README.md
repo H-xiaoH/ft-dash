@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/favicon.svg" width="76" height="76" alt="ft-dash" />
+<a href="https://h-xiaoh.github.io/ft-dash/"><img src="public/favicon.svg" width="76" height="76" alt="ft-dash — open the live app" /></a>
 
 # ft-dash
 
@@ -17,12 +17,16 @@ An installable Vue PWA that keeps the browser, your bot and your data in one sho
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0f766e.svg" alt="MIT license" /></a>
 </p>
 
-<p><strong>English</strong> · <a href="README.zh-CN.md">简体中文</a></p>
+<p><strong>English</strong> · <a href="README.zh-CN.md">简体中文</a> · <a href="https://h-xiaoh.github.io/ft-dash/">Live demo</a></p>
 
 </div>
 
 > **Frontend only.** The browser talks directly to the [Freqtrade](https://www.freqtrade.io/)
 > REST API. There is no backend to host and no service in the middle that needs your credentials.
+>
+> The hosted build lives at [h-xiaoh.github.io/ft-dash](https://h-xiaoh.github.io/ft-dash/). It
+> opens on the connect screen — without a bot of your own there is nothing to show, which is the
+> whole point of the design.
 
 ## 📸 Screenshots
 
