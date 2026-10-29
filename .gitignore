@@ -12,7 +12,7 @@ dist-ssr/
 .dev.vars
 
 # agent scratch directories (kept out of the history)
-.superpowers/
+.scratch/
 
 # editor / os
 .DS_Store
