@@ -288,7 +288,17 @@ export const useBotStore = defineStore('bot', () => {
     const ok = await current.connect()
     if (!isCurrentLifecycle(token) || current !== session.value) return false
     client.value = current.currentClient
-    if (!ok) return false
+    if (!ok) {
+      /*
+       * The API answered and only the bot was not ready — a restarting trader answers 5xx.
+       * Polling from here is what lets the page heal on its own; a rejected password would
+       * only hammer the API, so that case stays a manual retry.
+       */
+      if (current.state.data.showConfig && current.state.connection === 'unreachable') {
+        startPolling()
+      }
+      return false
+    }
     events.beginScope({ botId: current.state.botId, epoch: current.currentEpoch })
     settings.persistBots()
     applyConfigMetadata()
