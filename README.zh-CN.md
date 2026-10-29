@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="public/favicon.svg" width="76" height="76" alt="ft-dash" />
+
 # ft-dash
 
 <p><strong>给 Freqtrade 的移动优先控制台。</strong><br />
