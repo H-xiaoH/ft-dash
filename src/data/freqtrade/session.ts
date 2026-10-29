@@ -100,7 +100,6 @@ export interface BotSessionOptions {
   snapshot?: BotSessionSnapshot
   backgroundCheckEnabled?: () => boolean
   onHeartbeatAlert?: (ageMs: number) => void
-  onHeartbeatRecovered?: () => void
 }
 
 interface RequestRun {
@@ -256,7 +255,7 @@ export class BotSessionController {
   private refreshRun: RefreshRun | null = null
   private nextRefreshToken = 0
   private nextActionToken = 0
-  private actionLock: { token: number; controller: AbortController } | null = null
+  private actionLock: { token: number } | null = null
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private pollInFlight: { epoch: number; token: number } | null = null
   private nextPollToken = 0
@@ -265,7 +264,6 @@ export class BotSessionController {
   private heartbeatAlerted = false
   private readonly backgroundCheckEnabled: () => boolean
   private readonly onHeartbeatAlert?: (ageMs: number) => void
-  private readonly onHeartbeatRecovered?: () => void
 
   constructor(options: BotSessionOptions) {
     this.credentials = { ...options.credentials }
@@ -273,7 +271,6 @@ export class BotSessionController {
       options.clientFactory ?? ((credentials) => new FreqtradeApiClient(credentials))
     this.backgroundCheckEnabled = options.backgroundCheckEnabled ?? (() => false)
     this.onHeartbeatAlert = options.onHeartbeatAlert
-    this.onHeartbeatRecovered = options.onHeartbeatRecovered
     this.state = reactive(createState(options.botId, 0)) as BotSessionState
     if (options.snapshot) {
       this.restoreSnapshot(options.snapshot)
@@ -695,7 +692,6 @@ export class BotSessionController {
       this.onHeartbeatAlert?.(age)
       return
     }
-    if (this.heartbeatAlerted) this.onHeartbeatRecovered?.()
     this.heartbeatAlerted = false
   }
 
@@ -850,8 +846,7 @@ export class BotSessionController {
       return null
     }
     const token = ++this.nextActionToken
-    const controller = new AbortController()
-    this.actionLock = { token, controller }
+    this.actionLock = { token }
     this.state.actionPending = name
     this.state.actionPendingToken = token
     this.state.actionError = null
@@ -876,7 +871,6 @@ export class BotSessionController {
     this.stopPolling()
     for (const request of this.requests.values()) request.controller.abort()
     this.requests.clear()
-    this.actionLock?.controller.abort()
     this.actionLock = null
     this.refreshRun = null
     this.state.refreshing = false

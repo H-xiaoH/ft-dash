@@ -34,9 +34,6 @@ function text(value: unknown): string {
 export const useEventsStore = defineStore('events', () => {
   const events = ref<BotEvent[]>([])
   const status = ref<StreamStatus>('off')
-  const lastError = ref<string | null>(null)
-  const lastMessageAt = ref<number | null>(null)
-  const unread = ref(0)
   let nextId = 1
   let activeScope: EventScope | null = null
 
@@ -45,12 +42,10 @@ export const useEventsStore = defineStore('events', () => {
   function push(event: Omit<BotEvent, 'id' | 'ts'> & { ts?: number }) {
     const item: BotEvent = { id: nextId++, ts: event.ts ?? Date.now(), ...event }
     events.value = [item, ...events.value].slice(0, MAX_EVENTS)
-    unread.value += 1
   }
 
   function clear() {
     events.value = []
-    unread.value = 0
   }
 
   function isCurrentScope(scope: EventScope): boolean {
@@ -61,25 +56,16 @@ export const useEventsStore = defineStore('events', () => {
     activeScope = { ...scope }
     clear()
     status.value = 'off'
-    lastError.value = null
-    lastMessageAt.value = null
   }
 
   function endScope() {
     activeScope = null
     clear()
     status.value = 'off'
-    lastError.value = null
-    lastMessageAt.value = null
-  }
-
-  function markRead() {
-    unread.value = 0
   }
 
   function setStatus(next: StreamStatus, error: string | null = null) {
     status.value = next
-    lastError.value = error
     if (next === 'open') {
       push({ type: 'stream.connected', subject: '', detail: '', severity: 'info' })
     }
@@ -90,7 +76,6 @@ export const useEventsStore = defineStore('events', () => {
 
   function ingest(message: WsMessage, scope: EventScope) {
     if (!isCurrentScope(scope)) return
-    lastMessageAt.value = Date.now()
     const data = (message.data ?? {}) as Record<string, unknown>
     const pair = text(data.pair)
     const profitRatio = numeric(data.profit_ratio)
@@ -146,15 +131,11 @@ export const useEventsStore = defineStore('events', () => {
   return {
     events,
     status,
-    lastError,
-    lastMessageAt,
-    unread,
     isLive,
     push,
     clear,
     beginScope,
     endScope,
-    markRead,
     setStatus,
     ingest,
   }

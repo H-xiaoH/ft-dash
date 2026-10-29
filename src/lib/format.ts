@@ -30,17 +30,32 @@ export function hideFreqtradeSentinel(value: Numberish, sentinel = -100): Number
 export function formatNumber(value: Numberish, locale = 'en', digits = 2, fallback = '—'): string {
   const n = toNumber(value)
   if (n === null) return fallback
-  return new Intl.NumberFormat(locale, {
+  return formatter(`n|${digits}`, locale, {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   }).format(n)
+}
+
+/**
+ * `Intl.NumberFormat` is expensive to build and a table builds one per cell, every second,
+ * so each locale/option pair is built once and kept.
+ */
+const formatters = new Map<string, Intl.NumberFormat>()
+function formatter(key: string, locale: string, options: Intl.NumberFormatOptions) {
+  const lookup = `${locale}|${key}`
+  let format = formatters.get(lookup)
+  if (!format) {
+    format = new Intl.NumberFormat(locale, options)
+    formatters.set(lookup, format)
+  }
+  return format
 }
 
 /** Compact trading numbers: 1.23 / 12.3 / 123 / 1.2K / 3.4M */
 export function formatCompact(value: Numberish, locale = 'en', fallback = '—'): string {
   const n = toNumber(value)
   if (n === null) return fallback
-  return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(n)
+  return formatter('compact', locale, { notation: 'compact', maximumFractionDigits: 1 }).format(n)
 }
 
 export function formatMoney(
@@ -95,7 +110,7 @@ export function formatPrice(value: Numberish, locale = 'en', fallback = '—'): 
   if (n === null) return fallback
   const abs = Math.abs(n)
   const digits = abs >= 1000 ? 2 : abs >= 1 ? 4 : abs >= 0.01 ? 5 : 8
-  return new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(n)
+  return formatter(`price|${digits}`, locale, { maximumFractionDigits: digits }).format(n)
 }
 
 /**

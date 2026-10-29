@@ -48,16 +48,11 @@ describe('events store', () => {
     expect(events.events[1].severity).toBe('bad')
   })
 
-  it('tracks stream status and unread counts', () => {
+  it('tracks the stream status', () => {
     const events = beginScope()
     events.setStatus('open')
     expect(events.isLive).toBe(true)
     expect(events.status).toBe('open')
-
-    events.ingest({ type: 'warning', data: {} }, { botId: 'bot-1', epoch: 1 })
-    expect(events.unread).toBeGreaterThan(0)
-    events.markRead()
-    expect(events.unread).toBe(0)
 
     events.clear()
     expect(events.events).toHaveLength(0)

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, onScopeDispose, ref, watch } from 'vue'
 import {
   detectLocale,
   isLocalePreference,
@@ -128,9 +128,11 @@ export const useSettingsStore = defineStore('settings', () => {
       : resolveLocalePreference(localePreference.value),
   )
   if (typeof window !== 'undefined') {
-    window.addEventListener('languagechange', () => {
+    const onLanguageChange = () => {
       systemLocale.value = detectLocale()
-    })
+    }
+    window.addEventListener('languagechange', onLanguageChange)
+    onScopeDispose(() => window.removeEventListener('languagechange', onLanguageChange))
   }
   const websocket = ref(persisted.websocket ?? DEFAULT_SETTINGS.websocket)
   const timezone = ref<TimezonePreference>(resolveTimezone(persisted.timezone))
