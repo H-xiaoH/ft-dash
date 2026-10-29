@@ -8,6 +8,10 @@ An installable Vue PWA that keeps the browser, your bot and your data in one sho
 <p>
   <a href="https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml"><img src="https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml/badge.svg" alt="Deploy to GitHub Pages" /></a>
   <a href="https://vuejs.org/"><img src="https://img.shields.io/badge/Vue-3-42b883?logo=vuedotjs&logoColor=white" alt="Vue 3" /></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
+  <a href="https://vite.dev/"><img src="https://img.shields.io/badge/Vite-8-646cff?logo=vite&logoColor=white" alt="Vite" /></a>
+  <a href="https://vitest.dev/"><img src="https://img.shields.io/badge/tests-Vitest%20%2B%20Playwright-6e9f18" alt="Vitest and Playwright" /></a>
+  <a href="https://web.dev/explore/progressive-web-apps"><img src="https://img.shields.io/badge/PWA-installable-5a0fc8" alt="Installable PWA" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0f766e.svg" alt="MIT license" /></a>
 </p>
 
@@ -18,39 +22,56 @@ An installable Vue PWA that keeps the browser, your bot and your data in one sho
 > **Frontend only.** The browser talks directly to the [Freqtrade](https://www.freqtrade.io/)
 > REST API. There is no backend to host and no service in the middle that needs your credentials.
 
-## Highlights
+## 📸 Screenshots
 
-- **Overview** — equity, open/closed/today's P&L, trade count and profit factor over a daily
+<table>
+  <tr>
+    <td width="65%"><img src="docs/images/en/dashboard.png" alt="Overview: equity and P&amp;L tiles, the daily P&amp;L chart, open positions and recently closed trades" /></td>
+    <td width="35%"><img src="docs/images/en/trades-phone.png" alt="Trades on a phone: the same rows rendered as cards, above the tab bar" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Overview</b> — equity, P&amp;L and the day-by-day bars, then what is open and what just closed</sub></td>
+    <td align="center"><sub><b>Trades on a phone</b> — a card list, not a squeezed table</sub></td>
+  </tr>
+</table>
+
+<img src="docs/images/en/market.png" alt="Market: candles with the strategy's signals under and over them, the bot's own fills, and the cost basis of the open position" />
+
+<sub><b>Market</b> — drag across the candles to scrub; the strategy's signals ride on their candles and the bot's fills sit at the price they traded at. These shots come from the end-to-end fixtures, not from a real account.</sub>
+
+## ✨ Highlights
+
+- 📊 **Overview** — equity, open/closed/today's P&L, trade count and profit factor over a daily
   P&L chart, plus the open positions and recently closed trades.
-- **Trades** — open, closed or all trades (all = positions merged with history) with side,
+- 🔁 **Trades** — open, closed or all trades (all = positions merged with history) with side,
   staked amount, prices, P&L and duration; sortable columns, a search that expands from the
   toolbar, an outcome filter (all / profitable / losing), per-trade detail (orders, fees,
   funding, leverage, stop loss, liquidation) and CSV export. On phones the same data is a
   card list instead of a wide table. The loaded history is paged locally at 20 rows per page;
   the pager resets whenever the filter, search or sort changes.
-- **Statistics** — per-pair totals plus win rate, average holding time, fees, volume and last
+- 📈 **Statistics** — per-pair totals plus win rate, average holding time, fees, volume and last
   close (derived from the loaded trades, so pairs older than the loaded window show —); a
   daily/weekly/monthly chart with period table; and average holding times. Column headers
   sort; the search narrows the list.
-- **Market** — a candlestick chart first (drag across it to scrub, with an exchange-style
+- 🕯️ **Market** — a candlestick chart first (drag across it to scrub, with an exchange-style
   OHLC/volume readout in the corner). The chart is marked up: the strategy's buy and sell
   signals ride under and over their candles, and the bot's own fills point in at the price
   they happened at. Then a pair picker, the bot's timeframe, whitelist, blacklist and active
   pair locks.
-- **Logs** — live bot log with a level filter, search that expands from the toolbar and a
+- 🪵 **Logs** — live bot log with a level filter, search that expands from the toolbar and a
   follow toggle.
-- **System** — CPU/RAM/load, heartbeat lag warning, process uptime, the effective config
+- 🖥️ **System** — CPU/RAM/load, heartbeat lag warning, process uptime, the effective config
   (strategy, exchange, trading mode, stake mode) and the live event tape.
-- **Alerts** — optional system notifications for fills, warnings, exceptions, a shutdown
+- 🔔 **Alerts** — optional system notifications for fills, warnings, exceptions, a shutdown
   event and a heartbeat that has been silent for 30 seconds. They fire while the page or the
   installed app is open (background tabs included) — a background tab is checked on a slower
   cadence (every 10 seconds) and the browser throttles it further once the tab has been
   hidden for a few minutes, so a stall there is reported within about a minute rather than
   30 seconds. A closed app cannot be reached at all without a push server, which this
   front-end-only design does not have.
-- **Live events** — a real-time tape fed by the Freqtrade websocket (entries, fills,
+- ⚡ **Live events** — a real-time tape fed by the Freqtrade websocket (entries, fills,
   cancellations, protection triggers, warnings, exceptions), shown on the System page.
-- **Bot controls** — pause/resume entries, stop, reload config, close a position, edit the
+- 🎛️ **Bot controls** — pause/resume entries, stop, reload config, close a position, edit the
   blacklist and release locks. These are *off by default* and require an explicit
   acknowledgement in Settings; destructive actions ask for typed confirmation.
 
@@ -79,7 +100,7 @@ P&L, CPU/RAM), with heavier slices spread over longer intervals — trades and p
 4 seconds, analytics, logs and config every 12 seconds. Polling stops entirely when the tab is
 hidden, and overlapping rounds are skipped rather than queued.
 
-## Quick start
+## 🚀 Quick start
 
 Builds carry a `YY.MM.dd.HH.mm` timestamp as their version, shown at the foot of the settings
 page (`package.json` keeps a semver, which npm wants and nothing reads at runtime).
@@ -129,7 +150,7 @@ Open the app, then enter your API base URL, username and password. Credentials a
 this browser only (localStorage, or sessionStorage if you turn "remember" off) and are used
 solely as an `Authorization` header toward the API you entered.
 
-### Several bots
+### 🤖 Several bots
 
 One ft-dash can manage several bots: add, edit and delete them under
 **Settings → Bots**, and pick the one in use with "Switch". Exactly one bot is active — it is
@@ -144,7 +165,7 @@ and resets page state such as search, filters, paging and open detail drawers.
 - Every row has "Test connection", which probes that bot on its own client without disturbing
   the active connection.
 
-### API address
+### 🌐 API address
 
 Any of these forms work and are normalised to `…/api/v1`:
 
@@ -155,7 +176,7 @@ Any of these forms work and are normalised to `…/api/v1`:
 | `https://bot.example.com/freqtrade` | `https://bot.example.com/freqtrade/api/v1` |
 | `/ft-api` | relative to the current origin (dev proxy, see below) |
 
-### CORS: required for any origin you serve from
+### 🔓 CORS: required for any origin you serve from
 
 A browser will refuse to call your API unless the API allows the origin the app is served
 from. Add it to the Freqtrade config and restart the bot:
@@ -179,7 +200,7 @@ CORS list, use the dev proxy instead (see `.env.example`): point `VITE_API_BASE_
 `/ft-api` and set `FT_DEV_PROXY_TARGET` to the origin serving `/api/v1` in a git-ignored
 `.env.local`.
 
-## Authentication
+## 🔐 Authentication
 
 Two transports, two mechanisms — Freqtrade decides which one each accepts:
 
@@ -203,7 +224,7 @@ bad token; the browser cannot see a close code) surfaces as "handshake rejected 
 refused, or your proxy does not forward Upgrade requests", and automatic retries stop after
 three attempts so a broken config cannot spin. Polling is unaffected — Basic auth still works.
 
-## Deploying to GitHub Pages
+## 📦 Deploying to GitHub Pages
 
 1. Push this repository to GitHub.
 2. In **Settings → Pages**, set the source to **GitHub Actions**.
@@ -214,7 +235,7 @@ The app uses hash-based routing, so deep links such as `/#/trades` work on Pages
 404 rewrite. Serving it from a sub-path is handled by `VITE_BASE`; for a user site or a custom
 domain at the root, build with `VITE_BASE=/`.
 
-## Configuration
+## ⚙️ Configuration
 
 Nothing is required at build time. Optional environment variables (`.env.local`, git-ignored)
 are documented in [`.env.example`](.env.example):
@@ -227,7 +248,7 @@ are documented in [`.env.example`](.env.example):
 
 Never commit a real host, username or password: `.env*` files are git-ignored.
 
-## Security notes
+## 🛡️ Security notes
 
 - **The app is front-end only.** Anyone who can load the page can see the interface, but no
   data is readable without credentials that pass your bot's basic auth.
@@ -242,7 +263,7 @@ Never commit a real host, username or password: `.env*` files are git-ignored.
 - Bot controls stay disabled until you switch them on in Settings, and they act on your live
   account immediately when enabled.
 
-## Compatibility
+## 🔌 Compatibility
 
 Built against **Freqtrade 2026.9 / API v2.5** and verified end to end against a live futures
 instance. It reads `/ping`, `/show_config`, `/version`, `/health`, `/sysinfo`, `/balance`,
@@ -262,12 +283,12 @@ Older releases may lack individual endpoints (for example `/pair_candles` column
 breaking the app. WebSocket delivery needs either `api_server.jwt_secret_key` (for automatic
 JWT auth) or a configured `api_server.ws_token`.
 
-## Tech stack
+## 🧰 Tech stack
 
 Vue 3 (`<script setup>` + TypeScript) · Vite · Pinia · vue-router · vue-i18n ·
 `vite-plugin-pwa` (Workbox) · Vitest + Playwright · hand-rolled SVG charts, no chart dependency.
 
-## Project layout
+## 🗂️ Project layout
 
 ```
 src/
@@ -280,9 +301,18 @@ src/
   i18n/            zh-CN and en message catalogues
 tests/             unit tests (vitest)
 e2e/               end-to-end tests (playwright, every API call answered by fixtures)
+docs/              finished specs and history — see docs/README.md for what goes where
+public/            PWA icons, favicon, robots.txt
 ```
 
-## Contributing
+## 📚 Documentation
+
+- **[docs/](docs/README.md)** — finished specs in `docs/specs/`, history and verification records in
+  `docs/archive/`, and where a plan lives while a change is still in flight.
+- **[CONTEXT.md](CONTEXT.md)** — the vocabulary: one word per concept, and the identifier that
+  means in code.
+
+## 🤝 Contributing
 
 Commits follow [gitmoji](https://gitmoji.dev/) (`✨ feat:`, `🐛 fix:`, `📝 docs:`, …). Run
 `npm run lint`, `npm run format:check`, `npm test` and `npm run e2e` before opening a pull
@@ -291,7 +321,7 @@ request; CI runs the same set. New UI strings must be added to both
 two catalogues keep identical keys). Participation is covered by the
 [Code of Conduct](CODE_OF_CONDUCT.md).
 
-## License
+## 📄 License
 
 [MIT](LICENSE). ft-dash is not affiliated with the Freqtrade project. Trading is risky; this
 software comes with no warranty and no financial advice.

@@ -8,6 +8,10 @@
 <p>
   <a href="https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml"><img src="https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml/badge.svg" alt="Deploy to GitHub Pages" /></a>
   <a href="https://vuejs.org/"><img src="https://img.shields.io/badge/Vue-3-42b883?logo=vuedotjs&logoColor=white" alt="Vue 3" /></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
+  <a href="https://vite.dev/"><img src="https://img.shields.io/badge/Vite-8-646cff?logo=vite&logoColor=white" alt="Vite" /></a>
+  <a href="https://vitest.dev/"><img src="https://img.shields.io/badge/tests-Vitest%20%2B%20Playwright-6e9f18" alt="Vitest 与 Playwright" /></a>
+  <a href="https://web.dev/explore/progressive-web-apps"><img src="https://img.shields.io/badge/PWA-可安装-5a0fc8" alt="可安装 PWA" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0f766e.svg" alt="MIT license" /></a>
 </p>
 
@@ -18,32 +22,49 @@
 > **纯前端。** 浏览器直接访问 [Freqtrade](https://www.freqtrade.io/) 的 REST API，不需要部署后端，
 > 也没有任何中间服务接触你的凭据。
 
-## 功能亮点
+## 📸 截图
 
-- **总览** — 账户净值、浮动/总/今日盈亏、交易笔数与盈亏比，配每日盈亏柱状图（可按住滑动查看
+<table>
+  <tr>
+    <td width="65%"><img src="docs/images/zh/dashboard.png" alt="总览：净值与盈亏磁贴、每日盈亏柱状图、当前持仓与最近平仓" /></td>
+    <td width="35%"><img src="docs/images/zh/trades-phone.png" alt="手机上的交易页：同一批数据变成卡片列表，底部是标签栏" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>总览</b> — 净值、盈亏与每日柱状图，下面是持仓和刚平掉的单</sub></td>
+    <td align="center"><sub><b>手机上的交易页</b> — 卡片列表，不用横向滚动</sub></td>
+  </tr>
+</table>
+
+<img src="docs/images/zh/market.png" alt="市场页：K 线与策略信号、机器人成交标记，以及当前持仓的成本线" />
+
+<sub><b>市场</b> — 按住 K 线横向滑动即可刮擦读数；策略信号贴在各自那根蜡烛上，机器人成交标记落在实际成交价上。截图来自端到端测试的固定数据，不是真实账户。</sub>
+
+## ✨ 功能亮点
+
+- 📊 **总览** — 账户净值、浮动/总/今日盈亏、交易笔数与盈亏比，配每日盈亏柱状图（可按住滑动查看
   每一根柱子）、当前持仓与最近平仓。
-- **交易** — 持仓中 / 已平仓 / 全部交易（"全部"会把实时持仓与历史合并）列表，含方向、投入、
+- 🔁 **交易** — 持仓中 / 已平仓 / 全部交易（"全部"会把实时持仓与历史合并）列表，含方向、投入、
   开仓价与当前价、盈亏、持仓时长；表头点击排序，搜索按钮点开才展开，结果过滤（全部 / 盈利 /
   亏损），单笔详情抽屉（订单、手续费、资金费、杠杆、止损、强平价）与 CSV 导出。手机端同一
   数据以卡片列表呈现，不需要横向滚动。已加载的历史记录在浏览器内按每页 20 条翻页，切换筛选、
   搜索或排序会自动回到第 1 页。
-- **统计** — 按交易对的总计，外加胜率（含盈利/亏损笔数）、平均持仓时长、手续费、成交额与最近
+- 📈 **统计** — 按交易对的总计，外加胜率（含盈利/亏损笔数）、平均持仓时长、手续费、成交额与最近
   平仓时间（由已加载的成交明细推导，不额外请求接口；超出该窗口的老交易对显示 `—`）；日/周/月
   收益图表与周期表格；以及平均持仓时长。表头点击排序，搜索在当前列表内过滤。
-- **市场** — K 线图置顶（按住横向滑动可刮擦，左上角按交易所样式显示该 K 柱的开高低收/涨跌/
+- 🕯️ **市场** — K 线图置顶（按住横向滑动可刮擦，左上角按交易所样式显示该 K 柱的开高低收/涨跌/
   成交量）。图上带标注：策略的买入/卖出信号分别在对应 K 柱的下方与上方，机器人真正成交的
   买卖则用指向 K 柱的三角标在成交价上。下方配交易对选择器、机器人当前周期，以及白名单、
   黑名单与生效中的交易锁。
-- **日志** — 机器人实时日志，支持最低级别过滤、点开式搜索与自动滚动。
-- **系统** — CPU / 内存 / 负载、心跳延迟告警、进程运行时长、生效配置（策略、交易所、交易模式、
+- 🪵 **日志** — 机器人实时日志，支持最低级别过滤、点开式搜索与自动滚动。
+- 🖥️ **系统** — CPU / 内存 / 负载、心跳延迟告警、进程运行时长、生效配置（策略、交易所、交易模式、
   投入模式）以及实时事件带。
-- **告警** — 可选系统通知：成交、警告、异常、机器人停止事件，以及心跳静默超过 30 秒。页面或
+- 🔔 **告警** — 可选系统通知：成交、警告、异常、机器人停止事件，以及心跳静默超过 30 秒。页面或
   已安装的 App 处于打开状态时生效，前台约 30 秒即报。后台标签页走更慢的节奏（每 10 秒探测
   一次），且浏览器在标签页隐藏几分钟后会进一步节流，因此后台最迟约一分钟报出。App 完全关闭
   后收不到，除非引入推送服务端——本应用刻意保持纯前端，没有这一层。
-- **实时事件** — 由 Freqtrade WebSocket 推送的事件带（入场、成交、撤单、保护机制触发、警告、
+- ⚡ **实时事件** — 由 Freqtrade WebSocket 推送的事件带（入场、成交、撤单、保护机制触发、警告、
   异常），位于系统页。
-- **机器人控制** — 暂停/恢复入场、停止、重载配置、市价平仓、编辑黑名单、解除交易锁。默认
+- 🎛️ **机器人控制** — 暂停/恢复入场、停止、重载配置、市价平仓、编辑黑名单、解除交易锁。默认
   **关闭**，需在设置页显式确认开启；危险操作还会要求输入配对名二次确认。
 
 界面语言：**简体中文** 与 **English**（默认跟随浏览器）。
@@ -63,7 +84,7 @@
 交易对列表每 4 秒，统计、日志与配置每 12 秒。切换到后台时轮询完全停止，上一轮未返回时会跳过
 当前轮次而不是排队堆积。
 
-## 快速开始
+## 🚀 快速开始
 
 构建产物的版本号是构建时间 `YY.MM.dd.HH.mm`，显示在设置页的底部（`package.json` 里保留
 semver，npm 需要它，运行时不读）。
@@ -105,7 +126,7 @@ iOS Safari 15.5（2022 年 5 月）之前不覆盖，那些系统上停靠页仍
 打开页面后填写 API 地址、用户名与密码即可。凭据只保存在本机浏览器（localStorage，关闭
 "在此设备上记住凭据"后改为 sessionStorage），仅作为 `Authorization` 头发往你填写的 API。
 
-### 多个机器人
+### 🤖 多个机器人
 
 一个 ft-dash 可以管理多个 freqtrade 实例：在**设置 → 机器人**里添加、编辑、删除，点「切换」
 决定当前使用哪一个。切换是**单活**的——同一时刻只有一个机器人参与轮询与实时推送，所以切换
@@ -117,7 +138,7 @@ iOS Safari 15.5（2022 年 5 月）之前不覆盖，那些系统上停靠页仍
   机器人，「机器人控制」总开关仍然一次性管住所有机器人。
 - 每行都有「测试连接」，会独立探测该机器人的地址与凭据，不影响当前正在使用的连接。
 
-### API 地址
+### 🌐 API 地址
 
 以下写法都会被规范化到 `…/api/v1`：
 
@@ -128,7 +149,7 @@ iOS Safari 15.5（2022 年 5 月）之前不覆盖，那些系统上停靠页仍
 | `https://bot.example.com/freqtrade` | `https://bot.example.com/freqtrade/api/v1` |
 | `/ft-api` | 相对当前源（本地开发代理，见下） |
 
-### CORS：必须放行你部署所在的来源
+### 🔓 CORS：必须放行你部署所在的来源
 
 浏览器会拒绝调用未放行该来源的 API。把应用所在的来源加入 Freqtrade 配置并重启机器人：
 
@@ -150,7 +171,7 @@ iOS Safari 15.5（2022 年 5 月）之前不覆盖，那些系统上停靠页仍
 `.env.example`）：把 `VITE_API_BASE_DEFAULT` 设为 `/ft-api`，并在不入库的 `.env.local` 里把
 `FT_DEV_PROXY_TARGET` 指向提供 `/api/v1` 的来源。
 
-## 鉴权
+## 🔐 鉴权
 
 两种传输、两套机制，由 Freqtrade 决定各自接受哪一种：
 
@@ -172,7 +193,7 @@ iOS Safari 15.5（2022 年 5 月）之前不覆盖，那些系统上停靠页仍
 显示"握手被拒绝——令牌无效，或反向代理未转发 Upgrade 请求"，且自动重试在三次后停止，避免坏
 配置空转。轮询不受影响，Basic 依然有效。
 
-## 部署到 GitHub Pages
+## 📦 部署到 GitHub Pages
 
 1. 把仓库推送到 GitHub。
 2. 在 **Settings → Pages** 中把来源设为 **GitHub Actions**。
@@ -182,7 +203,7 @@ iOS Safari 15.5（2022 年 5 月）之前不覆盖，那些系统上停靠页仍
 应用使用 hash 路由，所以 `/#/trades` 这类深链在 Pages 上无需 404 重写即可访问。子路径部署由
 `VITE_BASE` 处理；用户站点或根域名请用 `VITE_BASE=/` 构建。
 
-## 配置项
+## ⚙️ 配置项
 
 构建时无需任何配置。可选环境变量（放在不入库的 `.env.local`，说明见 [`.env.example`](.env.example)）：
 
@@ -194,7 +215,7 @@ iOS Safari 15.5（2022 年 5 月）之前不覆盖，那些系统上停靠页仍
 
 切勿把真实主机、用户名或密码写进仓库：`.env*` 文件已在 gitignore 中。
 
-## 安全说明
+## 🛡️ 安全说明
 
 - **应用是纯前端的。** 任何能打开页面的人都能看到界面，但没有能通过机器人 Basic 鉴权的凭据
   就读不到任何数据。
@@ -206,7 +227,7 @@ iOS Safari 15.5（2022 年 5 月）之前不覆盖，那些系统上停靠页仍
   `/api/…` 请求一律走网络。
 - 机器人控制默认关闭，需在设置页开启；开启后操作会立即作用于真实账户。
 
-## 兼容性
+## 🔌 兼容性
 
 基于 **Freqtrade 2026.9 / API v2.5** 开发，并在实盘 futures 实例上做过端到端验证。它读取
 `/ping`、`/show_config`、`/version`、`/health`、`/sysinfo`、`/balance`、`/profit`、
@@ -223,13 +244,13 @@ iOS Safari 15.5（2022 年 5 月）之前不覆盖，那些系统上停靠页仍
 面板会显示错误或保持为空，而不会让应用崩溃。实时推送需要 `api_server.jwt_secret_key`（自动
 JWT 方式）或已配置的 `api_server.ws_token`。
 
-## 技术栈
+## 🧰 技术栈
 
 Vue 3（`<script setup>` + TypeScript）· Vite · Pinia · vue-router · vue-i18n ·
 `vite-plugin-pwa`（Workbox）· ESLint + Prettier · Vitest + Playwright · 手写 SVG 图表，无图表
 依赖。
 
-## 目录结构
+## 🗂️ 目录结构
 
 ```
 src/
@@ -242,16 +263,24 @@ src/
   i18n/            简体中文与英文文案
 tests/             单元测试（vitest）
 e2e/               端到端测试（playwright，全部请求由固定数据应答）
+docs/              已完成的规格与历史记录，放什么见 docs/README.md
+public/            PWA 图标、favicon、robots.txt
 ```
 
-## 参与贡献
+## 📚 文档
+
+- **[docs/](docs/README.md)** —— 已完成的规格在 `docs/specs/`，历史与验收记录在 `docs/archive/`，
+  改动还在进行时计划放哪里也写在那里。
+- **[CONTEXT.md](CONTEXT.md)** —— 词汇表：一个概念一个词，以及它在代码里的标识符。
+
+## 🤝 参与贡献
 
 提交信息遵循 [gitmoji](https://gitmoji.dev/)（`✨ feat:`、`🐛 fix:`、`📝 docs:` …）。提 PR 前请
 运行 `npm run lint`、`npm run format:check`、`npm test` 与 `npm run e2e`，CI 跑的是同一套。
 新增界面文案必须同时加到 `src/i18n/locales/zh-CN.ts` 与 `src/i18n/locales/en.ts`
 （`tests/i18n.spec.ts` 会检查两份文案键位一致）。参与本项目即视为遵守[行为准则](CODE_OF_CONDUCT.md)。
 
-## 许可证
+## 📄 许可证
 
 [MIT](LICENSE)。ft-dash 与 Freqtrade 项目无隶属关系。交易有风险；本软件不提供任何担保，也不
 构成投资建议。
