@@ -22,6 +22,10 @@ export function downloadCsv(filename: string, rows: CsvValue[][]) {
   const anchor = document.createElement('a')
   anchor.href = url
   anchor.download = filename
+  // Safari only starts the download for an anchor in the document, and revoking the URL in
+  // the same tick can cancel it before the blob is read.
+  document.body.append(anchor)
   anchor.click()
-  URL.revokeObjectURL(url)
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
