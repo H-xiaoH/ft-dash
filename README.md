@@ -5,7 +5,7 @@
 # ft-dash
 
 <p><strong>A calm, mobile-first command center for Freqtrade.</strong><br />
-An installable Vue PWA that keeps the browser, your bot and your data in one short path.</p>
+An installable Vue PWA that talks to your bot directly.</p>
 
 <p>
   <a href="https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml"><img src="https://github.com/H-xiaoH/ft-dash/actions/workflows/deploy.yml/badge.svg" alt="Deploy to GitHub Pages" /></a>
@@ -57,8 +57,8 @@ An installable Vue PWA that keeps the browser, your bot and your data in one sho
   the pager resets whenever the filter, search or sort changes.
 - 📈 **Statistics** — per-pair totals plus win rate, average holding time, fees, volume and last
   close (derived from the loaded trades, so pairs older than the loaded window show —); a
-  daily/weekly/monthly chart with period table; and average holding times. Column headers
-  sort; the search narrows the list.
+  daily/weekly/monthly chart with period table; and the average holding time for winners,
+  losers and draws. Column headers sort; the search narrows the list.
 - 🕯️ **Market** — a candlestick chart first (drag across it to scrub, with an exchange-style
   OHLC/volume readout in the corner). The chart is marked up: the strategy's buy and sell
   signals ride under and over their candles, and the bot's own fills point in at the price
@@ -135,9 +135,9 @@ checked on a real device — worth two minutes in Safari with the PWA installed:
 
 1. **Installed mode**: launching from the home screen shows no address bar; the notch and rounded
    corners do not cover content; rotation and window resizing stay aligned.
-2. **Updates**: a deploy lands on its own — the app asks for a new worker every minute and
-   whenever you come back to the tab, then reloads onto the new build. Nothing to click, and no
-   cold start to provoke.
+2. **Updates**: a deploy installs itself — the app asks for a new worker every minute and
+   whenever you return to the tab, then reloads onto the new build. Nothing to click, and no
+   cold start needed.
 3. **Page gestures**: sideways swipes track the finger and do not flicker; the bottom-bar
    selection follows along; tapping a tab matches what a swipe does, and a sideways drag that
    starts on the bar leaves the pages alone. The tabs light up under the block as it passes. No
