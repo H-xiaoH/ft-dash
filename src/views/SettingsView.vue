@@ -34,22 +34,23 @@ const languageOptions = computed(() => [
   ...SUPPORTED_LOCALES.map((code) => ({ value: code, label: LOCALE_LABELS[code] })),
 ])
 
-const zoneLabels = computed<Record<string, string>>(() =>
-  Object.fromEntries(listZones().map((zone) => [zone, zoneOffsetLabel(zone, settings.locale)])),
-)
-
 /**
  * The browser's own zone heads the list as an explicit choice, because pinning a zone and
  * following the machine are different intents: the first survives a move, the second follows
  * one. Every IANA zone follows, and the offset rides along as right-aligned text — except on
  * UTC, whose very name already is its offset.
+ *
+ * The offset is a getter because the menu only reads it for the rows it renders: building all
+ * ~420 up front costs about 30ms of `Intl` work before the page can paint.
  */
 const timezoneOptions = computed(() => [
   { value: 'browser' as TimezonePreference, label: t('settings.timezoneBrowser') },
   ...listZones().map((zone) => ({
     value: zone as TimezonePreference,
     label: zone,
-    hint: zone === 'UTC' ? '' : zoneLabels.value[zone],
+    get hint() {
+      return zone === 'UTC' ? '' : zoneOffsetLabel(zone, settings.locale)
+    },
   })),
 ])
 

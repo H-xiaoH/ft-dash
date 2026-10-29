@@ -295,13 +295,6 @@ export interface LocksResponse {
   locks: Lock[]
 }
 
-export interface LockPayload {
-  pair: string
-  until: string
-  reason?: string
-  side?: string | null
-}
-
 export interface DeleteLockPayload {
   lockid?: number
   pair?: string
@@ -347,16 +340,6 @@ export interface ForceExitPayload {
   ordertype?: 'market' | 'limit'
   amount?: number
   price?: number
-}
-
-export interface ForceEnterPayload {
-  pair: string
-  side?: 'long' | 'short'
-  price?: number
-  ordertype?: 'market' | 'limit'
-  stakeamount?: number
-  entry_tag?: string
-  leverage?: number
 }
 
 export interface AccessToken {

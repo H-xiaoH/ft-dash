@@ -24,29 +24,31 @@ const toneClass = (severity: string) =>
         ? 'tape__warn'
         : ''
 
+/** Event type → message key. Module scope: the tape re-renders on every pushed event. */
+const LABELS: Record<string, string> = {
+  entry: 'events.entry',
+  entry_fill: 'events.entryFill',
+  entry_cancel: 'events.entryCancel',
+  exit: 'events.exit',
+  exit_fill: 'events.exitFill',
+  exit_cancel: 'events.exitCancel',
+  protection_trigger: 'events.protection',
+  protection_trigger_global: 'events.protection',
+  warning: 'events.warning',
+  exception: 'events.exception',
+  startup: 'events.startup',
+  shutdown: 'events.shutdown',
+  strategy_msg: 'events.strategyMsg',
+  status: 'events.status',
+  whitelist: 'events.whitelist',
+  'stream.connected': 'events.connected',
+  'stream.disconnected': 'events.disconnected',
+  'stream.auth': 'events.auth',
+  action: 'actions.done',
+}
+
 function label(type: string): string {
-  const map: Record<string, string> = {
-    entry: 'events.entry',
-    entry_fill: 'events.entryFill',
-    entry_cancel: 'events.entryCancel',
-    exit: 'events.exit',
-    exit_fill: 'events.exitFill',
-    exit_cancel: 'events.exitCancel',
-    protection_trigger: 'events.protection',
-    protection_trigger_global: 'events.protection',
-    warning: 'events.warning',
-    exception: 'events.exception',
-    startup: 'events.startup',
-    shutdown: 'events.shutdown',
-    strategy_msg: 'events.strategyMsg',
-    status: 'events.status',
-    whitelist: 'events.whitelist',
-    'stream.connected': 'events.connected',
-    'stream.disconnected': 'events.disconnected',
-    'stream.auth': 'events.auth',
-    action: 'actions.done',
-  }
-  const key = map[type]
+  const key = LABELS[type]
   return key ? t(key) : type
 }
 

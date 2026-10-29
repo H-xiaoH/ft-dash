@@ -4,10 +4,8 @@ import type {
   BlacklistResponse,
   DailyResponse,
   DeleteLockPayload,
-  ForceEnterPayload,
   ForceExitPayload,
   HealthResponse,
-  LockPayload,
   LocksResponse,
   LogsResponse,
   PairCandlesResponse,
@@ -470,10 +468,6 @@ function parseStatusMsg(value: unknown, context: ParseContext): StatusMsg {
   return record(value, context) as StatusMsg
 }
 
-function parseForceEnter(value: unknown, context: ParseContext): Record<string, unknown> {
-  return record(value, context)
-}
-
 export class FreqtradeApiClient {
   readonly baseUrl: string
   readonly transport: FreqtradeTransport
@@ -715,17 +709,6 @@ export class FreqtradeApiClient {
     return this.parsed('/forceexit', parseStatusMsg, { method: 'POST', body: payload, ...options })
   }
 
-  forceEnter(
-    payload: ForceEnterPayload,
-    options: RequestOptions = {},
-  ): Promise<Record<string, unknown>> {
-    return this.parsed('/forceenter', parseForceEnter, {
-      method: 'POST',
-      body: payload,
-      ...options,
-    })
-  }
-
   addBlacklist(pairs: string[], options: RequestOptions = {}): Promise<BlacklistResponse> {
     return this.parsed('/blacklist', parseBlacklist, {
       method: 'POST',
@@ -744,9 +727,5 @@ export class FreqtradeApiClient {
 
   deleteLock(payload: DeleteLockPayload, options: RequestOptions = {}): Promise<LocksResponse> {
     return this.parsed('/locks/delete', parseLocks, { method: 'POST', body: payload, ...options })
-  }
-
-  addLocks(payload: LockPayload[], options: RequestOptions = {}): Promise<LocksResponse> {
-    return this.parsed('/locks', parseLocks, { method: 'POST', body: payload, ...options })
   }
 }

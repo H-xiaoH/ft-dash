@@ -11,7 +11,7 @@ export type AppLocale = (typeof SUPPORTED_LOCALES)[number]
  */
 export type LocalePreference = 'system' | AppLocale
 
-export function isSupportedLocale(value: string | null | undefined): value is AppLocale {
+function isSupportedLocale(value: string | null | undefined): value is AppLocale {
   return !!value && (SUPPORTED_LOCALES as readonly string[]).includes(value)
 }
 
