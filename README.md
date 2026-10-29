@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="public/favicon.svg" width="76" height="76" alt="ft-dash" />
+
 # ft-dash
 
 <p><strong>A calm, mobile-first command center for Freqtrade.</strong><br />
