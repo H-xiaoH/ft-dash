@@ -31,15 +31,16 @@ function tabLit(index: number): string {
   const blocksAway = Math.abs(props.navIndex + props.indicatorFraction - index)
   return `${Math.round(Math.max(0, 1 - blocksAway) * 100)}%`
 }
-
-function forwardRailWheel(event: WheelEvent) {
-  emit('railWheel', event)
-}
 </script>
 
 <template>
   <!-- The wheel belongs to the rail: the parent keeps ownership of page-drag behavior. -->
-  <nav v-if="variant === 'rail'" class="rail" :aria-label="t('app.name')" @wheel="forwardRailWheel">
+  <nav
+    v-if="variant === 'rail'"
+    class="rail"
+    :aria-label="t('app.name')"
+    @wheel="emit('railWheel', $event)"
+  >
     <div class="rail__brand" :title="t('app.tagline')">
       <span class="rail__dot" />
     </div>

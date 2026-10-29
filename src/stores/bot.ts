@@ -19,13 +19,7 @@ import {
   type JwtFailure,
   type StreamAuthMode,
 } from '@/lib/stream'
-import type {
-  DeleteLockPayload,
-  ForceEnterPayload,
-  LockPayload,
-  PairCandlesResponse,
-  WsMessage,
-} from '@/lib/types'
+import type { DeleteLockPayload, PairCandlesResponse, WsMessage } from '@/lib/types'
 import { useEventsStore } from './events'
 import { useSettingsStore } from './settings'
 import { i18n } from '@/i18n'
@@ -722,8 +716,6 @@ export const useBotStore = defineStore('bot', () => {
     hasClient: computed(() => client.value !== null),
     forceExit: (tradeid: number | string, ordertype: 'market' | 'limit' = 'market') =>
       runAction('forceExit', (api) => api.forceExit({ tradeid, ordertype })),
-    forceEnter: (payload: ForceEnterPayload) =>
-      runAction('forceEnter', (api) => api.forceEnter(payload)),
     start: () => runAction('start', (api) => api.start()),
     stop: () => runAction('stop', (api) => api.stop()),
     pauseEntries: () => runAction('pause', (api) => api.pause()),
@@ -733,6 +725,5 @@ export const useBotStore = defineStore('bot', () => {
       runAction('blacklistDelete', (api) => api.deleteBlacklist(pairs)),
     deleteLock: (payload: DeleteLockPayload) =>
       runAction('lockDelete', (api) => api.deleteLock(payload)),
-    addLock: (payload: LockPayload[]) => runAction('lockAdd', (api) => api.addLocks(payload)),
   }
 })

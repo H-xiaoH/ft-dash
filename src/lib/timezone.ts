@@ -18,15 +18,23 @@ export function browserZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 }
 
+/** Answers are kept: probing a zone again per render is what made the settings page build two
+ * formatters for every one of ~420 listed zones. */
+const knownZones = new Map<string, boolean>()
+
 /** Whether a string names a zone this runtime can actually format in. */
 export function isZone(zone: string): boolean {
   if (!zone) return false
+  const cached = knownZones.get(zone)
+  if (cached !== undefined) return cached
+  let valid = true
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: zone })
-    return true
   } catch {
-    return false
+    valid = false
   }
+  knownZones.set(zone, valid)
+  return valid
 }
 
 /** The IANA zone a preference resolves to. */
@@ -54,9 +62,19 @@ export function listZones(): string[] {
  * A short right-aligned note for a zone, e.g. `UTC+08:00`. It is decoration on top of the
  * zone name, never the thing searched for: every offset string contains "UTC", so matching
  * on it would make a search for UTC return the whole list.
+ *
+ * Building one costs an `Intl.DateTimeFormat`, and the settings page asks for all ~420 of
+ * them, so each answer is kept for the day it was computed on. A DST switch while the page
+ * stays open therefore keeps yesterday's offset until the next load.
  */
+const offsetLabels = new Map<string, { day: number; label: string }>()
+
 export function zoneOffsetLabel(zone: string, locale = 'en-US'): string {
   if (!isZone(zone)) return ''
+  const day = Math.floor(Date.now() / 86_400_000)
+  const key = `${locale}|${zone}`
+  const cached = offsetLabels.get(key)
+  if (cached?.day === day) return cached.label
   const parts = new Intl.DateTimeFormat(locale, {
     timeZone: zone,
     timeZoneName: 'longOffset',
@@ -66,5 +84,7 @@ export function zoneOffsetLabel(zone: string, locale = 'en-US'): string {
    * `longOffset` spells the zero offset "GMT" and every other one "GMT+08:00"; the app
    * says UTC, so the label does too. The zero case carries no colon, hence the bare form.
    */
-  return name.replace(/^GMT(?!\d)/, 'UTC').replace(/^GMT/, 'UTC')
+  const label = name.replace(/^GMT(?!\d)/, 'UTC').replace(/^GMT/, 'UTC')
+  offsetLabels.set(key, { day, label })
+  return label
 }
