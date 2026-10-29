@@ -121,6 +121,9 @@ export function parseTimestamp(value: Numberish): number | null {
   if (value === null || value === undefined || value === '') return null
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) return null
+    // Freqtrade writes 0 for "this never happened" (first_trade_timestamp, last_process_ts);
+    // reading it as an instant printed a 1970 date next to an empty list.
+    if (value === 0) return null
     // Heuristic: seconds vs milliseconds.
     return value < 1e11 ? value * 1000 : value
   }

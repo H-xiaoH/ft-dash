@@ -251,8 +251,9 @@ export interface LogsResponse {
 }
 
 export interface HealthResponse {
-  last_process: string
-  last_process_ts: number
+  /** Null until the bot's first processing round — a stopped bot reports no heartbeat. */
+  last_process: string | null
+  last_process_ts: number | null
   bot_start: string
   bot_start_ts: number
   bot_startup: string

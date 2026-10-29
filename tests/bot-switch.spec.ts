@@ -397,7 +397,8 @@ describe('switching bots', () => {
         return Promise.resolve(
           jsonResponse({
             last_process: '1970-01-01T00:00:00Z',
-            last_process_ts: 0,
+            // Any positive old instant: 0 now means "never processed" and carries no age.
+            last_process_ts: 1,
             bot_start: '1970-01-01T00:00:00Z',
             bot_start_ts: 0,
             bot_startup: '1970-01-01T00:00:00Z',

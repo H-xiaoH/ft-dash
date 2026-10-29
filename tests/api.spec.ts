@@ -216,6 +216,40 @@ describe('FreqtradeApi', () => {
     })
   })
 
+  it("surfaces the bot's own `error` message, not a bare status", async () => {
+    // A stopped trader answers /count with this, and "HTTP 502" alone says nothing.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({ error: 'Error querying /api/v1/count: trader is not running' }, 502),
+    )
+    const api = new FreqtradeApiClient(credentials)
+
+    await expect(api.count()).rejects.toMatchObject({
+      kind: 'http',
+      status: 502,
+      detail: 'Error querying /api/v1/count: trader is not running',
+    })
+  })
+
+  it('accepts a health response with no heartbeat yet', async () => {
+    // A stopped bot reports null here; rejecting it failed the whole core group.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({
+        last_process: null,
+        last_process_ts: null,
+        bot_start: '2026-10-29T21:29:15.745930Z',
+        bot_start_ts: 1793309355,
+        bot_startup: '2026-10-29T21:30:45.365973Z',
+        bot_startup_ts: 1793309445,
+      }),
+    )
+    const api = new FreqtradeApiClient(credentials)
+
+    await expect(api.health()).resolves.toMatchObject({
+      last_process: null,
+      last_process_ts: null,
+    })
+  })
+
   it('warns for a non-target Freqtrade version without rejecting the connection', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ version: '2026.8', api_version: 2.5 }))
     const api = new FreqtradeApiClient(credentials)
