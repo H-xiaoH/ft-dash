@@ -22,6 +22,10 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: { parser: tseslint.parser },
     },
+    rules: {
+      // A component the template uses but the script never imports renders as nothing.
+      'vue/no-undef-components': 'error',
+    },
   },
   {
     files: ['**/*.{ts,vue}'],
