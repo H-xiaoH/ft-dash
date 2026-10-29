@@ -94,9 +94,6 @@ const rows = computed(() => {
   const query = search.value.trim().toLowerCase()
   return base
     .filter((trade) => {
-      if (filter.value === 'all' && trade.is_open === false && query === '') {
-        // keep everything; filtering happens below
-      }
       if (filter.value === 'closed' && trade.is_open) return false
       if (query && !trade.pair.toLowerCase().includes(query)) return false
       const ratio = trade.profit_ratio ?? trade.close_profit

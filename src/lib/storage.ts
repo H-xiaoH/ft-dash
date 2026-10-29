@@ -48,10 +48,10 @@ function probe(kind: 'local' | 'session'): Storage | null {
   }
 }
 
-export function safeStorage(): Storage | null {
-  return probe('local')
-}
-
 export function safeSessionStorage(): Storage | null {
   return probe('session')
+}
+
+function safeStorage(): Storage | null {
+  return probe('local')
 }

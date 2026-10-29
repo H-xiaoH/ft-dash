@@ -11,13 +11,11 @@ import { useToasts } from '@/composables/useToast'
 import { navigatePage } from '@/lib/navigation'
 import { NAV_ROUTES } from '@/router'
 import { useBotStore } from '@/stores/bot'
-import { useEventsStore } from '@/stores/events'
 import { useSettingsStore } from '@/stores/settings'
 
 const { t, locale } = useI18n()
 const settings = useSettingsStore()
 const bot = useBotStore()
-const events = useEventsStore()
 const route = useRoute()
 const router = useRouter()
 const { toasts, dismissToast } = useToasts()
@@ -150,7 +148,6 @@ let settleRefresh = 0
 watch(
   () => route.name,
   () => {
-    events.markRead()
     window.clearTimeout(settleRefresh)
     settleRefresh = window.setTimeout(() => {
       if (bot.connection === 'online') void bot.refreshAll()

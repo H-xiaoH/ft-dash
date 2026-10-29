@@ -76,7 +76,7 @@ and the page behind the rail does not move. The wheel only takes over there.
 
 Data refreshes on a fixed 1-second cadence while the tab is visible (balance, positions,
 P&L, CPU/RAM), with heavier slices spread over longer intervals — trades and pair lists every
-8 seconds, analytics, logs and config every 24 seconds. Polling stops entirely when the tab is
+4 seconds, analytics, logs and config every 12 seconds. Polling stops entirely when the tab is
 hidden, and overlapping rounds are skipped rather than queued.
 
 ## Quick start

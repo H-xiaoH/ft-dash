@@ -190,7 +190,6 @@ export const useBotStore = defineStore('bot', () => {
           i18n.global.t('notify.heartbeatTitle'),
           i18n.global.t('notify.heartbeatBody', { age: formatShortDuration(ageMs) }),
         ),
-      onHeartbeatRecovered: () => undefined,
     })
   }
 
