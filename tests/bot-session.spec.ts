@@ -271,6 +271,24 @@ describe('BotSessionController', () => {
     expect(session.state.errorKey).toBeNull()
   })
 
+  it('stops polling once the bot rejects the session', async () => {
+    vi.useFakeTimers()
+    const rejected = () => Promise.reject(new ApiError('auth', 'Unauthorized', { status: 401 }))
+    const status = vi.fn(rejected)
+    const session = sessionFor(fakeClient({ status }))
+    session.state.connection = 'online'
+
+    session.startPolling()
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(session.state.connection).toBe('unauthorized')
+    const callsWhenRejected = status.mock.calls.length
+
+    // Six 401s a second is not a retry, it is a log flood: the timer has to stop itself.
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(status.mock.calls.length).toBe(callsWhenRejected)
+    vi.useRealTimers()
+  })
+
   it.each([400, 422])(
     'retries candles without signal columns for a %s signal-column response',
     async (status) => {

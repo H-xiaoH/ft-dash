@@ -73,6 +73,15 @@ describe('MarketView', () => {
 
   beforeEach(() => {
     setActivePinia(createPinia())
+    // The chart only appears once candles land, and jsdom ships no ResizeObserver.
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    )
     pending = []
     Object.assign(bot, {
       showConfig: { timeframe: '5m' },
@@ -81,9 +90,18 @@ describe('MarketView', () => {
       candleCache: {},
       candleError: false,
     })
+    // The real store writes the answer into `candleCache` before resolving, so the harness does too.
     bot.fetchCandles = vi.fn(
       (pair: string) =>
-        new Promise<PairCandlesResponse | null>((resolve) => pending.push({ pair, resolve })),
+        new Promise<PairCandlesResponse | null>((resolve) =>
+          pending.push({
+            pair,
+            resolve: (value) => {
+              if (value) bot.candleCache[`${pair}|5m`] = value
+              resolve(value)
+            },
+          }),
+        ),
     )
   })
 
@@ -138,5 +156,50 @@ describe('MarketView', () => {
     pending[1]?.resolve(response('BBB/USDT'))
     await flushPromises()
     wrapper.unmount()
+  })
+
+  it('reuses a fresh cache when the page is walked back to', async () => {
+    const router = await makeRouter()
+    const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })
+    await nextTick()
+    pending[0]?.resolve(response('AAA/USDT'))
+    await flushPromises()
+    expect(bot.fetchCandles).toHaveBeenCalledTimes(1)
+
+    // Leave the page and come back: the candles are seconds old, so no new request.
+    await router.push('/elsewhere')
+    await nextTick()
+    await router.push('/market')
+    await nextTick()
+    expect(bot.fetchCandles).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('refetches candles that have gone stale while the page was elsewhere', async () => {
+    vi.useFakeTimers()
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/market', name: 'market', component: { template: '<div />' } },
+        { path: '/elsewhere', name: 'elsewhere', component: { template: '<div />' } },
+      ],
+    })
+    await router.push('/market')
+    await router.isReady()
+    const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })
+    await nextTick()
+    pending[0]?.resolve(response('AAA/USDT'))
+    await flushPromises()
+    expect(bot.fetchCandles).toHaveBeenCalledTimes(1)
+
+    // Twenty minutes on another page: the chart in the cache is no longer worth showing.
+    vi.setSystemTime(Date.now() + 20 * 60_000)
+    await router.push('/elsewhere')
+    await nextTick()
+    await router.push('/market')
+    await nextTick()
+    expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+    vi.useRealTimers()
   })
 })

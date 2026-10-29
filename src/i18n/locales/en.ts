@@ -210,6 +210,7 @@ export default {
     lastAnalyzed: 'Last analyzed',
     candleChart: 'Candles',
     noCandles: 'No candle data available (pair may be outside the whitelist or data is missing).',
+    candlesFailed: 'The candle request failed — the bot may be restarting.',
     buySignals: 'Buy signals',
     sellSignals: 'Sell signals',
     buyFill: 'Bought',

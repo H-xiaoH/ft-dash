@@ -32,7 +32,7 @@ export type ConnectionState = 'idle' | 'connecting' | 'online' | 'unauthorized' 
 
 export const HEARTBEAT_STALE_MS = 30_000
 export const POLL_INTERVAL_SECONDS = 1
-export const TRADES_PAGE_SIZE = 300
+const TRADES_PAGE_SIZE = 300
 
 export type ResourceName = 'core' | 'trades' | 'analytics' | 'market' | 'system' | 'candles'
 
@@ -442,6 +442,12 @@ export class BotSessionController {
       const key = transportFailure.error?.key
       this.state.errorKey = transportFailure.error ?? null
       this.state.connection = key === 'errors.auth' ? 'unauthorized' : 'unreachable'
+      /*
+       * A rejected session will be rejected again a second later. Polling on would mean six
+       * 401s a second for as long as the tab stays open — log spam, and a rate limit or
+       * fail2ban on the bot's own proxy. The banner's retry starts it again.
+       */
+      if (key === 'errors.auth') this.stopPolling()
       return
     }
     if (results.some((result) => !result.ok && !result.stale)) return
