@@ -14,7 +14,7 @@ describe('InlineConfirm', () => {
     })
 
     expect(wrapper.find('[role="alert"].banner').text()).toContain('确认关闭这笔交易？')
-    expect(wrapper.find('.inline-confirm__message').text()).toBe('确认关闭这笔交易？')
+    expect(wrapper.find('.banner__message').text()).toBe('确认关闭这笔交易？')
     expect(wrapper.find('button').text()).toContain('确认')
     expect(wrapper.findAll('button')[1].text()).toContain('取消')
   })

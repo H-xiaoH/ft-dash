@@ -408,15 +408,7 @@ async function install() {
 }
 
 .settings__clear-confirm {
-  flex-direction: column;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.settings__clear-confirm :deep(.inline-confirm__message) {
-  flex-basis: 100%;
-  max-width: 480px;
-  text-align: center;
+  justify-items: center;
 }
 
 .settings__list {

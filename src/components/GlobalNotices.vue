@@ -103,6 +103,13 @@ function runAction(action: NoticeAction): void {
   if (action === 'retry') emit('retry')
   if (action === 'stream') emit('retryStream')
 }
+
+/** The one button each notice can offer, and what it says. */
+const ACTION_LABELS: Record<NoticeAction, string> = {
+  settings: 'bots.openSettings',
+  retry: 'common.retry',
+  stream: 'settings.retryStream',
+}
 </script>
 
 <template>
@@ -120,43 +127,24 @@ function runAction(action: NoticeAction): void {
       role="status"
     >
       <AppIcon name="alert" :size="18" />
-      <div class="global-notices__body">
+      <div class="banner__body">
         <div class="banner__title">{{ notice.title }}</div>
-        <div class="global-notices__message">{{ notice.message }}</div>
+        <div class="banner__message">{{ notice.message }}</div>
       </div>
-      <div class="spacer" />
-      <button
-        v-if="notice.action === 'settings'"
-        type="button"
-        class="btn btn--sm"
-        @click="runAction(notice.action)"
-      >
-        {{ t('bots.openSettings') }}
-      </button>
-      <button
-        v-else-if="notice.action === 'retry'"
-        type="button"
-        class="btn btn--sm"
-        @click="runAction(notice.action)"
-      >
-        {{ t('common.retry') }}
-      </button>
-      <button
-        v-else-if="notice.action === 'stream'"
-        type="button"
-        class="btn btn--sm"
-        @click="runAction(notice.action)"
-      >
-        {{ t('settings.retryStream') }}
-      </button>
+      <div v-if="notice.action" class="banner__actions">
+        <button type="button" class="btn btn--sm" @click="runAction(notice.action)">
+          {{ t(ACTION_LABELS[notice.action]) }}
+        </button>
+      </div>
     </div>
   </section>
 </template>
 
 <style scoped>
 .global-notices {
+  /* The bar itself carries the notch inset, so the notices have to start below it. */
   position: sticky;
-  top: var(--topbar-h);
+  top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
   z-index: 19;
   display: flex;
   flex-direction: column;
@@ -167,27 +155,5 @@ function runAction(action: NoticeAction): void {
 
 .global-notices__item {
   margin: 0;
-}
-
-.global-notices__body {
-  min-width: 0;
-}
-
-.global-notices__message {
-  overflow-wrap: anywhere;
-}
-
-@media (max-width: 600px) {
-  .global-notices__item {
-    flex-wrap: wrap;
-  }
-
-  .global-notices__item .spacer {
-    display: none;
-  }
-
-  .global-notices__item .btn {
-    margin-left: 30px;
-  }
 }
 </style>

@@ -570,15 +570,27 @@
   }
 }
 
+/*
+ * One shape for every warning and error: an icon, the words, and the action that answers
+ * them, in three fixed columns. The grid is what keeps them in line — as flex items the icon
+ * and the buttons could be squeezed narrower than their content and drag the text with them.
+ */
 .banner {
-  display: flex;
-  gap: var(--sp-3);
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: var(--sp-3);
+  row-gap: var(--sp-2);
   padding: var(--sp-3) var(--sp-4);
   border-radius: var(--r-2);
   border: 1px solid var(--line-strong);
   background: var(--ink-850);
   font-size: var(--fs-base);
+}
+
+/* Optically level with the title's first line, not the top of the block. */
+.banner > svg {
+  margin-top: 2px;
 }
 
 .banner--bad {
@@ -591,8 +603,38 @@
   background: color-mix(in srgb, var(--warn) 10%, var(--ink-850));
 }
 
+.banner__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .banner__title {
   font-weight: 500;
+}
+
+.banner__message {
+  overflow-wrap: anywhere;
+}
+
+.banner__actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: var(--sp-2);
+}
+
+/* Narrow: the action drops under the words, in the text column, instead of squeezing them. */
+@media (max-width: 600px) {
+  .banner {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .banner__actions {
+    grid-column: 2;
+    justify-self: start;
+  }
 }
 
 /* --- meters ------------------------------------------------------------- */
