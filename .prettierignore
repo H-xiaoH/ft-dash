@@ -3,6 +3,7 @@ dist/
 coverage/
 playwright-report/
 test-results/
+.scratch/
 package-lock.json
 public/
 *.md

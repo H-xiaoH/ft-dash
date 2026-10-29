@@ -22,7 +22,7 @@
 
 ## 工作方式
 
-- 多文件或有行为变化的改动：先写 `.scratch/<slug>/spec.md`（验收标准），再逐项实现；不新建 `docs/superpowers/`。
+- 多文件或有行为变化的改动：先写 `.scratch/<slug>/spec.md`（验收标准），再逐项实现。
 - 行为改动先加会失败的测试，再实现；提交用 gitmoji（格式参考 git-commit-message）。
 - 收尾按 verification-before-completion；独立复审按 requesting-code-review。
-- 进行中的计划在 `.scratch/<slug>/`，已完成的规格在 `docs/specs/`，历史结论在 `docs/archive/`。
+- 目录按生死分：进行中的计划在 `.scratch/<slug>/`（git 忽略），已完成的规格在 `docs/specs/`，历史结论在 `docs/archive/`；索引见 `docs/README.md`。

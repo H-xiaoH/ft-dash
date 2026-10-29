@@ -30,4 +30,4 @@
   写锁与事件隔离就位；凭据按机器人存储且 `remember=false` 时不落 localStorage；
   PWA 更新与生产反向代理行为验证。旧 `src/lib/api.ts` 已删除。
 - 证据：提交 `fc0f431`…`33d9de8`；构建与依赖审计、PWA/生产验收见
-  `docs/deployment-verification.md`（Freqtrade 2026.9 / API v2.5）。
+  `docs/archive/deployment-verification.md`（Freqtrade 2026.9 / API v2.5）。
