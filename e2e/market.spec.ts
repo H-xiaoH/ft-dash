@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { connect, livePage, mockApi, segBlockMatches } from './support/fixtures'
 
-const WHITELIST_SCROLL_TEST = 'whitelist scrolls inside the available viewport'
+const LISTS_SCROLL_TEST = 'every pair list scrolls inside the available viewport'
 
 const marksOfKind = (
   page: import('@playwright/test').Page,
@@ -13,32 +13,61 @@ const marksOfKind = (
   )
 
 test.beforeEach(async ({ page }, testInfo) => {
-  const checksWhitelistScroll = testInfo.title === WHITELIST_SCROLL_TEST
-  if (checksWhitelistScroll) await page.setViewportSize({ width: 390, height: 740 })
+  const checksListScroll = testInfo.title === LISTS_SCROLL_TEST
+  if (checksListScroll) await page.setViewportSize({ width: 390, height: 740 })
 
-  const mockOptions = checksWhitelistScroll ? { whitelistCount: 40 } : undefined
+  const mockOptions = checksListScroll
+    ? { whitelistCount: 40, blacklistCount: 40, lockCount: 20 }
+    : undefined
   await mockApi(page, mockOptions)
   await page.goto('/#/market')
   await connect(page)
   await expect(page.locator('.shell')).toBeVisible()
 })
 
-test(WHITELIST_SCROLL_TEST, async ({ page }) => {
+/**
+ * The list that overflows inside a page locked to the viewport. Getting this wrong leaves the
+ * bottom rows clipped and unreachable on a phone — and unreachable by keyboard even on a wide
+ * screen, which is why the scroll box has to be a focus stop of its own.
+ */
+async function expectListScrolls(
+  page: import('@playwright/test').Page,
+  rows: number,
+  row: string,
+  label: string,
+) {
   const market = livePage(page)
   const list = market.locator('.market__scroll')
 
-  await expect(list.locator('.card--tappable')).toHaveCount(40)
-  await expect
-    .poll(() => list.evaluate((element) => element.scrollHeight > element.clientHeight))
-    .toBe(true)
+  await expect(list.locator(row)).toHaveCount(rows)
+  await expect.poll(() => list.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true)
 
-  await market.locator('.market__pairs .panel__actions .btn--icon').focus()
-  await page.keyboard.press('Tab')
+  await expect(list).toHaveAttribute('tabindex', '0')
+  await list.focus()
   await expect(list).toBeFocused()
 
   await list.evaluate((element) => element.scrollTo({ top: element.scrollHeight }))
-  expect(await list.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
-  expect(await page.evaluate(() => document.scrollingElement?.scrollTop)).toBe(0)
+  expect(await list.evaluate((element) => element.scrollTop), `${label} scrolled`).toBeGreaterThan(
+    0,
+  )
+  expect(await page.evaluate(() => document.scrollingElement?.scrollTop), label).toBe(0)
+
+  // The last row has to end up on screen, not clipped below the fold.
+  const last = list.locator(row).last()
+  const box = await last.boundingBox()
+  const viewport = page.viewportSize()
+  expect(box!.y + box!.height, `${label}: last row reachable`).toBeLessThanOrEqual(viewport!.height)
+}
+
+test(LISTS_SCROLL_TEST, async ({ page }) => {
+  const market = livePage(page)
+  await expectListScrolls(page, 40, '.card--tappable', 'whitelist')
+
+  await market.locator('.seg__item', { hasText: '黑名单' }).click()
+  await expectListScrolls(page, 40, '.blist__item', 'blacklist')
+
+  await market.locator('.seg__item', { hasText: '交易锁' }).click()
+  await expectListScrolls(page, 20, '.card', 'locks')
 })
 
 test('the pair-list block slides to the tab you pick', async ({ page }) => {

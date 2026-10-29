@@ -371,12 +371,14 @@ export async function mockApi(
     tradeCount?: number
     pairCount?: number
     whitelistCount?: number
+    blacklistCount?: number
+    lockCount?: number
     staleHeartbeat?: boolean
     secondBot?: boolean
   } = {},
 ) {
   const calls: string[] = []
-  const { tradeCount, pairCount, whitelistCount } = options
+  const { tradeCount, pairCount, whitelistCount, blacklistCount, lockCount } = options
   /**
    * Health is answered relative to the moment of the request: the heartbeat alert
    * compares against the real clock, so a frozen timestamp would look days stale.
@@ -425,6 +427,34 @@ export async function mockApi(
           length: whitelistCount,
         }
 
+  /** Long lists, for the "the list scrolls inside the viewport" tests. */
+  const blacklistPayload =
+    blacklistCount === undefined
+      ? RESPONSES.blacklist
+      : {
+          blacklist: Array.from(
+            { length: blacklistCount },
+            (_, index) => `B${String(index + 1).padStart(2, '0')}/USDT`,
+          ),
+          length: blacklistCount,
+          errors: {},
+        }
+
+  const locksPayload =
+    lockCount === undefined
+      ? RESPONSES.locks
+      : {
+          lock_count: lockCount,
+          locks: Array.from({ length: lockCount }, (_, index) => ({
+            id: index + 1,
+            pair: `L${String(index + 1).padStart(2, '0')}/USDT`,
+            lock_end_time: new Date(NOW + (index + 1) * 3_600_000).toISOString(),
+            lock_end_timestamp: NOW + (index + 1) * 3_600_000,
+            reason: 'Stoploss guard',
+            active: true,
+          })),
+        }
+
   /** One answerer per origin; `overrides` swaps individual payloads per instance. */
   const serve =
     (overrides: Record<string, unknown> = {}, rejectAuth = false) =>
@@ -459,9 +489,13 @@ export async function mockApi(
             ? performancePayload
             : path === 'whitelist'
               ? (overrides[path] ?? whitelistPayload)
-              : path === 'health'
-                ? healthPayload()
-                : (overrides[path] ?? bodyFor(url, request.method()))
+              : path === 'blacklist'
+                ? (overrides[path] ?? blacklistPayload)
+                : path === 'locks'
+                  ? (overrides[path] ?? locksPayload)
+                  : path === 'health'
+                    ? healthPayload()
+                    : (overrides[path] ?? bodyFor(url, request.method()))
       if (body === undefined) {
         await route.fulfill({
           status: 404,

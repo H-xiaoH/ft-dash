@@ -208,6 +208,7 @@ export default {
     lastAnalyzed: '最后分析',
     candleChart: 'K 线',
     noCandles: '没有可用的 K 线数据（该交易对可能不在白名单中，或数据未下载）。',
+    candlesFailed: 'K 线请求失败了，机器人可能正在重启。',
     buySignals: '买入信号',
     sellSignals: '卖出信号',
     buyFill: '买入成交',

@@ -146,6 +146,16 @@ const chartMarks = computed(() =>
 const isCurrentPage = () => route.name === 'market'
 
 let candleRequestGeneration = 0
+/**
+ * The cache keeps the last candles for instant paint when a page is walked back to; this is
+ * how old each entry is, so landing on the page refreshes a chart that has gone stale instead
+ * of showing the candles from twenty minutes ago for the rest of the session.
+ */
+const CANDLE_TTL_MS = 30_000
+const candleFetchedAt = new Map<string, number>()
+const candleKey = (pair: string, currentTimeframe: string) => `${pair}|${currentTimeframe}`
+const isCandleStale = (pair: string, currentTimeframe: string) =>
+  Date.now() - (candleFetchedAt.get(candleKey(pair, currentTimeframe)) ?? 0) > CANDLE_TTL_MS
 
 async function loadCandles(
   pair: string,
@@ -168,6 +178,13 @@ async function loadCandles(
   }
   candleError.value = !result
   loadingCandles.value = false
+  // Only a success is fresh; a failure must retry on the next landing or on the button.
+  if (result) candleFetchedAt.set(candleKey(pair, currentTimeframe), Date.now())
+}
+
+function retryCandles() {
+  const generation = ++candleRequestGeneration
+  void loadCandles(selectedPair.value, timeframe.value, generation, () => true)
 }
 
 async function submitBlacklist() {
@@ -207,7 +224,8 @@ watch(
     onCleanup(() => {
       cancelled = true
     })
-    if (!bot.candleCache[`${pair}|${currentTimeframe}`]) {
+    const cached = bot.candleCache[candleKey(pair, currentTimeframe)]
+    if (!cached || isCandleStale(pair, currentTimeframe)) {
       void loadCandles(pair, currentTimeframe, generation, () => !cancelled)
     }
   },
@@ -251,7 +269,13 @@ watch(
           class="skeleton"
           :style="{ height: `${candleHeight}px`, width: '100%' }"
         />
-        <p v-else-if="candleError || !candles.length" class="empty">{{ t('market.noCandles') }}</p>
+        <div v-else-if="candleError" class="empty">
+          {{ t('market.candlesFailed') }}
+          <button type="button" class="btn btn--sm" @click="retryCandles">
+            {{ t('common.retry') }}
+          </button>
+        </div>
+        <p v-else-if="!candles.length" class="empty">{{ t('market.noCandles') }}</p>
         <CandleChart
           v-else
           :candles="candles"
@@ -455,7 +479,14 @@ watch(
         </div>
       </div>
 
-      <div v-else class="panel__body panel__body--flush market__scroll">
+      <!-- Keyboard users need a focus stop to scroll this list (WCAG 2.1.1). -->
+      <div
+        v-else
+        class="panel__body panel__body--flush market__scroll"
+        tabindex="0"
+        role="region"
+        :aria-label="t('market.locks')"
+      >
         <div v-if="!bot.locks?.locks.length" class="empty">{{ t('market.noLocks') }}</div>
         <div v-else class="table-wrap u-desktop-only">
           <table class="table">
