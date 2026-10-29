@@ -430,7 +430,7 @@ test('the clear local data confirmation message stays centered', async ({ page }
   const dataPanel = panel(page, '本机数据')
   await dataPanel.locator('button', { hasText: '清除本机数据' }).click()
   const confirmation = dataPanel.locator('.inline-confirm')
-  const message = confirmation.locator('.inline-confirm__message')
+  const message = confirmation.locator('.banner__message')
   const [confirmationBox, messageBox] = await Promise.all([
     confirmation.boundingBox(),
     message.boundingBox(),

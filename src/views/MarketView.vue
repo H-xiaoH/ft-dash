@@ -438,12 +438,15 @@ watch(
             </button>
           </li>
         </ul>
-        <p
+        <div
           v-if="bot.blacklist?.errors && Object.keys(bot.blacklist.errors).length"
           class="banner banner--warn"
         >
-          {{ t('market.blacklistErrors') }}
-        </p>
+          <AppIcon name="alert" :size="18" />
+          <div class="banner__body">
+            <div class="banner__message">{{ t('market.blacklistErrors') }}</div>
+          </div>
+        </div>
       </div>
 
       <div v-else class="panel__body panel__body--flush">

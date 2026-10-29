@@ -155,9 +155,9 @@ async function submit() {
 
         <div v-if="errorMessage" class="banner banner--bad" role="alert">
           <AppIcon name="alert" :size="18" />
-          <div>
+          <div class="banner__body">
             <div class="banner__title">{{ t('connect.failed') }}</div>
-            <div>{{ errorMessage }}</div>
+            <div class="banner__message">{{ errorMessage }}</div>
           </div>
         </div>
 
