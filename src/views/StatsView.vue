@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import AppIcon from '@/components/AppIcon.vue'
 import BarChart from '@/components/BarChart.vue'
 import MetricTile from '@/components/MetricTile.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
