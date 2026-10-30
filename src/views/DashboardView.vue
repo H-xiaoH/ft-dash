@@ -196,7 +196,7 @@ async function confirmExit() {
                   <th scope="col">{{ t('trades.pair') }}</th>
                   <th scope="col" class="u-hide-sm side-col">{{ t('trades.side') }}</th>
                   <th scope="col" class="num u-hide-sm">{{ t('trades.entryPrice') }}</th>
-                  <th scope="col" class="num">{{ t('trades.currentPrice') }}</th>
+                  <th scope="col" class="num u-hide-sm">{{ t('trades.currentPrice') }}</th>
                   <th scope="col" class="num u-hide-sm">{{ t('trades.stake') }}</th>
                   <th scope="col" class="num">{{ t('kpi.unrealized') }}</th>
                   <th scope="col" class="num">{{ t('trades.duration') }}</th>
@@ -216,15 +216,20 @@ async function confirmExit() {
                         :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
                       />
                       <span class="num">{{ trade.pair }}</span>
-                      <SideBadge class="u-inline-sm" :is-short="trade.is_short" />
-                      <span v-if="trade.leverage && trade.leverage > 1" class="chip">
+                      <SideBadge class="u-inline-sm" :is-short="trade.is_short" icon-only />
+                      <span
+                        v-if="trade.leverage && trade.leverage > 1"
+                        class="chip overview__leverage"
+                      >
                         {{ trade.leverage }}x
                       </span>
                     </div>
                   </td>
                   <td class="u-hide-sm side-col"><SideBadge :is-short="trade.is_short" /></td>
                   <td class="num u-hide-sm">{{ format.price(trade.open_rate) }}</td>
-                  <td class="num">{{ format.price(trade.current_rate ?? trade.open_rate) }}</td>
+                  <td class="num u-hide-sm">
+                    {{ format.price(trade.current_rate ?? trade.open_rate) }}
+                  </td>
                   <td class="num u-hide-sm">{{ format.money(trade.stake_amount, stake) }}</td>
                   <td class="num" :class="format.toneClass(trade.profit_ratio)">
                     {{ format.signedMoney(trade.profit_abs ?? 0, stake) }}
@@ -289,7 +294,7 @@ async function confirmExit() {
                         :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
                       />
                       <span class="num">{{ trade.pair }}</span>
-                      <SideBadge class="u-inline-sm" :is-short="trade.is_short" />
+                      <SideBadge class="u-inline-sm" :is-short="trade.is_short" icon-only />
                     </div>
                   </td>
                   <td class="u-hide-sm side-col"><SideBadge :is-short="trade.is_short" /></td>
@@ -320,3 +325,16 @@ async function confirmExit() {
     />
   </div>
 </template>
+
+<style scoped>
+/*
+ * The overview drops the leverage chip on phones, where the pair cell already carries the
+ * badge. Scoped rather than `u-hide-sm`: that helper switches to `table-cell`, which is right
+ * for a column and wrong for a chip.
+ */
+@media (max-width: 720px) {
+  .overview__leverage {
+    display: none;
+  }
+}
+</style>
