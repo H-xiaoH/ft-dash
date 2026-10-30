@@ -57,6 +57,34 @@ test('the pair table pages by the size set in Settings', async ({ page }) => {
   await expect(pager).toContainText('第 1 / 3 页')
 })
 
+test('the two risk tiles open one plain-language guide', async ({ page }) => {
+  const sharpe = livePage(page).locator('.metric--button', { hasText: '夏普' }).first()
+  await expect(sharpe).toHaveAttribute('aria-label', /夏普.*查看说明/)
+
+  await sharpe.click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('这几个比值怎么看')
+
+  // All four ratios the page shows are explained here, with the numbers to read them by.
+  for (const name of ['夏普（Sharpe）', '索提诺（Sortino）', 'SQN', 'Calmar']) {
+    await expect(dialog).toContainText(name)
+  }
+  await expect(dialog).toContainText('低于 1：风险没换来补偿')
+  await expect(dialog).toContainText('样本少于 30 笔')
+
+  // Escape closes it and hands focus back to the tile that opened it.
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(sharpe).toBeFocused()
+
+  // So does a click on the backdrop, and the Sortino tile opens the same guide.
+  await livePage(page).locator('.metric--button', { hasText: '索提诺' }).first().click()
+  await expect(dialog).toBeVisible()
+  await page.mouse.click(8, 8)
+  await expect(dialog).toBeHidden()
+})
+
 test('the period block slides to the period you pick', async ({ page }) => {
   const seg = livePage(page).locator('.seg')
   await expect.poll(() => segBlockMatches(seg)).toBe(true)

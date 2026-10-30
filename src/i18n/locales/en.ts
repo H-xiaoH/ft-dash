@@ -250,6 +250,40 @@ export default {
     firstTrade: 'First trade',
     lastTrade: 'Latest trade',
     noData: 'No statistics yet.',
+    ratios: {
+      title: 'How to read these ratios',
+      open: 'See the explanation',
+      intro:
+        'All four answer one question: is the money worth the swings and drawdowns it took to earn? Higher is steadier, but any one of them on its own can fool you.',
+      sharpe: {
+        name: 'Sharpe',
+        plain:
+          'Return per unit of swing: return minus the risk-free rate, divided by volatility. A big jump counts as volatility too, so a spike pulls it down.',
+        bench:
+          'Under 1 the risk was not paid for; 1–2 acceptable; 2–3 strong; above 3 excellent. The card turns amber under 1 and red when negative.',
+      },
+      sortino: {
+        name: 'Sortino',
+        plain:
+          'Only the downside counts as swing, so big gains are not punished. It tracks real experience better, which is why it usually runs above Sharpe.',
+        bench: 'Under 1 means drawdowns ate the return; 2 and up is good; above 3 is excellent.',
+      },
+      sqn: {
+        name: 'SQN (System Quality Number)',
+        plain:
+          'Steadiness judged trade by trade: the square root of the trade count times average profit per trade, divided by the standard deviation of profit. More trades lift the same behaviour to a higher score.',
+        bench:
+          'Below 1.6 poor; 1.6–1.9 below average; 2.0–2.4 average; 2.5–2.9 good; 3.0–5.0 excellent; 5–7 superb; above 7 usually means too few trades.',
+      },
+      calmar: {
+        name: 'Calmar',
+        plain:
+          'Whether the profit covers the worst drawdown: annual return divided by max drawdown. Up 30% in a year with a 10% worst drawdown is 3.',
+        bench: 'Below 0.5 ordinary; 0.5–1 fair; 1–3 good; above 3 excellent.',
+      },
+      caveat:
+        'These are all ratios, so compare your own bot over time rather than against another strategy. With fewer than 30 trades, ignore all four.',
+    },
   },
   logs: {
     title: 'Run log',

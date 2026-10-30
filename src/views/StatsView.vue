@@ -12,6 +12,7 @@ import { useChartHeight } from '@/composables/useChartHeight'
 import { useSegBlock } from '@/composables/useSegBlock'
 import { hideFreqtradeSentinel, toNumber, type Numberish } from '@/lib/format'
 import { buildPairStats, type PairStats } from '@/lib/stats'
+import RatioGuide from '@/components/RatioGuide.vue'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
 
@@ -75,6 +76,8 @@ const rows = computed<PairStats[]>(() => {
 })
 
 const pairPage = ref(1)
+/** The four ratios on the two tiles share one explanation, opened from either tile. */
+const guideOpen = ref(false)
 const pairTotalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / pageSize.value)))
 const pagedPairs = computed(() =>
   rows.value.slice((pairPage.value - 1) * pageSize.value, pairPage.value * pageSize.value),
@@ -203,12 +206,18 @@ function drawdownPercent(value: number | null | undefined) {
         :value="summary?.sharpe ?? null"
         :tone="riskRatioTone(summary?.sharpe)"
         :sub="`${t('kpi.sqn')} ${format.number(summary?.sqn ?? null)}`"
+        interactive
+        :aria-label="`${t('kpi.sharpe')} / ${t('kpi.sqn')} — ${t('stats.ratios.open')}`"
+        @click="guideOpen = true"
       />
       <MetricTile
         :label="t('kpi.sortino')"
         :value="summary?.sortino ?? null"
         :tone="riskRatioTone(summary?.sortino)"
         :sub="`${t('kpi.calmar')} ${format.number(summary?.calmar ?? null)}`"
+        interactive
+        :aria-label="`${t('kpi.sortino')} / ${t('kpi.calmar')} — ${t('stats.ratios.open')}`"
+        @click="guideOpen = true"
       />
       <MetricTile
         :label="t('kpi.maxDrawdown')"
@@ -496,6 +505,8 @@ function drawdownPercent(value: number | null | undefined) {
         </dl>
       </div>
     </section>
+
+    <RatioGuide :open="guideOpen" @close="guideOpen = false" />
   </div>
 </template>
 
