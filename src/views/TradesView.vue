@@ -14,6 +14,7 @@ import { downloadCsv } from '@/lib/csv'
 import { isStandalone } from '@/lib/navigation'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
+import { useSettingsStore } from '@/stores/settings'
 import { useSegBlock } from '@/composables/useSegBlock'
 
 type Filter = 'open' | 'closed' | 'all'
@@ -22,6 +23,7 @@ type SortKey = 'open_timestamp' | 'pair' | 'profit_abs' | 'duration' | 'stake_am
 const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
+const settings = useSettingsStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -37,8 +39,8 @@ const { blockStyle: filterBlockStyle, blockReady: filterBlockReady } = useSegBlo
   filterSeg,
   () => filter.value,
 )
-/** Rows per page; paging happens in the browser over everything already loaded. */
-const PAGE_SIZE = 20
+/** Paging happens in the browser over everything already loaded; the size is a setting. */
+const pageSize = computed(() => settings.tradesPageSize)
 const page = ref(1)
 
 // The overview links here with ?filter=open|closed; keep the query in step with the tab.
@@ -133,9 +135,9 @@ const filterStatus = computed(() =>
 const openCount = computed(() => bot.openTrades.length)
 const closedCount = computed(() => bot.profit?.closed_trade_count ?? bot.closedTrades.length)
 const allCount = computed(() => allTrades.value.length)
-const totalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / PAGE_SIZE)))
+const totalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / pageSize.value)))
 const pagedRows = computed(() =>
-  rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
+  rows.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value),
 )
 
 // Any change to the query or ordering restarts from the first page.
@@ -426,12 +428,17 @@ onMounted(() => {
                 @click="openTrade(trade)"
               >
                 <div class="card__row">
-                  <span
-                    class="table__side"
-                    :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
-                  />
-                  <span class="num card__pair">{{ trade.pair }}</span>
-                  <span v-if="trade.is_open" class="chip chip--accent">{{ t('trades.open') }}</span>
+                  <!-- Same wrapper as the desktop table: it centres the bar on the pair text. -->
+                  <div class="table__pair">
+                    <span
+                      class="table__side"
+                      :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
+                    />
+                    <span class="num card__pair">{{ trade.pair }}</span>
+                    <span v-if="trade.is_open" class="chip chip--accent">{{
+                      t('trades.open')
+                    }}</span>
+                  </div>
                   <span class="spacer" />
                   <span
                     class="num card__pnl"
