@@ -523,10 +523,14 @@ test("the wheel off the rail stays the page's own scroll", async ({ page }) => {
 test('landing on a page refreshes once, after the pages stop changing', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   /*
-   * `/performance` belongs to the analytics slice, which the slow poll only asks for every
-   * twelfth tick — so in the first seconds of a session it is the walk's own refresh
-   * talking, not the cadence underneath it.
+   * `/performance` belongs to the analytics slice, which the poll asks for every twelfth
+   * tick — a tick that can land inside this window on a slow runner. Hiding the document
+   * stops the poll entirely, so the only `/performance` left is the walk's own refresh,
+   * which is what this test is about.
    */
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
+  })
   // The shell is mounted while the first connect refresh is still in flight. Wait for
   // that refresh to finish before taking the baseline, or its performance request can
   // arrive during the navigation below and look like a page-settle refresh.
