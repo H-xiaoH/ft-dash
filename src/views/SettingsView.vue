@@ -12,7 +12,7 @@ import { canInstall, isStandalone, offlineReady, promptInstall } from '@/pwa'
 import { useBotStore } from '@/stores/bot'
 import { useEventsStore } from '@/stores/events'
 import { browserZone, listZones, zoneOffsetLabel, type TimezonePreference } from '@/lib/timezone'
-import { useSettingsStore } from '@/stores/settings'
+import { COUNT_SETTINGS, PAGE_SIZE_CHOICES, useSettingsStore } from '@/stores/settings'
 import type { StreamAuthPreference } from '@/lib/stream'
 
 const { t } = useI18n()
@@ -28,6 +28,17 @@ const { blockStyle: authBlockStyle, blockReady: authBlockReady } = useSegBlock(
   () => settings.streamAuth,
 )
 const appVersion = __APP_VERSION__
+
+/** The menu speaks strings; the setting is a number. */
+const pageSizeOptions = computed(() =>
+  PAGE_SIZE_CHOICES.map((choice) => ({ value: String(choice), label: String(choice) })),
+)
+const pageSizeValue = computed({
+  get: () => String(settings.tradesPerPage),
+  set: (value: string) => {
+    settings.tradesPerPage = Number(value)
+  },
+})
 
 const languageOptions = computed(() => [
   { value: 'system' as LocalePreference, label: t('settings.languageSystem') },
@@ -114,12 +125,6 @@ async function enableControls() {
   pushToast(t('common.saved'), 'good')
 }
 
-/** The chip above already reports the outcome; this only acknowledges the click. */
-function retryStream() {
-  bot.retryStream()
-  pushToast(t('settings.retryingStream'), 'info')
-}
-
 function disableControls() {
   settings.allowControls = false
   settings.controlsAcknowledged = false
@@ -169,6 +174,49 @@ async function install() {
 
         <section class="panel">
           <div class="panel__head">
+            <span class="panel__title">{{ t('settings.display') }}</span>
+          </div>
+          <div class="panel__body stack">
+            <label class="field">
+              <span class="field__label">{{ t('settings.openLimit') }}</span>
+              <input
+                v-model.number="settings.dashboardOpenLimit"
+                class="input num"
+                type="number"
+                :min="COUNT_SETTINGS.dashboardOpenLimit.min"
+                :max="COUNT_SETTINGS.dashboardOpenLimit.max"
+                inputmode="numeric"
+              />
+              <span class="field__hint">{{ t('settings.openLimitHint') }}</span>
+            </label>
+            <label class="field">
+              <span class="field__label">{{ t('settings.closedLimit') }}</span>
+              <input
+                v-model.number="settings.dashboardClosedLimit"
+                class="input num"
+                type="number"
+                :min="COUNT_SETTINGS.dashboardClosedLimit.min"
+                :max="COUNT_SETTINGS.dashboardClosedLimit.max"
+                inputmode="numeric"
+              />
+              <span class="field__hint">{{ t('settings.closedLimitHint') }}</span>
+            </label>
+            <div class="field">
+              <span class="field__label">{{ t('settings.tradesPerPage') }}</span>
+              <FilterMenu
+                v-model="pageSizeValue"
+                class="settings__filter"
+                :options="pageSizeOptions"
+                :label="t('settings.tradesPerPage')"
+                align="start"
+              />
+              <span class="field__hint">{{ t('settings.tradesPerPageHint') }}</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__head">
             <span class="panel__title">{{ t('settings.push') }}</span>
           </div>
           <div class="panel__body stack">
@@ -184,15 +232,6 @@ async function install() {
             <div class="stream-auth" :class="{ 'stream-auth--disabled': !settings.websocket }">
               <div class="row row--wrap">
                 <span class="chip" :class="streamAuthTone">{{ streamAuthLabel }}</span>
-                <button
-                  v-if="settings.websocket"
-                  type="button"
-                  class="btn btn--sm"
-                  @click="retryStream"
-                >
-                  <AppIcon name="refresh" />
-                  {{ t('settings.retryStream') }}
-                </button>
               </div>
               <p class="small muted">{{ t('settings.streamAuthHint') }}</p>
               <div class="settings__grid">

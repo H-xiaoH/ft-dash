@@ -18,6 +18,7 @@ import {
   type Bot,
   type BotInput,
 } from '@/lib/bots'
+import { clampCount } from '@/lib/format'
 import { readJson, removeKey, safeSessionStorage, writeJson } from '@/lib/storage'
 import type { StreamAuthPreference } from '@/lib/stream'
 import type { TimezonePreference } from '@/lib/timezone'
@@ -35,7 +36,24 @@ interface StoredSettings {
   notifications: boolean
   remember: boolean
   controlsAcknowledged: boolean
+  dashboardOpenLimit: number
+  dashboardClosedLimit: number
+  tradesPerPage: number
 }
+
+/** The two overview caps and the trade list page size, with the range each input accepts. */
+export const COUNT_SETTINGS = {
+  dashboardOpenLimit: { min: 1, max: 50, fallback: 6 },
+  dashboardClosedLimit: { min: 1, max: 50, fallback: 6 },
+  /**
+   * The top of the range is the number of trades the app loads at all, so the largest page
+   * holds everything there is — no separate "unlimited" state to explain.
+   */
+  tradesPerPage: { min: 5, max: 300, fallback: 20 },
+} as const
+
+/** The sizes the picker offers. */
+export const PAGE_SIZE_CHOICES: number[] = [10, 20, 50, 100, COUNT_SETTINGS.tradesPerPage.max]
 
 /** Nothing picked yet means "follow the browser", which is what the app did at boot. */
 const DEFAULT_LOCALE: LocalePreference = 'system'
@@ -58,6 +76,10 @@ const DEFAULT_SETTINGS: StoredSettings = {
    */
   remember: false,
   controlsAcknowledged: false,
+  /** How many rows the overview lists before its "view all" link takes over. */
+  dashboardOpenLimit: COUNT_SETTINGS.dashboardOpenLimit.fallback,
+  dashboardClosedLimit: COUNT_SETTINGS.dashboardClosedLimit.fallback,
+  tradesPerPage: COUNT_SETTINGS.tradesPerPage.fallback,
 }
 
 export const STREAM_AUTH_OPTIONS: StreamAuthPreference[] = ['auto', 'ws_token']
@@ -134,6 +156,40 @@ export const useSettingsStore = defineStore('settings', () => {
     window.addEventListener('languagechange', onLanguageChange)
     onScopeDispose(() => window.removeEventListener('languagechange', onLanguageChange))
   }
+  const count = <K extends keyof typeof COUNT_SETTINGS>(key: K, stored: unknown) => {
+    const { fallback, min, max } = COUNT_SETTINGS[key]
+    return ref(clampCount(stored, fallback, min, max))
+  }
+  /** The raw inputs, which may briefly hold "" while being retyped. */
+  const dashboardOpenLimit = count('dashboardOpenLimit', persisted.dashboardOpenLimit)
+  const dashboardClosedLimit = count('dashboardClosedLimit', persisted.dashboardClosedLimit)
+  const tradesPerPage = count('tradesPerPage', persisted.tradesPerPage)
+  /** What the views read: never empty, never zero, never NaN. */
+  const overviewOpenLimit = computed(() =>
+    clampCount(
+      dashboardOpenLimit.value,
+      COUNT_SETTINGS.dashboardOpenLimit.fallback,
+      COUNT_SETTINGS.dashboardOpenLimit.min,
+      COUNT_SETTINGS.dashboardOpenLimit.max,
+    ),
+  )
+  const overviewClosedLimit = computed(() =>
+    clampCount(
+      dashboardClosedLimit.value,
+      COUNT_SETTINGS.dashboardClosedLimit.fallback,
+      COUNT_SETTINGS.dashboardClosedLimit.min,
+      COUNT_SETTINGS.dashboardClosedLimit.max,
+    ),
+  )
+  /** What the trade list reads: never empty, never zero, never above what is loaded. */
+  const tradesPageSize = computed(() =>
+    clampCount(
+      tradesPerPage.value,
+      COUNT_SETTINGS.tradesPerPage.fallback,
+      COUNT_SETTINGS.tradesPerPage.min,
+      COUNT_SETTINGS.tradesPerPage.max,
+    ),
+  )
   const websocket = ref(persisted.websocket ?? DEFAULT_SETTINGS.websocket)
   const timezone = ref<TimezonePreference>(resolveTimezone(persisted.timezone))
   const streamAuth = ref(resolveStreamAuth(persisted.streamAuth))
@@ -169,6 +225,9 @@ export const useSettingsStore = defineStore('settings', () => {
       notifications: notifications.value,
       remember: remember.value,
       controlsAcknowledged: controlsAcknowledged.value,
+      dashboardOpenLimit: dashboardOpenLimit.value,
+      dashboardClosedLimit: dashboardClosedLimit.value,
+      tradesPerPage: tradesPerPage.value,
     } satisfies StoredSettings)
   }
 
@@ -199,6 +258,9 @@ export const useSettingsStore = defineStore('settings', () => {
     allowControls.value = DEFAULT_SETTINGS.allowControls
     notifications.value = DEFAULT_SETTINGS.notifications
     remember.value = DEFAULT_SETTINGS.remember
+    dashboardOpenLimit.value = DEFAULT_SETTINGS.dashboardOpenLimit
+    dashboardClosedLimit.value = DEFAULT_SETTINGS.dashboardClosedLimit
+    tradesPerPage.value = DEFAULT_SETTINGS.tradesPerPage
     controlsAcknowledged.value = DEFAULT_SETTINGS.controlsAcknowledged
     suppressPersistence = false
   }
@@ -297,6 +359,9 @@ export const useSettingsStore = defineStore('settings', () => {
       notifications,
       remember,
       controlsAcknowledged,
+      dashboardOpenLimit,
+      dashboardClosedLimit,
+      tradesPerPage,
     ],
     persist,
     { flush: 'sync' },
@@ -324,6 +389,12 @@ export const useSettingsStore = defineStore('settings', () => {
     notifications,
     remember,
     controlsAcknowledged,
+    dashboardOpenLimit,
+    dashboardClosedLimit,
+    tradesPerPage,
+    tradesPageSize,
+    overviewOpenLimit,
+    overviewClosedLimit,
     hasCredentials,
     writesEnabled,
     persistBots,

@@ -22,6 +22,17 @@ export function toNumber(value: Numberish): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+/**
+ * A user-entered count (rows per page, list caps): a whole number inside `min`..`max`, and the
+ * fallback for anything that is not a number at all. An empty input reads as "nothing typed
+ * yet", not as zero, which is why it cannot go through `Number('')`.
+ */
+export function clampCount(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = value === '' || value === null || value === undefined ? NaN : Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(max, Math.max(min, Math.round(parsed)))
+}
+
 /** Freqtrade uses -100 as "not meaningful" for a few derived metrics. */
 export function hideFreqtradeSentinel(value: Numberish, sentinel = -100): Numberish {
   return toNumber(value) === sentinel ? null : value
