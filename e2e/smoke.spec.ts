@@ -190,6 +190,32 @@ test.describe('navigation', () => {
     }
   })
 
+  test('the overview keeps its wide columns on desktop and drops them on a phone', async ({
+    page,
+  }) => {
+    await mockApi(page, { tradeCount: 12 })
+    await page.goto('/')
+    await connect(page)
+    await expect(page.locator('.shell')).toBeVisible()
+
+    const openPanel = livePage(page).locator('.panel', { hasText: '当前持仓' }).first()
+    const header = (label: string) => openPanel.locator('th', { hasText: label })
+
+    // Desktop: direction text, current price, and the leverage chip all present.
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await expect(header('当前价')).toBeVisible()
+    await expect(openPanel.locator('.side__label').first()).toBeVisible()
+    await expect(openPanel.locator('.overview__leverage').first()).toBeVisible()
+
+    // Phone: the same cells are hidden (they stay in the DOM, so ask about visibility), and
+    // only the direction arrow is left beside the pair.
+    await page.setViewportSize({ width: 390, height: 844 })
+    await expect(header('当前价')).toBeHidden()
+    await expect(openPanel.locator('.side__label').first()).toBeHidden()
+    await expect(openPanel.locator('.overview__leverage').first()).toBeHidden()
+    await expect(openPanel.locator('.table__side').first()).toBeVisible()
+  })
+
   test('data tables become card lists on narrow screens', async ({ page }) => {
     await mockApi(page)
     await page.goto('/')
