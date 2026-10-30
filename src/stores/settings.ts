@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, onScopeDispose, ref, watch } from 'vue'
+import { computed, onScopeDispose, ref, watch, type Ref } from 'vue'
 import {
   detectLocale,
   isLocalePreference,
@@ -39,6 +39,7 @@ interface StoredSettings {
   dashboardOpenLimit: number
   dashboardClosedLimit: number
   tradesPerPage: number
+  pairTablePerPage: number
 }
 
 /** The two overview caps and the trade list page size, with the range each input accepts. */
@@ -50,10 +51,11 @@ export const COUNT_SETTINGS = {
    * holds everything there is — no separate "unlimited" state to explain.
    */
   tradesPerPage: { min: 5, max: 300, fallback: 20 },
+  pairTablePerPage: { min: 5, max: 300, fallback: 10 },
 } as const
 
-/** The sizes the picker offers. */
-export const PAGE_SIZE_CHOICES: number[] = [10, 20, 50, 100, COUNT_SETTINGS.tradesPerPage.max]
+type CountKey = keyof typeof COUNT_SETTINGS
+const COUNT_KEYS = Object.keys(COUNT_SETTINGS) as CountKey[]
 
 /** Nothing picked yet means "follow the browser", which is what the app did at boot. */
 const DEFAULT_LOCALE: LocalePreference = 'system'
@@ -80,6 +82,7 @@ const DEFAULT_SETTINGS: StoredSettings = {
   dashboardOpenLimit: COUNT_SETTINGS.dashboardOpenLimit.fallback,
   dashboardClosedLimit: COUNT_SETTINGS.dashboardClosedLimit.fallback,
   tradesPerPage: COUNT_SETTINGS.tradesPerPage.fallback,
+  pairTablePerPage: COUNT_SETTINGS.pairTablePerPage.fallback,
 }
 
 export const STREAM_AUTH_OPTIONS: StreamAuthPreference[] = ['auto', 'ws_token']
@@ -156,40 +159,77 @@ export const useSettingsStore = defineStore('settings', () => {
     window.addEventListener('languagechange', onLanguageChange)
     onScopeDispose(() => window.removeEventListener('languagechange', onLanguageChange))
   }
-  const count = <K extends keyof typeof COUNT_SETTINGS>(key: K, stored: unknown) => {
-    const { fallback, min, max } = COUNT_SETTINGS[key]
-    return ref(clampCount(stored, fallback, min, max))
-  }
+  const count = <K extends CountKey>(key: K, stored: unknown) =>
+    ref(
+      clampCount(
+        stored,
+        COUNT_SETTINGS[key].fallback,
+        COUNT_SETTINGS[key].min,
+        COUNT_SETTINGS[key].max,
+      ),
+    )
+
   /** The raw inputs, which may briefly hold "" while being retyped. */
   const dashboardOpenLimit = count('dashboardOpenLimit', persisted.dashboardOpenLimit)
   const dashboardClosedLimit = count('dashboardClosedLimit', persisted.dashboardClosedLimit)
   const tradesPerPage = count('tradesPerPage', persisted.tradesPerPage)
-  /** What the views read: never empty, never zero, never NaN. */
-  const overviewOpenLimit = computed(() =>
-    clampCount(
-      dashboardOpenLimit.value,
-      COUNT_SETTINGS.dashboardOpenLimit.fallback,
-      COUNT_SETTINGS.dashboardOpenLimit.min,
-      COUNT_SETTINGS.dashboardOpenLimit.max,
-    ),
+  const pairTablePerPage = count('pairTablePerPage', persisted.pairTablePerPage)
+  const countRefs: Record<CountKey, Ref<number>> = {
+    dashboardOpenLimit,
+    dashboardClosedLimit,
+    tradesPerPage,
+    pairTablePerPage,
+  }
+
+  /** What the views read: never empty, never zero, never above what the range allows. */
+  const clamped = (key: CountKey) =>
+    computed(() => {
+      const { fallback, min, max } = COUNT_SETTINGS[key]
+      return clampCount(countRefs[key].value, fallback, min, max)
+    })
+  const overviewOpenLimit = clamped('dashboardOpenLimit')
+  const overviewClosedLimit = clamped('dashboardClosedLimit')
+  const tradesPageSize = clamped('tradesPerPage')
+  const pairTablePageSize = clamped('pairTablePerPage')
+
+  /**
+   * The last number that was actually saved for each input, which is what a bad entry falls
+   * back to. Tracked from the refs rather than in `commitCount`, so a value written by
+   * anything else — clearing local data, a stored default — is remembered too.
+   */
+  const lastCount = Object.fromEntries(
+    COUNT_KEYS.map((key) => [key, COUNT_SETTINGS[key].fallback]),
+  ) as Record<CountKey, number>
+  watch(
+    () => COUNT_KEYS.map((key) => countRefs[key].value),
+    () => {
+      for (const key of COUNT_KEYS) {
+        const { min, max } = COUNT_SETTINGS[key]
+        const value = countRefs[key].value
+        if (Number.isInteger(value) && value >= min && value <= max) lastCount[key] = value
+      }
+    },
+    { flush: 'sync' },
   )
-  const overviewClosedLimit = computed(() =>
-    clampCount(
-      dashboardClosedLimit.value,
-      COUNT_SETTINGS.dashboardClosedLimit.fallback,
-      COUNT_SETTINGS.dashboardClosedLimit.min,
-      COUNT_SETTINGS.dashboardClosedLimit.max,
-    ),
-  )
-  /** What the trade list reads: never empty, never zero, never above what is loaded. */
-  const tradesPageSize = computed(() =>
-    clampCount(
-      tradesPerPage.value,
-      COUNT_SETTINGS.tradesPerPage.fallback,
-      COUNT_SETTINGS.tradesPerPage.min,
-      COUNT_SETTINGS.tradesPerPage.max,
-    ),
-  )
+
+  /**
+   * What an input settles on when the operator leaves it. Below the range takes the minimum,
+   * above it the maximum, and anything that is not a whole number — an empty box, `12.7`, a
+   * half-typed exponent — goes back to the last number that was actually saved.
+   */
+  function commitCount(key: CountKey): number {
+    const { min, max } = COUNT_SETTINGS[key]
+    // The refs are typed `number`, but a cleared input really holds "" (and a stray string
+    // can come back from storage), so the check is on the runtime value.
+    const raw: unknown = countRefs[key].value
+    const value = typeof raw === 'number' ? raw : raw === '' ? Number.NaN : Number(raw)
+    const settled =
+      Number.isFinite(value) && Number.isInteger(value)
+        ? Math.min(max, Math.max(min, value))
+        : lastCount[key]
+    countRefs[key].value = settled
+    return settled
+  }
   const websocket = ref(persisted.websocket ?? DEFAULT_SETTINGS.websocket)
   const timezone = ref<TimezonePreference>(resolveTimezone(persisted.timezone))
   const streamAuth = ref(resolveStreamAuth(persisted.streamAuth))
@@ -228,6 +268,7 @@ export const useSettingsStore = defineStore('settings', () => {
       dashboardOpenLimit: dashboardOpenLimit.value,
       dashboardClosedLimit: dashboardClosedLimit.value,
       tradesPerPage: tradesPerPage.value,
+      pairTablePerPage: pairTablePerPage.value,
     } satisfies StoredSettings)
   }
 
@@ -261,6 +302,7 @@ export const useSettingsStore = defineStore('settings', () => {
     dashboardOpenLimit.value = DEFAULT_SETTINGS.dashboardOpenLimit
     dashboardClosedLimit.value = DEFAULT_SETTINGS.dashboardClosedLimit
     tradesPerPage.value = DEFAULT_SETTINGS.tradesPerPage
+    pairTablePerPage.value = DEFAULT_SETTINGS.pairTablePerPage
     controlsAcknowledged.value = DEFAULT_SETTINGS.controlsAcknowledged
     suppressPersistence = false
   }
@@ -362,6 +404,7 @@ export const useSettingsStore = defineStore('settings', () => {
       dashboardOpenLimit,
       dashboardClosedLimit,
       tradesPerPage,
+      pairTablePerPage,
     ],
     persist,
     { flush: 'sync' },
@@ -393,6 +436,9 @@ export const useSettingsStore = defineStore('settings', () => {
     dashboardClosedLimit,
     tradesPerPage,
     tradesPageSize,
+    pairTablePerPage,
+    pairTablePageSize,
+    commitCount,
     overviewOpenLimit,
     overviewClosedLimit,
     hasCredentials,
