@@ -230,6 +230,45 @@ describe('FreqtradeApi', () => {
     })
   })
 
+  it('accepts daily rows whose fiat side is null', async () => {
+    // A bot with no fiat converter answers null here; the app never reads it.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({
+        data: [
+          {
+            date: '2026-10-24',
+            abs_profit: 1.5,
+            rel_profit: 0.015,
+            starting_balance: 100,
+            fiat_value: null,
+            trade_count: 3,
+          },
+        ],
+        fiat_display_currency: null,
+        stake_currency: 'USDT',
+      }),
+    )
+    const api = new FreqtradeApiClient(credentials)
+
+    const daily = await api.daily(60)
+    expect(daily.data[0]?.fiat_value).toBeNull()
+    expect(daily.data[0]?.abs_profit).toBe(1.5)
+  })
+
+  it('still rejects a daily row that is missing what the chart draws', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({
+        data: [{ date: '2026-10-24', rel_profit: 0.01, starting_balance: 100, trade_count: 1 }],
+        fiat_display_currency: null,
+        stake_currency: 'USDT',
+      }),
+    )
+    const api = new FreqtradeApiClient(credentials)
+
+    // `abs_profit` is the bar height: without it there is nothing to draw.
+    await expect(api.daily(60)).rejects.toMatchObject({ kind: 'parse' })
+  })
+
   it('accepts a health response with no heartbeat yet', async () => {
     // A stopped bot reports null here; rejecting it failed the whole core group.
     vi.mocked(fetch).mockResolvedValueOnce(

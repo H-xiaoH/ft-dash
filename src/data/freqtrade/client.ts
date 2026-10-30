@@ -378,11 +378,16 @@ function parseDaily(value: unknown, context: ParseContext): DailyResponse {
     required(entry, 'abs_profit', isNumber, context, 'a number', field)
     required(entry, 'rel_profit', isNumber, context, 'a number', field)
     required(entry, 'starting_balance', isNumber, context, 'a number', field)
-    required(entry, 'fiat_value', isNumber, context, 'a number', field)
+    /*
+     * Nothing in the UI reads the fiat side — it is a currency conversion of the same profit,
+     * and the app shows the stake currency. A bot with no fiat converter configured answers
+     * `null` here, which used to fail the whole analytics group over a field nobody displays.
+     */
+    required(entry, 'fiat_value', isNullableNumber, context, 'a number or null', field)
     required(entry, 'trade_count', isNumber, context, 'a number', field)
     return entry
   })
-  required(object, 'fiat_display_currency', isString, context, 'a string')
+  required(object, 'fiat_display_currency', isNullableString, context, 'a string or null')
   required(object, 'stake_currency', isString, context, 'a string')
   return asResponse<DailyResponse>(object)
 }

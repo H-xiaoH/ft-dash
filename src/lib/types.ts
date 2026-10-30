@@ -320,13 +320,15 @@ export interface DailyEntry {
   abs_profit: number
   rel_profit: number
   starting_balance: number
-  fiat_value: number
+  /** Null when the bot has no fiat converter; nothing in the UI reads it. */
+  fiat_value: number | null
   trade_count: number
 }
 
 export interface DailyResponse {
   data: DailyEntry[]
-  fiat_display_currency: string
+  /** Empty or null when no fiat currency is configured; the app shows the stake currency. */
+  fiat_display_currency: string | null
   stake_currency: string
 }
 
