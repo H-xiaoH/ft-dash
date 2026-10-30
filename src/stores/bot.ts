@@ -68,7 +68,6 @@ export const useBotStore = defineStore('bot', () => {
   })
   const refreshing = computed(() => session.value?.state.refreshing ?? false)
   const actionPending = computed(() => session.value?.state.actionPending ?? null)
-  const actionError = computed(() => session.value?.state.actionError ?? null)
   const snapshotStale = computed(() => session.value?.state.snapshotStale ?? false)
   const compatibility = computed(() => session.value?.state.compatibility ?? null)
 
@@ -101,6 +100,14 @@ export const useBotStore = defineStore('bot', () => {
   let streamOpened = false
   let streamAttempt = 0
   let streamPreferToken = false
+  /** The socket died while the bot was unreachable, so no reconnect timer could be armed. */
+  let streamNeedsRevive = false
+  /**
+   * A stream that cannot start — a rejected handshake, a missing token, no JWT endpoint — is
+   * tried again on this slow beat instead of waiting for a button. Any fix on the bot side, or
+   * a change in Settings, is picked up without the operator having to press anything.
+   */
+  const STREAM_SLOW_RETRY_MS = 60_000
 
   const streamAuthMode = ref<StreamAuthMode>('off')
   const streamReasonKey = ref<string | null>(null)
@@ -127,11 +134,6 @@ export const useBotStore = defineStore('bot', () => {
     if (!summary) return null
     const decided = summary.winning_trades + summary.losing_trades
     return decided > 0 ? (summary.winning_trades / decided) * 100 : null
-  })
-  const isBotRunning = computed(() => {
-    const state = showConfig.value?.state
-    if (state) return state === 'running'
-    return connection.value === 'online'
   })
   const heartbeatAgeMs = computed(() => {
     const timestamp = health.value?.last_process_ts ?? health.value?.last_process ?? null
@@ -446,8 +448,8 @@ export const useBotStore = defineStore('bot', () => {
       streamReasonKey.value = plan.reason ?? null
       if (!plan.connectable || !plan.token) {
         events.setStatus('off')
-        streamBlocked.value = plan.reason !== 'errors.wsAuthUnavailable'
-        if (!streamBlocked.value) scheduleReconnect()
+        streamBlocked.value = true
+        scheduleSlowRetry()
         return
       }
       streamBlocked.value = false
@@ -518,6 +520,7 @@ export const useBotStore = defineStore('bot', () => {
       if (streamFailures >= STREAM_FAILURE_LIMIT) {
         streamBlocked.value = true
         streamReasonKey.value = 'errors.wsRejected'
+        scheduleSlowRetry()
         return
       }
     }
@@ -562,7 +565,12 @@ export const useBotStore = defineStore('bot', () => {
 
   function scheduleReconnect() {
     if (stopped || !settings.websocket || streamBlocked.value) return
-    if (connection.value !== 'online') return
+    if (connection.value !== 'online') {
+      // A timer against an unreachable bot would only burn retries; the connection coming
+      // back is what revives the stream, so remember that it is owed one.
+      streamNeedsRevive = true
+      return
+    }
     if (wsTimer !== null) window.clearTimeout(wsTimer)
     wsRetry += 1
     const delay = nextRetryDelay(wsRetry)
@@ -573,7 +581,22 @@ export const useBotStore = defineStore('bot', () => {
     }, delay)
   }
 
+  /** The last resort: ask again in a minute, with nothing for the operator to press. */
+  function scheduleSlowRetry() {
+    if (stopped || !settings.websocket) return
+    if (wsTimer !== null) window.clearTimeout(wsTimer)
+    const epoch = currentEpoch()
+    wsTimer = window.setTimeout(() => {
+      wsTimer = null
+      if (epoch !== currentEpoch() || stopped) return
+      streamFailures = 0
+      streamBlocked.value = false
+      void connectStream()
+    }, STREAM_SLOW_RETRY_MS)
+  }
+
   function retryStream() {
+    streamNeedsRevive = false
     disconnectStream()
     streamFailures = 0
     streamBlocked.value = false
@@ -587,6 +610,7 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   function disconnectStream() {
+    streamNeedsRevive = false
     streamAttempt += 1
     if (wsTimer !== null) {
       window.clearTimeout(wsTimer)
@@ -612,6 +636,19 @@ export const useBotStore = defineStore('bot', () => {
       if (connection.value === 'online' && !ws) retryStream()
     },
   )
+
+  /*
+   * A rejected session takes the live stream with it: the socket carries a token that can
+   * outlive the credentials, and the connect screen is the only place to fix them.
+   */
+  watch(connection, (state) => {
+    if (state === 'unauthorized') {
+      disconnectStream()
+      return
+    }
+    // The socket died while the bot was away; polling just brought it back.
+    if (state === 'online' && streamNeedsRevive) retryStream()
+  })
 
   watch([() => settings.streamAuth, () => settings.wsToken], () => {
     if (!settings.websocket) return
@@ -649,7 +686,6 @@ export const useBotStore = defineStore('bot', () => {
     lastFetchAt,
     refreshing,
     actionPending,
-    actionError,
     compatibility,
     showConfig,
     health,
@@ -670,7 +706,6 @@ export const useBotStore = defineStore('bot', () => {
     locks,
     logs,
     candleCache,
-    snapshotStale,
     // getters
     stakeCurrency,
     fiatCurrency,
@@ -678,7 +713,6 @@ export const useBotStore = defineStore('bot', () => {
     positionValue,
     winRate,
     isLiveAccount,
-    isBotRunning,
     heartbeatAgeMs,
     closedTrades,
     closedByRecency,
@@ -713,7 +747,6 @@ export const useBotStore = defineStore('bot', () => {
     fetchCandles,
     runAction,
     ensureClient,
-    hasClient: computed(() => client.value !== null),
     forceExit: (tradeid: number | string, ordertype: 'market' | 'limit' = 'market') =>
       runAction('forceExit', (api) => api.forceExit({ tradeid, ordertype })),
     start: () => runAction('start', (api) => api.start()),

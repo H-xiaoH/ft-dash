@@ -110,7 +110,8 @@ test('the stream-auth block slides to the choice you pick', async ({ page }) => 
 })
 
 test('toasts stay in the lower-right corner above the mobile tab bar', async ({ page }) => {
-  await livePage(page).locator('button', { hasText: '重试实时推送' }).click()
+  // Any toast will do; testing the stored credentials is the one click that always makes one.
+  await panel(page, '机器人').locator('button', { hasText: '测试连接' }).first().click()
   const toast = page.locator('.toast').first()
   await expect(toast).toBeVisible()
 
@@ -322,7 +323,7 @@ test('the cards form two even columns with an even gap before the full-width car
   await expect.poll(columnTopGap).toBeLessThanOrEqual(1)
 
   // The gap inside a column and the gap before the full-width card are the same.
-  await expect.poll(() => gapBetween(panel(page, '区域'), panel(page, '推送'))).toBe(16)
+  await expect.poll(() => gapBetween(panel(page, '区域'), panel(page, '界面'))).toBe(16)
   await expect
     .poll(() => gapBetween(livePage(page).locator('.settings__columns'), panel(page, '本机数据')))
     .toBe(16)
@@ -545,12 +546,6 @@ test('switching bots never bounces through the connect screen', async ({ page })
   expect(states.shells, 'shell was replaced during the switch').toBe(states.samples)
   expect(states.connects, 'connect screen flashed during the switch').toBe(0)
   expect(states.failures, 'connection failed banner flashed during the switch').toBe(0)
-})
-
-test('retrying the live stream acknowledges the click', async ({ page }) => {
-  await livePage(page).locator('button', { hasText: '重试实时推送' }).click()
-  // Filtered: the "bot added" toast from the connect step may still be on screen.
-  await expect(page.locator('.toast', { hasText: '正在重连实时推送' })).toHaveCount(1)
 })
 
 test('the settings language picker offers following the system', async ({ page }) => {

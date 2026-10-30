@@ -95,6 +95,53 @@ class FakeWebSocket {
   }
 }
 
+/** Minimal payloads the core group parses, so a poll can succeed and clear `unreachable`. */
+const corePayloads: Record<string, unknown> = {
+  '/status': [],
+  '/count': { current: 0, max: 3, total_stake: 0 },
+  '/balance': { currencies: [], total: 0, symbol: 'USDT', value: 0, stake: 'USDT', note: '' },
+  '/profit': Object.fromEntries(
+    [
+      'profit_closed_coin',
+      'profit_closed_fiat',
+      'profit_all_coin',
+      'profit_all_fiat',
+      'trade_count',
+      'closed_trade_count',
+      'winning_trades',
+      'losing_trades',
+      'profit_closed_percent_mean',
+      'profit_closed_ratio_mean',
+      'profit_closed_percent_sum',
+      'profit_closed_ratio_sum',
+      'profit_closed_percent',
+      'profit_closed_ratio',
+      'profit_all_percent_mean',
+      'profit_all_ratio_mean',
+      'profit_all_percent_sum',
+      'profit_all_ratio_sum',
+      'profit_all_percent',
+      'profit_all_ratio',
+    ].map((key) => [key, 0]),
+  ),
+  '/health': {
+    last_process: '2026-10-24T12:00:00Z',
+    last_process_ts: 1_792_843_200,
+    bot_start: '2026-10-24T11:00:00Z',
+    bot_start_ts: 1_792_839_600,
+    bot_startup: '2026-10-24T11:30:00Z',
+    bot_startup_ts: 1_792_841_400,
+  },
+  '/sysinfo': {
+    cpu_pct: [10],
+    cpu_load: [{ cpu: 0, pct: 10 }],
+    cpu_load_avg: { '1m': 0.5, '5m': 0.5, '15m': 0.5 },
+    cpu_count: 8,
+    cpu_avg: 10,
+    ram_pct: 40,
+  },
+}
+
 describe('switching bots', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -853,5 +900,86 @@ describe('switching bots', () => {
     releaseSecondPoll(jsonResponse([]))
     await vi.advanceTimersByTimeAsync(0)
     bot.cleanup()
+  })
+
+  it('revives the live stream after the bot was unreachable', async () => {
+    vi.useFakeTimers()
+    const settings = addTestBots()
+    settings.websocket = true
+    let botUp = true
+    FakeWebSocket.reset()
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+    vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/token/login'))
+        return Promise.resolve(jsonResponse({ access_token: 'tok' }))
+      if (url.includes('/show_config')) return Promise.resolve(jsonResponse(showConfig('FirstBot')))
+      if (!botUp) return Promise.reject(new TypeError('Failed to fetch'))
+      // The core group has to parse, or a successful poll could never clear `unreachable`.
+      const path = new URL(url).pathname.replace(/^.*\/api\/v1/, '')
+      return Promise.resolve(jsonResponse(corePayloads[path] ?? {}))
+    })
+
+    const bot = useBotStore()
+    await bot.connect()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(FakeWebSocket.instances).toHaveLength(1)
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('open')
+
+    // The bot goes away, so polling marks the connection unreachable.
+    botUp = false
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(bot.connection).toBe('unreachable')
+
+    // The socket dies while the bot is away: no reconnect can be scheduled against an offline
+    // bot, so the stream has to be revived by the connection coming back.
+    socket.emit('close')
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(FakeWebSocket.instances).toHaveLength(1)
+
+    botUp = true
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(bot.connection).toBe('online')
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(FakeWebSocket.instances).toHaveLength(2)
+    bot.cleanup()
+  })
+
+  it('retries a rejected handshake on its own, on a slow beat', async () => {
+    vi.useFakeTimers()
+    const settings = addTestBots()
+    settings.websocket = true
+    settings.streamAuth = 'ws_token'
+    settings.wsToken = 'token'
+    FakeWebSocket.reset()
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+    vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/show_config')) return Promise.resolve(jsonResponse(showConfig('FirstBot')))
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    const bot = useBotStore()
+    await bot.connect()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(FakeWebSocket.instances).toHaveLength(1)
+
+    // Three handshakes rejected in a row: the fast loop gives up, the slow one takes over.
+    // The backoff doubles (3s, 6s, 12s), so each rejection is followed by enough time for the
+    // next attempt to be made.
+    for (const wait of [4_000, 7_000, 13_000]) {
+      FakeWebSocket.instances.at(-1)!.emit('close')
+      await vi.advanceTimersByTimeAsync(wait)
+    }
+
+    const blocked = FakeWebSocket.instances.length
+    expect(bot.streamBlocked).toBe(true)
+
+    // No button exists any more, so the next attempt has to come from the timer itself.
+    await vi.advanceTimersByTimeAsync(61_000)
+    expect(FakeWebSocket.instances.length).toBeGreaterThan(blocked)
+    bot.cleanup()
+    vi.useRealTimers()
   })
 })

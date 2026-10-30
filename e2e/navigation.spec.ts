@@ -545,10 +545,6 @@ test('landing on a page refreshes once, after the pages stop changing', async ({
       return originalFetch(input, init)
     }
   })
-  const before = await page.evaluate(
-    () => (window as unknown as { __performanceRequests: number[] }).__performanceRequests.length,
-  )
-
   const lastWheelAt = await page.evaluate(() => {
     const rail = document.querySelector('.rail__item')!
     for (let i = 0; i < 3; i += 1) {
@@ -559,19 +555,25 @@ test('landing on a page refreshes once, after the pages stop changing', async ({
     return Date.now()
   })
   await expect.poll(() => hash(page)).toBe('#/market')
-  // Three pages in one walk; the refresh is allowed only after the 300ms settle window.
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          (window as unknown as { __performanceRequests: number[] }).__performanceRequests.length,
-      ),
+
+  /*
+   * Counted from the wheel, not from `before`: a request that the connect refresh already had
+   * in flight can land after the baseline and read as a second one. A `performance` from the
+   * slow poll cannot appear here at all — it belongs to the analytics slice, twelfth tick.
+   */
+  const sinceWheel = () =>
+    page.evaluate(
+      (from) =>
+        (window as unknown as { __performanceRequests: number[] }).__performanceRequests.filter(
+          (at) => at >= from,
+        ),
+      lastWheelAt,
     )
-    .toBe(before + 1)
-  const performanceAt = await page.evaluate(
-    (index) =>
-      (window as unknown as { __performanceRequests: number[] }).__performanceRequests[index],
-    before,
-  )
+
+  // Nothing during the settle window, then exactly one: three pages, one refresh.
+  await expect.poll(async () => (await sinceWheel()).length).toBe(1)
+  const [performanceAt] = await sinceWheel()
   expect(performanceAt).toBeGreaterThanOrEqual(lastWheelAt + 250)
+  await page.waitForTimeout(600)
+  expect((await sinceWheel()).length).toBe(1)
 })

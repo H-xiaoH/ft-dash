@@ -72,8 +72,6 @@ export interface BotSessionState {
   errorKey: ErrorDescription | null
   resourceErrors: Record<ResourceName, ErrorDescription | null>
   actionPending: string | null
-  actionPendingToken: number | null
-  actionError: string | null
   latencyMs: number | null
   lastFetchAt: number | null
   data: SessionData
@@ -190,8 +188,6 @@ function createState(botId: string, epoch: number): BotSessionState {
     errorKey: null,
     resourceErrors: emptyResourceErrors(),
     actionPending: null,
-    actionPendingToken: null,
-    actionError: null,
     latencyMs: null,
     lastFetchAt: null,
     data: createData(),
@@ -443,9 +439,11 @@ export class BotSessionController {
       this.state.errorKey = transportFailure.error ?? null
       this.state.connection = key === 'errors.auth' ? 'unauthorized' : 'unreachable'
       /*
-       * A rejected session will be rejected again a second later. Polling on would mean six
-       * 401s a second for as long as the tab stays open — log spam, and a rate limit or
-       * fail2ban on the bot's own proxy. The banner's retry starts it again.
+       * 401 is not a transient: the credentials are wrong, or the proxy in front of the API
+       * refuses this origin. Retrying would be six more rejections a second in the bot's log
+       * and would never fix itself — so polling stops and the app goes back to the sign-in
+       * form, which is the only place that can fix it. A reachable-but-broken bot (5xx,
+       * network) keeps polling, because that does heal.
        */
       if (key === 'errors.auth') this.stopPolling()
       return
@@ -848,26 +846,22 @@ export class BotSessionController {
     task: (client: FreqtradeApiClient) => Promise<T>,
   ): Promise<T | null> {
     if (this.actionLock) {
-      this.state.actionError = 'errors.actionBusy'
       return null
     }
     const token = ++this.nextActionToken
     this.actionLock = { token }
     this.state.actionPending = name
-    this.state.actionPendingToken = token
-    this.state.actionError = null
     try {
-      const result = await task(this.ensureClient())
-      if (this.state.actionPendingToken === token) this.state.actionError = null
-      return result
-    } catch (error) {
-      if (this.state.actionPendingToken === token) this.state.actionError = describeError(error).key
+      return await task(this.ensureClient())
+    } catch {
+      // The caller reports the failure; there is nothing here to say that a toast does not.
       return null
     } finally {
-      if (this.actionLock?.token === token) this.actionLock = null
-      if (this.state.actionPendingToken === token) {
+      // Only the action that still holds the lock may clear the pending name: `stop()` drops
+      // the lock, and a newer action may own the name by the time this one unwinds.
+      if (this.actionLock?.token === token) {
+        this.actionLock = null
         this.state.actionPending = null
-        this.state.actionPendingToken = null
       }
     }
   }
@@ -881,8 +875,6 @@ export class BotSessionController {
     this.refreshRun = null
     this.state.refreshing = false
     this.state.actionPending = null
-    this.state.actionPendingToken = null
-    this.state.actionError = null
     this.state.connection = 'idle'
     this.state.coreReady = false
     this.state.tradesReady = false

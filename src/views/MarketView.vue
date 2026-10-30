@@ -152,7 +152,13 @@ let candleRequestGeneration = 0
  * of showing the candles from twenty minutes ago for the rest of the session.
  */
 const CANDLE_TTL_MS = 30_000
+/**
+ * A failed request is usually a restarting bot, so it is retried on its own while the page is
+ * on screen. No button: the operator would only be pressing it again in ten seconds.
+ */
+const CANDLE_RETRY_MS = 10_000
 const candleFetchedAt = new Map<string, number>()
+let candleRetryTimer = 0
 const candleKey = (pair: string, currentTimeframe: string) => `${pair}|${currentTimeframe}`
 const isCandleStale = (pair: string, currentTimeframe: string) =>
   Date.now() - (candleFetchedAt.get(candleKey(pair, currentTimeframe)) ?? 0) > CANDLE_TTL_MS
@@ -178,13 +184,19 @@ async function loadCandles(
   }
   candleError.value = !result
   loadingCandles.value = false
-  // Only a success is fresh; a failure must retry on the next landing or on the button.
+  window.clearTimeout(candleRetryTimer)
+  // Only a success is fresh; a failure schedules its own retry.
   if (result) candleFetchedAt.set(candleKey(pair, currentTimeframe), Date.now())
+  else scheduleCandleRetry(pair, currentTimeframe)
 }
 
-function retryCandles() {
-  const generation = ++candleRequestGeneration
-  void loadCandles(selectedPair.value, timeframe.value, generation, () => true)
+function scheduleCandleRetry(pair: string, currentTimeframe: string) {
+  window.clearTimeout(candleRetryTimer)
+  candleRetryTimer = window.setTimeout(() => {
+    if (!isCurrentPage() || pair !== selectedPair.value) return
+    const generation = ++candleRequestGeneration
+    void loadCandles(pair, currentTimeframe, generation, () => true)
+  }, CANDLE_RETRY_MS)
 }
 
 async function submitBlacklist() {
@@ -223,6 +235,7 @@ watch(
     let cancelled = false
     onCleanup(() => {
       cancelled = true
+      window.clearTimeout(candleRetryTimer)
     })
     const cached = bot.candleCache[candleKey(pair, currentTimeframe)]
     if (!cached || isCandleStale(pair, currentTimeframe)) {
@@ -269,12 +282,7 @@ watch(
           class="skeleton"
           :style="{ height: `${candleHeight}px`, width: '100%' }"
         />
-        <div v-else-if="candleError" class="empty">
-          {{ t('market.candlesFailed') }}
-          <button type="button" class="btn btn--sm" @click="retryCandles">
-            {{ t('common.retry') }}
-          </button>
-        </div>
+        <p v-else-if="candleError" class="empty">{{ t('market.candlesFailed') }}</p>
         <p v-else-if="!candles.length" class="empty">{{ t('market.noCandles') }}</p>
         <CandleChart
           v-else
