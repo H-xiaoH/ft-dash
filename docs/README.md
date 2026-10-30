@@ -17,6 +17,7 @@
 - [freqtrade-data-layer](specs/freqtrade-data-layer.md) — 数据层重写：transport / client / session 的分层与竞态控制
 - [trade-ui-polish](specs/trade-ui-polish.md) — 交易与各页面的手势、滚动边界、提示一致性
 - [trades-sort-on-phone](specs/trades-sort-on-phone.md) — 交易页手机宽度的排序下拉 + 方向按钮，与桌面列头同一套规则
+- [backend-picker](specs/backend-picker.md) — 设置页「后端」改成一个下拉选后端，最后一项「管理后端」展开增删改
 - [ratio-guide](specs/ratio-guide.md) — 统计页两块风险磁贴共用的比值说明弹窗（夏普／索提诺／SQN／Calmar 的白话解释与分档）
 - [ui-limits-and-auto-retry](specs/ui-limits-and-auto-retry.md) — 设置页「界面」的数量上限、登录先探测、401 回登录页、全自动重试
 
