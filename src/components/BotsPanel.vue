@@ -89,7 +89,33 @@ async function submit() {
   if (!entry || !canSave.value || saving.value) return
   saving.value = true
   const baseUrl = normalizeBaseUrl(entry.baseUrl) || entry.baseUrl.trim()
-  const name = entry.name.trim() || defaultBotName(entry.username, baseUrl)
+  const username = entry.username.trim()
+  const name = entry.name.trim() || defaultBotName(username, baseUrl)
+  const stored = entry.id ? settings.bots.find((item) => item.id === entry.id) : undefined
+  /*
+   * Ask before saving: a bot that cannot answer must not appear in the list, and that is what
+   * the connect form already does. A bare rename or a new ws_token keeps working offline, so
+   * the probe only runs when the endpoint or the credentials are what changed.
+   */
+  const password = entry.password || stored?.password || ''
+  const credentialsChanged =
+    !stored ||
+    entry.password.length > 0 ||
+    baseUrl !== stored.baseUrl ||
+    username !== stored.username
+  if (password && credentialsChanged) {
+    try {
+      const probe = new FreqtradeApiClient({ baseUrl, username, password })
+      await probe.ping()
+      await probe.showConfig()
+    } catch (error) {
+      const described = describeError(error)
+      pushToast(t(described.key, described.params ?? {}), 'bad')
+      saving.value = false
+      return
+    }
+  }
+
   if (entry.id) {
     settings.updateBot(entry.id, {
       name,
@@ -373,6 +399,7 @@ async function confirmRemove() {
             />
           </label>
         </div>
+        <p class="small muted">{{ t('bots.probeHint') }}</p>
         <div class="row row--wrap">
           <button type="submit" class="btn btn--primary" :disabled="!canSave || saving">
             <AppIcon name="check" />

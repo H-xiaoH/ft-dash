@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import FilterMenu from '@/components/FilterMenu.vue'
 import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from '@/i18n'
-import { normalizeBaseUrl } from '@/data/freqtrade'
+import { describeError, FreqtradeApiClient, normalizeBaseUrl } from '@/data/freqtrade'
 import { defaultBotName } from '@/lib/bots'
 import { pushToast } from '@/composables/useToast'
 import { useBotStore } from '@/stores/bot'
@@ -27,9 +27,12 @@ const languageOptions = computed(() => [
   { value: 'system' as LocalePreference, label: t('settings.languageSystem') },
   ...SUPPORTED_LOCALES.map((code) => ({ value: code, label: LOCALE_LABELS[code] })),
 ])
-const errorMessage = computed(() =>
-  bot.errorKey ? t(bot.errorKey.key, bot.errorKey.params ?? {}) : '',
-)
+/** This form's own failure, from the probe below — the store only knows about saved bots. */
+const failure = ref<ReturnType<typeof describeError> | null>(null)
+const errorMessage = computed(() => {
+  const described = failure.value ?? bot.errorKey
+  return described ? t(described.key, described.params ?? {}) : ''
+})
 const canSubmit = computed(
   () => baseUrl.value.trim().length > 0 && username.value.trim() && password.value.length > 0,
 )
@@ -42,39 +45,52 @@ watch(username, (value) => {
 async function submit() {
   if (!canSubmit.value || submitting.value) return
   submitting.value = true
+  failure.value = null
   const normalized = normalizeBaseUrl(baseUrl.value) || baseUrl.value.trim()
   const label = name.value.trim() || defaultBotName(username.value, normalized)
+  const credentials = {
+    baseUrl: normalized,
+    username: username.value.trim(),
+    password: password.value,
+  }
   /*
-   * A failed sign-in leaves the bot in the list so the next attempt can correct it;
-   * matching on address plus username keeps that retry from stacking up duplicates.
+   * Ask the bot before writing anything down. A mistyped password used to leave a bot in the
+   * list and open a shell with no data in it; the sign-in is now the thing that gets checked,
+   * and the app only moves on — and only saves — once the API has answered.
    */
+  try {
+    const probe = new FreqtradeApiClient(credentials)
+    await probe.ping()
+    await probe.showConfig()
+  } catch (error) {
+    failure.value = describeError(error)
+    submitting.value = false
+    return
+  }
+
   const existing = settings.bots.find(
     (entry) => entry.baseUrl === normalized && entry.username === username.value.trim(),
   )
   if (existing) {
     settings.updateBot(existing.id, {
       name: label,
-      baseUrl: normalized,
-      username: username.value,
-      password: password.value,
+      baseUrl: credentials.baseUrl,
+      username: credentials.username,
+      password: credentials.password,
     })
     settings.setActiveBot(existing.id)
   } else {
     const added = settings.addBot({
       name: label,
-      baseUrl: normalized,
-      username: username.value,
-      password: password.value,
+      baseUrl: credentials.baseUrl,
+      username: credentials.username,
+      password: credentials.password,
     })
     settings.setActiveBot(added.id)
   }
   bot.rebuildClient()
   const ok = await bot.connect()
   if (ok) pushToast(t('bots.added', { name: label }), 'good')
-  if (!ok) {
-    // Keep what the operator typed so it can be corrected in place.
-    baseUrl.value = settings.baseUrl || baseUrl.value
-  }
   submitting.value = false
 }
 </script>

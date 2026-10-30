@@ -1,14 +1,23 @@
 import { expect, test } from '@playwright/test'
-import { API_ORIGIN, ROUTES, connect, livePage, mockApi } from './support/fixtures'
+import { API_BASE, API_ORIGIN, ROUTES, connect, livePage, mockApi } from './support/fixtures'
 
 test.describe('connect screen', () => {
-  test('refuses bad credentials with a readable message', async ({ page }) => {
-    await mockApi(page, { rejectAuth: true })
+  test('refuses bad credentials with a readable message, and saves nothing', async ({ page }) => {
+    const api = await mockApi(page, { rejectAuth: true })
     await page.goto('/')
     await connect(page)
 
     await expect(page.locator('.banner--bad')).toContainText('用户名或密码错误')
     await expect(page.locator('.connect__card')).toBeVisible()
+    // The probe failed, so no bot was written down and no shell opened.
+    expect(await page.evaluate(() => localStorage.getItem('ftdash.bots.v1'))).toBeNull()
+
+    // Fix the password: the same form now gets in, and only then is the bot saved.
+    api.setRejectAuth(false)
+    await page.locator('.connect__submit').click()
+    await expect(page.locator('.shell')).toBeVisible()
+    const stored = await page.evaluate(() => localStorage.getItem('ftdash.bots.v1'))
+    expect(JSON.parse(stored!)).toHaveLength(1)
   })
 
   test('connects and shows live figures from the API', async ({ page }) => {
@@ -63,8 +72,28 @@ test.describe('connect screen', () => {
     await page.route(`${API_ORIGIN}/**`, (route) => route.abort())
 
     await expect(page.locator('.strip__state-label')).toHaveText('不可用')
-    // The sentence still exists — in the banner that can act on it.
+    // The sentence still exists — in the banner, which also says the poll keeps trying.
     await expect(page.locator('.global-notices')).toContainText('请求被浏览器拦截')
+    await expect(page.locator('.global-notices')).toContainText('正在自动重试')
+    await expect(page.locator('.global-notices button')).toHaveCount(0)
+  })
+
+  test('a rejected session goes back to the sign-in form instead of a dead shell', async ({
+    page,
+  }) => {
+    const api = await mockApi(page)
+    await page.goto('/')
+    await connect(page)
+    await expect(page.locator('.shell')).toBeVisible()
+
+    // The bot's password is rotated behind the app's back: every later call is a 401.
+    api.setRejectAuth(true)
+
+    await expect(page.locator('.connect__card')).toBeVisible()
+    await expect(page.locator('.banner--bad')).toContainText('用户名或密码错误')
+    // The bot is still listed and the fields still say what to sign in to.
+    await expect(page.locator('input[inputmode="url"]')).toHaveValue(API_BASE)
+    await expect(page.locator('.global-notices')).toHaveCount(0)
   })
 })
 

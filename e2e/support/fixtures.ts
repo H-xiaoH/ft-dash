@@ -455,9 +455,12 @@ export async function mockApi(
           })),
         }
 
+  /** Flipped by a test to make a live session start getting 401s. */
+  let rejectAll = Boolean(options.rejectAuth)
+
   /** One answerer per origin; `overrides` swaps individual payloads per instance. */
   const serve =
-    (overrides: Record<string, unknown> = {}, rejectAuth = false) =>
+    (overrides: Record<string, unknown> = {}) =>
     async (route: Route) => {
       const request = route.request()
       const url = new URL(request.url())
@@ -470,7 +473,7 @@ export async function mockApi(
         return
       }
 
-      if (rejectAuth && !path.startsWith('token')) {
+      if (rejectAll && !path.startsWith('token')) {
         await route.fulfill({
           status: 401,
           contentType: 'application/json',
@@ -513,7 +516,7 @@ export async function mockApi(
       })
     }
 
-  await page.route(`${API_ORIGIN}/**`, serve({}, Boolean(options.rejectAuth)))
+  await page.route(`${API_ORIGIN}/**`, serve())
 
   /*
    * A stand-in for a second freqtrade instance. It answers the same fixtures with a
@@ -526,12 +529,17 @@ export async function mockApi(
     )
   }
 
+  /** Makes every later API call answer 401, as a rotated password would. */
+  const setRejectAuth = (reject: boolean) => {
+    rejectAll = reject
+  }
+
   // The live stream is stubbed out: these tests cover the UI, not the socket.
   await page.routeWebSocket(/message\/ws/, (socket) => {
     socket.onMessage(() => {})
   })
 
-  return { calls }
+  return { calls, setRejectAuth }
 }
 
 /**

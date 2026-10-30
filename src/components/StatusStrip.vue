@@ -16,7 +16,6 @@ const stateKey = computed(() => {
   if (bot.connection === 'connecting') return 'status.starting'
   // State words, not sentences: this is a one-line bar, and the banner underneath carries
   // the explanation together with the buttons that can act on it.
-  if (bot.connection === 'unauthorized') return 'status.unauthorized'
   if (bot.connection === 'unreachable') return 'status.unavailable'
   const state = bot.showConfig?.state
   if (state === 'running') return 'status.running'
@@ -78,14 +77,6 @@ const streamTone = computed<'good' | 'warn' | 'bad' | 'flat'>(() => {
       return 'flat'
   }
 })
-
-function onStreamClick() {
-  if (bot.streamReasonKey) {
-    bot.retryStream()
-    return
-  }
-  emit('openTape')
-}
 </script>
 
 <template>
@@ -136,7 +127,7 @@ function onStreamClick() {
         class="strip__stream"
         :data-tone="streamTone"
         :title="streamTooltip"
-        @click="onStreamClick"
+        @click="emit('openTape')"
       >
         <span
           :key="streamTone"
