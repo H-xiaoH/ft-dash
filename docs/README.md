@@ -16,6 +16,7 @@
 - [app-navigation-split](specs/app-navigation-split.md) — 把 rail / tabbar 从 `App.vue` 拆成 `AppNavigation.vue`
 - [freqtrade-data-layer](specs/freqtrade-data-layer.md) — 数据层重写：transport / client / session 的分层与竞态控制
 - [trade-ui-polish](specs/trade-ui-polish.md) — 交易与各页面的手势、滚动边界、提示一致性
+- [ratio-guide](specs/ratio-guide.md) — 统计页两块风险磁贴共用的比值说明弹窗（夏普／索提诺／SQN／Calmar 的白话解释与分档）
 - [ui-limits-and-auto-retry](specs/ui-limits-and-auto-retry.md) — 设置页「界面」的数量上限、登录先探测、401 回登录页、全自动重试
 
 ## archive
