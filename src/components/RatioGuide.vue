@@ -1,11 +1,8 @@
-<script lang="ts">
-export type RatioKey = 'sharpe' | 'sqn' | 'sortino' | 'calmar'
-</script>
-
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModalFocus } from '@/composables/useModalFocus'
+import { RATIO_BANDS, type RatioKey } from '@/lib/ratios'
 
 const props = defineProps<{
   /** Which ratio to explain; `null` keeps the dialog closed. */
@@ -15,6 +12,7 @@ const emit = defineEmits<{ close: [] }>()
 
 const { t } = useI18n()
 const panel = ref<HTMLElement | null>(null)
+const titleId = useId()
 
 const open = computed(() => props.ratio !== null)
 const title = computed(() => (props.ratio ? t(`stats.ratios.${props.ratio}.name`) : ''))
@@ -39,12 +37,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       class="overlay"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="ratio-guide-title"
+      :aria-labelledby="titleId"
       @click.self="emit('close')"
     >
       <div ref="panel" class="dialog ratios" tabindex="-1">
         <div class="dialog__head">
-          <span id="ratio-guide-title" class="dialog__title">{{ title }}</span>
+          <span :id="titleId" class="dialog__title">{{ title }}</span>
           <div class="spacer" />
           <button type="button" class="btn btn--icon btn--ghost" @click="emit('close')">
             <span aria-hidden="true">✕</span>
@@ -53,7 +51,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         </div>
         <div class="dialog__body">
           <p>{{ t(`stats.ratios.${ratio}.plain`) }}</p>
-          <p class="ratios__bench">{{ t(`stats.ratios.${ratio}.bench`) }}</p>
+          <p class="ratios__bench">
+            {{ t(`stats.ratios.${ratio}.bench`, { ...RATIO_BANDS[ratio] }) }}
+          </p>
           <p class="ratios__caveat">{{ t('stats.ratios.caveat') }}</p>
         </div>
         <div class="dialog__foot">

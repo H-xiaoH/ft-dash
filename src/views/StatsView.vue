@@ -11,8 +11,9 @@ import { useFormat } from '@/composables/useFormat'
 import { useChartHeight } from '@/composables/useChartHeight'
 import { useSegBlock } from '@/composables/useSegBlock'
 import { hideFreqtradeSentinel, toNumber, type Numberish } from '@/lib/format'
+import { RATIO_BANDS, ratioTone, type RatioKey } from '@/lib/ratios'
 import { buildPairStats, type PairStats } from '@/lib/stats'
-import RatioGuide, { type RatioKey } from '@/components/RatioGuide.vue'
+import RatioGuide from '@/components/RatioGuide.vue'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
 
@@ -78,6 +79,22 @@ const rows = computed<PairStats[]>(() => {
 const pairPage = ref(1)
 /** Each ratio tile opens the explanation for that ratio alone. */
 const guideFor = ref<RatioKey | null>(null)
+
+/** The four ratios, in the order the tiles show them. */
+const RATIO_KEYS: RatioKey[] = ['sharpe', 'sqn', 'sortino', 'calmar']
+const ratioTiles = computed(() =>
+  RATIO_KEYS.map((key) => {
+    const value = summary.value?.[key] ?? null
+    return {
+      key,
+      value,
+      label: t(`kpi.${key}`),
+      // The aria-label uses the long name from the guide, e.g. SQN（系统质量数）.
+      name: t(`stats.ratios.${key}.name`),
+      tone: ratioTone(value, RATIO_BANDS[key]),
+    }
+  }),
+)
 const pairTotalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / pageSize.value)))
 const pagedPairs = computed(() =>
   rows.value.slice((pairPage.value - 1) * pageSize.value, pairPage.value * pageSize.value),
@@ -137,18 +154,6 @@ function winRateTone(value: Numberish) {
   return rate >= 50 ? 'u-pos' : 'u-neg'
 }
 
-/**
- * Colour by the bands the ratio guide spells out: under `weak` is red, under `good` is
- * amber, and `good` or better is green. Sharpe, Sortino and Calmar are read against 1;
- * SQN uses Van Tharp's 1.6 (weak) and 2.5 (good).
- */
-function ratioTone(value: Numberish, weak: number, good: number) {
-  const ratio = toNumber(value)
-  if (ratio === null) return ''
-  if (ratio < weak) return 'u-neg'
-  return ratio < good ? 'u-warn' : 'u-pos'
-}
-
 /** Freqtrade reports drawdown as a ratio; the tiles show percentages. */
 function drawdownPercent(value: number | null | undefined) {
   return value === null || value === undefined ? null : value * 100
@@ -203,36 +208,14 @@ function drawdownPercent(value: number | null | undefined) {
         :value="hideFreqtradeSentinel(summary?.profit_factor ?? null)"
       />
       <MetricTile
-        :label="t('kpi.sharpe')"
-        :value="summary?.sharpe ?? null"
-        :tone="ratioTone(summary?.sharpe, 0, 1)"
+        v-for="tile in ratioTiles"
+        :key="tile.key"
+        :label="tile.label"
+        :value="tile.value"
+        :tone="tile.tone"
         interactive
-        :aria-label="`${t('kpi.sharpe')} — ${t('stats.ratios.open')}`"
-        @click="guideFor = 'sharpe'"
-      />
-      <MetricTile
-        :label="t('kpi.sqn')"
-        :value="summary?.sqn ?? null"
-        :tone="ratioTone(summary?.sqn, 1.6, 2.5)"
-        interactive
-        :aria-label="`${t('stats.ratios.sqn.name')} — ${t('stats.ratios.open')}`"
-        @click="guideFor = 'sqn'"
-      />
-      <MetricTile
-        :label="t('kpi.sortino')"
-        :value="summary?.sortino ?? null"
-        :tone="ratioTone(summary?.sortino, 0, 1)"
-        interactive
-        :aria-label="`${t('kpi.sortino')} — ${t('stats.ratios.open')}`"
-        @click="guideFor = 'sortino'"
-      />
-      <MetricTile
-        :label="t('kpi.calmar')"
-        :value="summary?.calmar ?? null"
-        :tone="ratioTone(summary?.calmar, 0, 1)"
-        interactive
-        :aria-label="`${t('stats.ratios.calmar.name')} — ${t('stats.ratios.open')}`"
-        @click="guideFor = 'calmar'"
+        :aria-label="`${tile.name} — ${t('stats.ratios.open')}`"
+        @click="guideFor = tile.key"
       />
       <MetricTile
         :label="t('kpi.maxDrawdown')"
