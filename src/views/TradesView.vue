@@ -161,8 +161,11 @@ const sortField = computed<SortKey>({
   get: () => sortKey.value,
   set: (key) => toggleSort(key),
 })
-const sortDirLabel = computed(() =>
-  t(sortDir.value === 'asc' ? 'trades.sortAsc' : 'trades.sortDesc'),
+/** A toggle button names what pressing it does, not the state it is already in. */
+const sortToggleLabel = computed(() =>
+  t('trades.sortTo', {
+    dir: t(sortDir.value === 'asc' ? 'trades.sortDesc' : 'trades.sortAsc'),
+  }),
 )
 
 function flipSort(): void {
@@ -335,8 +338,8 @@ onMounted(() => {
           <button
             type="button"
             class="btn btn--sm btn--icon trades-sort"
-            :aria-label="sortDirLabel"
-            :title="sortDirLabel"
+            :aria-label="sortToggleLabel"
+            :title="sortToggleLabel"
             @click="flipSort"
           >
             <AppIcon :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'" />

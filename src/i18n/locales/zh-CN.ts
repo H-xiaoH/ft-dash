@@ -152,6 +152,7 @@ export default {
     sort: '排序',
     sortAsc: '升序',
     sortDesc: '降序',
+    sortTo: '改为{dir}',
     duration: '持仓时长',
     openDate: '开仓时间',
     closeDate: '平仓时间',
