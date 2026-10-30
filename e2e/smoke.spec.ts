@@ -47,7 +47,7 @@ test.describe('connect screen', () => {
     await expect(page.locator('.filter-menu__item[aria-selected="true"]')).toHaveText('跟随系统')
 
     await page.locator('.filter-menu__item', { hasText: 'English' }).click()
-    await expect(page.locator('.connect__title')).toHaveText('Connect to your bot')
+    await expect(page.locator('.connect__title')).toHaveText('Connect to your backend')
     // The pick is stored as a preference, not as the language it resolved to.
     const stored = await page.evaluate(() =>
       JSON.parse(localStorage.getItem('ftdash.settings.v1') ?? '{}'),
@@ -59,7 +59,7 @@ test.describe('connect screen', () => {
     await mockApi(page)
     await page.goto('/')
     // Unnamed bots take the username, so the field says what leaving it blank means.
-    await expect(page.getByLabel('机器人名称')).toHaveAttribute('placeholder', '可选')
+    await expect(page.getByLabel('后端名称')).toHaveAttribute('placeholder', '可选')
   })
 
   test('a lost connection shows a state word, not a sentence, in the top bar', async ({ page }) => {

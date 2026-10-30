@@ -65,7 +65,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           </button>
         </div>
         <div class="dialog__body">
-          <p v-if="body">{{ body }}</p>
+          <!-- A slot for callers whose explanation is a list, not one sentence. -->
+          <slot name="body">
+            <p v-if="body">{{ body }}</p>
+          </slot>
           <p v-if="tone === 'danger'" class="confirm-warning">{{ t('actions.confirmBody') }}</p>
           <label v-if="requireText" class="field">
             <span class="field__label">{{

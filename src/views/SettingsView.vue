@@ -6,14 +6,12 @@ import BotsPanel from '@/components/BotsPanel.vue'
 import FilterMenu from '@/components/FilterMenu.vue'
 import InlineConfirm from '@/components/InlineConfirm.vue'
 import { pushToast } from '@/composables/useToast'
-import { useSegBlock } from '@/composables/useSegBlock'
 import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from '@/i18n'
 import { canInstall, isStandalone, offlineReady, promptInstall } from '@/pwa'
 import { useBotStore } from '@/stores/bot'
 import { useEventsStore } from '@/stores/events'
 import { browserZone, listZones, zoneOffsetLabel, type TimezonePreference } from '@/lib/timezone'
 import { COUNT_SETTINGS, useSettingsStore } from '@/stores/settings'
-import type { StreamAuthPreference } from '@/lib/stream'
 
 const { t } = useI18n()
 const settings = useSettingsStore()
@@ -21,12 +19,6 @@ const bot = useBotStore()
 const events = useEventsStore()
 
 const clearConfirm = ref(false)
-/** The block behind the stream-auth choices, which slides to whichever one is active. */
-const authSeg = ref<HTMLElement | null>(null)
-const { blockStyle: authBlockStyle, blockReady: authBlockReady } = useSegBlock(
-  authSeg,
-  () => settings.streamAuth,
-)
 const appVersion = __APP_VERSION__
 
 /** An empty box says what an untouched field would use, and what the field accepts. */
@@ -67,34 +59,10 @@ const timezoneOptions = computed(() => [
  */
 const timezoneSearchText = computed<Record<string, string>>(() => ({ browser: browserZone() }))
 
-const STREAM_AUTH_CHOICES: { value: StreamAuthPreference; label: string }[] = [
-  { value: 'auto', label: 'settings.streamAuthAuto' },
-  { value: 'ws_token', label: 'settings.streamAuthToken' },
-]
-
-const streamAuthLabel = computed(() => {
-  switch (bot.streamAuthMode) {
-    case 'jwt':
-      return t('system.wsAuthJwt')
-    case 'ws_token':
-      return t('system.wsAuthToken')
-    case 'unavailable':
-      return t('system.wsAuthUnavailable')
-    default:
-      return t('system.wsAuthOff')
-  }
-})
-
-const streamAuthTone = computed(() => {
-  if (bot.streamBlocked || bot.streamAuthMode === 'unavailable') return 'chip--bad'
-  if (bot.streamAuthMode === 'off') return ''
-  return 'chip--good'
-})
-
-const notifState = computed(() => {
-  if (typeof Notification === 'undefined') return 'unsupported'
-  return Notification.permission
-})
+async function install() {
+  const accepted = await promptInstall()
+  if (accepted) pushToast(t('settings.installed'), 'good')
+}
 
 async function clearData() {
   settings.clearStoredData()
@@ -102,32 +70,6 @@ async function clearData() {
   bot.cleanup()
   events.endScope()
   pushToast(t('actions.done'), 'good')
-}
-
-async function enableNotifications() {
-  if (notifState.value === 'unsupported') return
-  const result = await Notification.requestPermission()
-  settings.notifications = result === 'granted'
-  pushToast(
-    result === 'granted' ? t('settings.testOk') : t('actions.failed'),
-    result === 'granted' ? 'good' : 'bad',
-  )
-}
-
-async function enableControls() {
-  settings.controlsAcknowledged = true
-  settings.allowControls = true
-  pushToast(t('common.saved'), 'good')
-}
-
-function disableControls() {
-  settings.allowControls = false
-  settings.controlsAcknowledged = false
-}
-
-async function install() {
-  const accepted = await promptInstall()
-  if (accepted) pushToast(t('settings.installed'), 'good')
 }
 </script>
 
@@ -230,134 +172,9 @@ async function install() {
             </label>
           </div>
         </section>
-
-        <section class="panel">
-          <div class="panel__head">
-            <span class="panel__title">{{ t('settings.push') }}</span>
-          </div>
-          <div class="panel__body stack">
-            <label class="switch">
-              <input v-model="settings.websocket" type="checkbox" />
-              <span class="switch__track" />
-              <span class="switch__text">
-                <span class="switch__title">{{ t('settings.websocket') }}</span>
-                <span class="switch__hint">{{ t('settings.websocketHint') }}</span>
-              </span>
-            </label>
-
-            <div class="stream-auth" :class="{ 'stream-auth--disabled': !settings.websocket }">
-              <div class="row row--wrap">
-                <span class="chip" :class="streamAuthTone">{{ streamAuthLabel }}</span>
-              </div>
-              <p class="small muted">{{ t('settings.streamAuthHint') }}</p>
-              <div class="settings__grid">
-                <div class="field">
-                  <span class="field__label">{{ t('settings.streamAuth') }}</span>
-                  <div ref="authSeg" class="seg">
-                    <button
-                      v-for="choice in STREAM_AUTH_CHOICES"
-                      :key="choice.value"
-                      type="button"
-                      class="seg__item"
-                      :aria-pressed="settings.streamAuth === choice.value"
-                      @click="settings.streamAuth = choice.value"
-                    >
-                      {{ t(choice.label) }}
-                    </button>
-                    <span
-                      class="seg__block"
-                      :class="{ 'is-ready': authBlockReady }"
-                      :style="authBlockStyle"
-                    />
-                  </div>
-                </div>
-                <label v-if="settings.streamAuth === 'ws_token'" class="field">
-                  <span class="field__label">{{ t('settings.wsToken') }}</span>
-                  <input
-                    v-model="settings.wsToken"
-                    class="input num"
-                    type="password"
-                    autocomplete="off"
-                    spellcheck="false"
-                    :placeholder="t('settings.wsTokenPlaceholder')"
-                  />
-                  <span class="field__hint">{{ t('settings.wsTokenHint') }}</span>
-                </label>
-              </div>
-            </div>
-
-            <div class="row row--wrap">
-              <label class="switch">
-                <input
-                  v-model="settings.notifications"
-                  type="checkbox"
-                  :disabled="notifState !== 'granted'"
-                />
-                <span class="switch__track" />
-                <span class="switch__text">
-                  <span class="switch__title">{{ t('settings.notifTitle') }}</span>
-                  <span class="switch__hint">{{ t('settings.notifHint') }}</span>
-                </span>
-              </label>
-              <button
-                v-if="notifState !== 'granted'"
-                type="button"
-                class="btn btn--sm"
-                :disabled="notifState === 'unsupported'"
-                @click="enableNotifications"
-              >
-                <AppIcon name="bell" />
-                {{ t('settings.notifTitle') }}
-              </button>
-            </div>
-            <p v-if="notifState === 'unsupported'" class="small muted">
-              {{ t('settings.notifPermission') }}
-            </p>
-          </div>
-        </section>
       </div>
 
       <div class="settings__col">
-        <section class="panel settings__danger">
-          <div class="panel__head">
-            <span class="panel__title">{{ t('actions.title') }}</span>
-            <div class="panel__actions">
-              <span class="chip" :class="settings.writesEnabled ? 'chip--warn' : ''">
-                {{ settings.writesEnabled ? t('common.enabled') : t('common.disabled') }}
-              </span>
-            </div>
-          </div>
-          <div class="panel__body stack">
-            <p class="small">{{ t('actions.controlsDisabledHint') }}</p>
-            <ul class="settings__list">
-              <li>{{ t('actions.pauseHint') }}</li>
-              <li>{{ t('actions.stopHint') }}</li>
-              <li>{{ t('actions.forceExitHint') }}</li>
-              <li>{{ t('actions.blacklistAddHint') }}</li>
-            </ul>
-            <div class="row row--wrap">
-              <!-- Once writes are on, the acknowledgement button has nothing left to do. -->
-              <button
-                v-if="!settings.writesEnabled"
-                type="button"
-                class="btn btn--danger"
-                @click="enableControls"
-              >
-                <AppIcon name="alert" />
-                {{ t('actions.enableControls') }}
-              </button>
-              <button
-                v-if="settings.writesEnabled"
-                type="button"
-                class="btn"
-                @click="disableControls"
-              >
-                {{ t('actions.disableControls') }}
-              </button>
-            </div>
-          </div>
-        </section>
-
         <section class="panel">
           <div class="panel__head">
             <span class="panel__title">{{ t('settings.pwaTitle') }}</span>
