@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import AppIcon from '@/components/AppIcon.vue'
 import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
 import { useFormat } from '@/composables/useFormat'
@@ -96,15 +95,6 @@ function levelClass(level: string): string {
             <span class="switch__title small">{{ t('logs.follow') }}</span>
           </span>
         </label>
-        <button
-          type="button"
-          class="btn btn--sm"
-          :disabled="bot.refreshing"
-          @click="bot.refreshSystem()"
-        >
-          <AppIcon name="refresh" />
-          {{ t('common.refresh') }}
-        </button>
       </div>
     </div>
     <div class="panel__body panel__body--flush">

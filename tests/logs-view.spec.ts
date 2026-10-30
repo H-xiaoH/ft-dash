@@ -8,7 +8,6 @@ const { rawBot } = vi.hoisted(() => ({
   rawBot: {
     logs: { log_count: 1, logs: [['2026-10-24 12:00:00', 1, 'worker', 'INFO', 'first']] },
     refreshing: false,
-    refreshSystem: () => Promise.resolve({}),
   },
 }))
 
