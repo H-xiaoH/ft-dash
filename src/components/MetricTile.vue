@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import AppIcon from '@/components/AppIcon.vue'
 import { useFormat } from '@/composables/useFormat'
 import { toNumber, type Numberish } from '@/lib/format'
 
@@ -20,8 +21,10 @@ const props = withDefaults(
     tone?: string
     sub?: string
     small?: boolean
+    /** Turns the tile into a button, for figures that explain themselves when clicked. */
+    interactive?: boolean
   }>(),
-  { kind: 'number', tone: 'none', signed: false, small: false },
+  { kind: 'number', tone: 'none', signed: false, small: false, interactive: false },
 )
 
 defineSlots<{ default?: () => unknown; value?: () => unknown }>()
@@ -54,8 +57,14 @@ const toneClass = computed(() => {
 </script>
 
 <template>
-  <div class="metric">
+  <component
+    :is="interactive ? 'button' : 'div'"
+    class="metric"
+    :class="{ 'metric--button': interactive }"
+    :type="interactive ? 'button' : undefined"
+  >
     <span class="metric__label">{{ label }}</span>
+    <AppIcon v-if="interactive" name="info" class="metric__hint" />
     <span class="metric__value" :class="[toneClass, { 'metric__value--sm': small }]">
       <!-- The value slot is for figures that need their own markup, like a win/loss pair. -->
       <slot name="value">
@@ -65,5 +74,36 @@ const toneClass = computed(() => {
     </span>
     <span v-if="sub" class="metric__sub">{{ sub }}</span>
     <slot />
-  </div>
+  </component>
 </template>
+
+<style scoped>
+.metric--button {
+  /* A button brings its own font, colour and centring; the tile keeps its own. */
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+}
+
+.metric--button:hover,
+.metric--button:focus-visible {
+  background: var(--ink-800);
+}
+
+.metric--button .metric__label {
+  /* Keep the label's ellipsis clear of the info marker in the corner. */
+  padding-right: 18px;
+}
+
+.metric__hint {
+  position: absolute;
+  top: var(--sp-3);
+  right: var(--sp-3);
+  width: 13px;
+  height: 13px;
+  color: var(--text-3);
+  opacity: 0.75;
+}
+</style>
