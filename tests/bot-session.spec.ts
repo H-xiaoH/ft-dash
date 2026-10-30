@@ -173,7 +173,8 @@ describe('BotSessionController', () => {
 
     expect(session.state.actionPending).toBe('first')
     await expect(session.runAction('second', async () => 'second')).resolves.toBeNull()
-    expect(session.state.actionError).toBe('errors.actionBusy')
+    // The second action is refused outright; nothing is queued behind the first one.
+    expect(session.state.actionPending).toBe('first')
 
     gate.resolve('first')
     await expect(first).resolves.toBe('first')
@@ -283,9 +284,25 @@ describe('BotSessionController', () => {
     expect(session.state.connection).toBe('unauthorized')
     const callsWhenRejected = status.mock.calls.length
 
-    // Six 401s a second is not a retry, it is a log flood: the timer has to stop itself.
+    // Wrong credentials never fix themselves: six 401s a second is a log flood, not a retry.
     await vi.advanceTimersByTimeAsync(5_000)
     expect(status.mock.calls.length).toBe(callsWhenRejected)
+    vi.useRealTimers()
+  })
+
+  it('keeps polling an unreachable bot, because that one does recover', async () => {
+    vi.useFakeTimers()
+    const status = vi.fn().mockRejectedValue(new ApiError('cors', 'host unreachable'))
+    const session = sessionFor(fakeClient({ status }))
+    session.state.connection = 'online'
+
+    session.startPolling()
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(session.state.connection).toBe('unreachable')
+    const firstRound = status.mock.calls.length
+
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(status.mock.calls.length).toBeGreaterThan(firstRound)
     vi.useRealTimers()
   })
 

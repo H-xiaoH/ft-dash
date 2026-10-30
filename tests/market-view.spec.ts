@@ -158,6 +158,36 @@ describe('MarketView', () => {
     wrapper.unmount()
   })
 
+  it('retries a failed candle request on its own, ten seconds later', async () => {
+    vi.useFakeTimers()
+    const router = await makeRouter()
+    const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })
+    await nextTick()
+    expect(bot.fetchCandles).toHaveBeenCalledTimes(1)
+
+    // The bot is restarting: the request fails, and there is no button to press.
+    pending[0]?.resolve(null)
+    await flushPromises()
+    expect(wrapper.find('.empty').exists()).toBe(true)
+    expect(wrapper.find('.empty button').exists()).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(9_000)
+    expect(bot.fetchCandles).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1_500)
+    expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
+    expect(pending[1]?.pair).toBe('AAA/USDT')
+
+    // Success stops the loop.
+    pending[1]?.resolve(response('AAA/USDT'))
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
+
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
+
   it('reuses a fresh cache when the page is walked back to', async () => {
     const router = await makeRouter()
     const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })

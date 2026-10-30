@@ -6,15 +6,12 @@ import { HEARTBEAT_STALE_MS, useBotStore } from '@/stores/bot'
 import { useEventsStore } from '@/stores/events'
 import { useSettingsStore } from '@/stores/settings'
 
-type NoticeAction = 'settings' | 'retry' | 'stream'
-
 interface Notice {
   id: string
   priority: number
   tone: 'bad' | 'warn'
   title: string
   message: string
-  action?: NoticeAction
 }
 
 const { t } = useI18n()
@@ -22,14 +19,11 @@ const bot = useBotStore()
 const events = useEventsStore()
 const settings = useSettingsStore()
 
-const emit = defineEmits<{
-  openSettings: []
-  retry: []
-  retryStream: []
-}>()
-
+/**
+ * Only an unreachable bot is reported here. A rejected session bounces back to the sign-in
+ * form instead, because nothing on this shell can fix a password.
+ */
 const connectionMessage = computed(() => {
-  if (bot.connection === 'unauthorized') return t('errors.auth')
   if (bot.connection !== 'unreachable') return null
   return bot.errorKey ? t(bot.errorKey.key, bot.errorKey.params ?? {}) : t('errors.cors')
 })
@@ -59,8 +53,8 @@ const notices = computed<Notice[]>(() => {
       priority: 10,
       tone: 'bad',
       title: t('connect.failed'),
-      message: connectionMessage.value,
-      action: bot.connection === 'unauthorized' ? 'settings' : 'retry',
+      // The poll keeps asking; that is the fix for an unreachable bot, so say so.
+      message: `${connectionMessage.value} ${t('notices.autoRetry')}`,
     })
   }
 
@@ -80,8 +74,8 @@ const notices = computed<Notice[]>(() => {
       priority: 30,
       tone: 'warn',
       title: t('notices.websocketTitle'),
-      message: streamMessage.value,
-      action: 'stream',
+      // Nothing to press: the store retries on its own, slowly, until the bot answers.
+      message: `${streamMessage.value} ${t('notices.autoRetry')}`,
     })
   }
 
@@ -97,19 +91,6 @@ const notices = computed<Notice[]>(() => {
 
   return next.sort((a, b) => a.priority - b.priority)
 })
-
-function runAction(action: NoticeAction): void {
-  if (action === 'settings') emit('openSettings')
-  if (action === 'retry') emit('retry')
-  if (action === 'stream') emit('retryStream')
-}
-
-/** The one button each notice can offer, and what it says. */
-const ACTION_LABELS: Record<NoticeAction, string> = {
-  settings: 'bots.openSettings',
-  retry: 'common.retry',
-  stream: 'settings.retryStream',
-}
 </script>
 
 <template>
@@ -130,11 +111,6 @@ const ACTION_LABELS: Record<NoticeAction, string> = {
       <div class="banner__body">
         <div class="banner__title">{{ notice.title }}</div>
         <div class="banner__message">{{ notice.message }}</div>
-      </div>
-      <div v-if="notice.action" class="banner__actions">
-        <button type="button" class="btn btn--sm" @click="runAction(notice.action)">
-          {{ t(ACTION_LABELS[notice.action]) }}
-        </button>
       </div>
     </div>
   </section>
