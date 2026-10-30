@@ -12,7 +12,7 @@ import { canInstall, isStandalone, offlineReady, promptInstall } from '@/pwa'
 import { useBotStore } from '@/stores/bot'
 import { useEventsStore } from '@/stores/events'
 import { browserZone, listZones, zoneOffsetLabel, type TimezonePreference } from '@/lib/timezone'
-import { COUNT_SETTINGS, PAGE_SIZE_CHOICES, useSettingsStore } from '@/stores/settings'
+import { COUNT_SETTINGS, useSettingsStore } from '@/stores/settings'
 import type { StreamAuthPreference } from '@/lib/stream'
 
 const { t } = useI18n()
@@ -29,16 +29,11 @@ const { blockStyle: authBlockStyle, blockReady: authBlockReady } = useSegBlock(
 )
 const appVersion = __APP_VERSION__
 
-/** The menu speaks strings; the setting is a number. */
-const pageSizeOptions = computed(() =>
-  PAGE_SIZE_CHOICES.map((choice) => ({ value: String(choice), label: String(choice) })),
-)
-const pageSizeValue = computed({
-  get: () => String(settings.tradesPerPage),
-  set: (value: string) => {
-    settings.tradesPerPage = Number(value)
-  },
-})
+/** An empty box says what an untouched field would use, and what the field accepts. */
+const countPlaceholder = (key: keyof typeof COUNT_SETTINGS) => {
+  const { fallback, min, max } = COUNT_SETTINGS[key]
+  return t('settings.countDefault', { n: fallback, min, max })
+}
 
 const languageOptions = computed(() => [
   { value: 'system' as LocalePreference, label: t('settings.languageSystem') },
@@ -185,7 +180,9 @@ async function install() {
                 type="number"
                 :min="COUNT_SETTINGS.dashboardOpenLimit.min"
                 :max="COUNT_SETTINGS.dashboardOpenLimit.max"
+                :placeholder="countPlaceholder('dashboardOpenLimit')"
                 inputmode="numeric"
+                @change="settings.commitCount('dashboardOpenLimit')"
               />
               <span class="field__hint">{{ t('settings.openLimitHint') }}</span>
             </label>
@@ -197,21 +194,40 @@ async function install() {
                 type="number"
                 :min="COUNT_SETTINGS.dashboardClosedLimit.min"
                 :max="COUNT_SETTINGS.dashboardClosedLimit.max"
+                :placeholder="countPlaceholder('dashboardClosedLimit')"
                 inputmode="numeric"
+                @change="settings.commitCount('dashboardClosedLimit')"
               />
               <span class="field__hint">{{ t('settings.closedLimitHint') }}</span>
             </label>
-            <div class="field">
+            <label class="field">
               <span class="field__label">{{ t('settings.tradesPerPage') }}</span>
-              <FilterMenu
-                v-model="pageSizeValue"
-                class="settings__filter"
-                :options="pageSizeOptions"
-                :label="t('settings.tradesPerPage')"
-                align="start"
+              <input
+                v-model.number="settings.tradesPerPage"
+                class="input num"
+                type="number"
+                :min="COUNT_SETTINGS.tradesPerPage.min"
+                :max="COUNT_SETTINGS.tradesPerPage.max"
+                :placeholder="countPlaceholder('tradesPerPage')"
+                inputmode="numeric"
+                @change="settings.commitCount('tradesPerPage')"
               />
               <span class="field__hint">{{ t('settings.tradesPerPageHint') }}</span>
-            </div>
+            </label>
+            <label class="field">
+              <span class="field__label">{{ t('settings.pairTablePerPage') }}</span>
+              <input
+                v-model.number="settings.pairTablePerPage"
+                class="input num"
+                type="number"
+                :min="COUNT_SETTINGS.pairTablePerPage.min"
+                :max="COUNT_SETTINGS.pairTablePerPage.max"
+                :placeholder="countPlaceholder('pairTablePerPage')"
+                inputmode="numeric"
+                @change="settings.commitCount('pairTablePerPage')"
+              />
+              <span class="field__hint">{{ t('settings.pairTablePerPageHint') }}</span>
+            </label>
           </div>
         </section>
 

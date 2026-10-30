@@ -36,6 +36,27 @@ test('the pair table shows ten pairs a page', async ({ page }) => {
   await expect(rows).toHaveCount(10)
 })
 
+test('the pair table pages by the size set in Settings', async ({ page }) => {
+  await mockApi(page, { pairCount: 12 })
+  // Seeded before the reload, the way the settings input leaves it behind.
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      'ftdash.settings.v1',
+      JSON.stringify({ locale: 'system', pairTablePerPage: 5 }),
+    ),
+  )
+  await page.reload()
+
+  const table = livePage(page).locator('.panel', {
+    has: page.locator('.panel__title', { hasText: '交易对' }),
+  })
+  const rows = table.locator('tbody tr')
+  const pager = table.locator('.panel__pager')
+
+  await expect(rows).toHaveCount(5)
+  await expect(pager).toContainText('第 1 / 3 页')
+})
+
 test('the period block slides to the period you pick', async ({ page }) => {
   const seg = livePage(page).locator('.seg')
   await expect.poll(() => segBlockMatches(seg)).toBe(true)

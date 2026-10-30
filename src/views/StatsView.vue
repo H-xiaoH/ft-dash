@@ -13,6 +13,7 @@ import { useSegBlock } from '@/composables/useSegBlock'
 import { hideFreqtradeSentinel, toNumber, type Numberish } from '@/lib/format'
 import { buildPairStats, type PairStats } from '@/lib/stats'
 import { useBotStore } from '@/stores/bot'
+import { useSettingsStore } from '@/stores/settings'
 
 type Period = 'daily' | 'weekly' | 'monthly'
 type SortKey =
@@ -21,6 +22,7 @@ type SortKey =
 const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
+const settings = useSettingsStore()
 
 const period = ref<Period>('daily')
 const search = ref('')
@@ -35,8 +37,8 @@ const sortDir = ref<'asc' | 'desc'>('desc')
 const periodChartHeight = useChartHeight(140, 0.19, 220)
 /** The period tables list exactly as many rows as the chart draws bars. */
 const PERIOD_ROWS = 30
-/** The pair table shows ten pairs at a time, the way the trades list pages its rows. */
-const PAIR_PAGE_SIZE = 10
+/** Paged in the browser like the trade list; the size is a setting (default 10). */
+const pageSize = computed(() => settings.pairTablePageSize)
 
 const stake = computed(() => bot.stakeCurrency)
 
@@ -73,9 +75,9 @@ const rows = computed<PairStats[]>(() => {
 })
 
 const pairPage = ref(1)
-const pairTotalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / PAIR_PAGE_SIZE)))
+const pairTotalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / pageSize.value)))
 const pagedPairs = computed(() =>
-  rows.value.slice((pairPage.value - 1) * PAIR_PAGE_SIZE, pairPage.value * PAIR_PAGE_SIZE),
+  rows.value.slice((pairPage.value - 1) * pageSize.value, pairPage.value * pageSize.value),
 )
 
 /*

@@ -17,6 +17,8 @@ describe('interface limits', () => {
     expect(settings.dashboardClosedLimit).toBe(6)
     expect(settings.tradesPerPage).toBe(20)
     expect(settings.tradesPageSize).toBe(20)
+    expect(settings.pairTablePerPage).toBe(10)
+    expect(settings.pairTablePageSize).toBe(10)
   })
 
   it('keeps what the operator picked, across a reload', () => {
@@ -24,6 +26,7 @@ describe('interface limits', () => {
     settings.dashboardOpenLimit = 3
     settings.dashboardClosedLimit = 12
     settings.tradesPerPage = 50
+    settings.pairTablePerPage = 25
 
     // A reload is a fresh store over the same storage.
     setActivePinia(createPinia())
@@ -32,6 +35,7 @@ describe('interface limits', () => {
     expect(reloaded.dashboardOpenLimit).toBe(3)
     expect(reloaded.dashboardClosedLimit).toBe(12)
     expect(reloaded.tradesPerPage).toBe(50)
+    expect(reloaded.pairTablePageSize).toBe(25)
   })
 
   it('clamps what is set at the moment it is read', () => {
@@ -46,6 +50,11 @@ describe('interface limits', () => {
     expect(settings.tradesPageSize).toBe(5)
     settings.tradesPerPage = 999
     expect(settings.tradesPageSize).toBe(300)
+
+    settings.pairTablePerPage = 0
+    expect(settings.pairTablePageSize).toBe(5)
+    settings.pairTablePerPage = 999
+    expect(settings.pairTablePageSize).toBe(300)
   })
 
   it('offers the whole loaded window as the largest page', () => {
@@ -69,6 +78,7 @@ describe('interface limits', () => {
         dashboardOpenLimit: 0,
         dashboardClosedLimit: 900,
         tradesPerPage: 'many',
+        pairTablePerPage: 'many',
       }),
     )
     const settings = useSettingsStore()
@@ -77,6 +87,7 @@ describe('interface limits', () => {
     expect(settings.dashboardOpenLimit).toBe(1)
     expect(settings.dashboardClosedLimit).toBe(50)
     expect(settings.tradesPerPage).toBe(20)
+    expect(settings.pairTablePageSize).toBe(10)
   })
 
   it('rounds halves and drops fractions', () => {
@@ -88,5 +99,47 @@ describe('interface limits', () => {
 
     expect(settings.dashboardOpenLimit).toBe(5)
     expect(settings.tradesPerPage).toBe(25)
+  })
+
+  it('settles a bad entry when the field is left', () => {
+    const settings = useSettingsStore()
+
+    // Inside the range: kept, and remembered as the fallback.
+    settings.tradesPerPage = 30
+    expect(settings.commitCount('tradesPerPage')).toBe(30)
+
+    // Below the minimum takes the minimum, above the maximum the maximum.
+    settings.tradesPerPage = 0
+    expect(settings.commitCount('tradesPerPage')).toBe(5)
+    settings.tradesPerPage = 999
+    expect(settings.commitCount('tradesPerPage')).toBe(300)
+
+    // Anything that is not a whole number goes back to the last saved number.
+    settings.tradesPerPage = '' as unknown as number
+    expect(settings.commitCount('tradesPerPage')).toBe(300)
+    settings.tradesPerPage = 12.7
+    expect(settings.commitCount('tradesPerPage')).toBe(300)
+    settings.tradesPerPage = Number.NaN
+    expect(settings.commitCount('tradesPerPage')).toBe(300)
+
+    // The same rules, on a field with a different range.
+    settings.dashboardOpenLimit = 0
+    expect(settings.commitCount('dashboardOpenLimit')).toBe(1)
+    settings.pairTablePerPage = 7
+    expect(settings.commitCount('pairTablePerPage')).toBe(7)
+  })
+
+  it('falls back to the number in effect, not one cleared away', () => {
+    const settings = useSettingsStore()
+    settings.tradesPerPage = 300
+    settings.commitCount('tradesPerPage')
+
+    // Clearing local data puts every count back to its default.
+    settings.clearStoredData()
+    expect(settings.tradesPerPage).toBe(20)
+
+    // A bad entry goes back to that default, not to the 300 that was just wiped.
+    settings.tradesPerPage = 12.7
+    expect(settings.commitCount('tradesPerPage')).toBe(20)
   })
 })
