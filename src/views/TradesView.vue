@@ -327,14 +327,14 @@ onMounted(() => {
           />
           <FilterMenu
             v-model="sortField"
-            class="u-inline-sm"
+            class="trades-sort"
             :options="sortOptions"
             :prefix="t('trades.sort')"
             :label="t('trades.sort')"
           />
           <button
             type="button"
-            class="btn btn--sm btn--icon u-inline-sm"
+            class="btn btn--sm btn--icon trades-sort"
             :aria-label="sortDirLabel"
             :title="sortDirLabel"
             @click="flipSort"
@@ -553,7 +553,20 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Five controls share the phone toolbar, so it tightens the gaps to stay on one line. */
+/* The card list replaces the column headers below 901px, so the sort pair lives here. */
+@media (min-width: 901px) {
+  .trades-sort {
+    display: none !important;
+  }
+}
+
+/* Five controls share the phone toolbar: it wraps rather than pushes the row off-screen. */
+.panel__actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* A phone has to fit that pair on one line, so the gaps give way first. */
 @media (max-width: 720px) {
   .panel__actions {
     gap: var(--sp-1);

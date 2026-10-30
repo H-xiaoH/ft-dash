@@ -137,12 +137,13 @@ test('a phone sorts through the toolbar, the way the desktop headers do', async 
   const direction = livePage(page).getByRole('button', { name: '降序' })
   await expect(direction).toBeVisible()
 
-  // The toolbar now carries five controls; it still has to fit the phone.
-  const overflow = await livePage(page)
-    .locator('.panel__head')
-    .first()
-    .evaluate((head) => head.scrollWidth - head.clientWidth)
-  expect(overflow).toBeLessThanOrEqual(1)
+  // The toolbar carries five controls; it has to fit even a 360px phone.
+  const head = livePage(page).locator('.panel__head').first()
+  const overflow = () => head.evaluate((el) => el.scrollWidth - el.clientWidth)
+  expect(await overflow()).toBeLessThanOrEqual(1)
+  await page.setViewportSize({ width: 360, height: 844 })
+  expect(await overflow()).toBeLessThanOrEqual(1)
+  await page.setViewportSize({ width: 390, height: 844 })
 
   // Same rule as the headers: a new field starts at its own natural direction.
   await sortMenu.click()
@@ -157,8 +158,14 @@ test('a phone sorts through the toolbar, the way the desktop headers do', async 
   await expect(cards.first()).toContainText('-0.2000')
   expect(await firstPair()).toBe('AAA/USDT')
 
-  // On a desktop the headers do this job, so the toolbar pair stays hidden.
+  // Wherever the card list replaces the headers (901px and below) the toolbar pair is there…
+  await page.setViewportSize({ width: 800, height: 844 })
+  await expect(sortMenu).toBeVisible()
+  await expect(livePage(page).locator('.card').first()).toBeVisible()
+
+  // …and it steps aside only where the column headers take over again.
   await page.setViewportSize({ width: 1280, height: 900 })
+  await expect(livePage(page).locator('table tbody tr').first()).toBeVisible()
   await expect(sortMenu).toBeHidden()
   await expect(livePage(page).getByRole('button', { name: '升序' })).toBeHidden()
 })
