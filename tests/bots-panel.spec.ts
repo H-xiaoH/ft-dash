@@ -1,7 +1,9 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { nextTick } from 'vue'
 import BotsPanel from '@/components/BotsPanel.vue'
+import FilterMenu from '@/components/FilterMenu.vue'
 import ConnectView from '@/views/ConnectView.vue'
 import { i18n } from '@/i18n'
 import { useBotStore } from '@/stores/bot'
@@ -86,11 +88,13 @@ describe('BotsPanel', () => {
       })
 
     const wrapper = mount(BotsPanel, { global: { plugins: [i18n] } })
-    const switchButtons = wrapper.findAll('button.btn--primary')
-    expect(switchButtons).toHaveLength(2)
+    const picker = wrapper.findComponent(FilterMenu)
 
-    await switchButtons[0]!.trigger('click')
-    await switchButtons[1]!.trigger('click')
+    // Picking a bot in the dropdown is the switch; two picks in a row is the race.
+    picker.vm.$emit('update:modelValue', secondBot.id)
+    await nextTick()
+    picker.vm.$emit('update:modelValue', thirdBot.id)
+    await nextTick()
 
     latest.resolve(true)
     await flushPromises()
@@ -162,11 +166,14 @@ describe('BotsPanel', () => {
   it('only saves a bot the API answers for', async () => {
     const settings = useSettingsStore()
     const wrapper = mount(BotsPanel, { global: { plugins: [i18n] } })
+    // Add and edit sit behind the picker's last entry.
+    wrapper.findComponent(FilterMenu).vm.$emit('update:modelValue', '__manage')
+    await nextTick()
 
     const fillEditor = async (password: string) => {
       await wrapper
         .findAll('button')
-        .find((button) => button.text().includes('Add bot'))!
+        .find((button) => button.text().includes('Add backend'))!
         .trigger('click')
       const editor = wrapper.find('.bots__editor')
       await editor.find('input[inputmode="url"]').setValue('https://new.example/api/v1')
@@ -189,6 +196,49 @@ describe('BotsPanel', () => {
     await flushPromises()
     expect(settings.bots).toHaveLength(1)
     expect(settings.bots[0]?.baseUrl).toBe('https://new.example/api/v1')
+    wrapper.unmount()
+  })
+
+  it('opens the manager from the picker and keeps switching for the bots', async () => {
+    const settings = useSettingsStore()
+    const first = settings.addBot({
+      name: 'first',
+      baseUrl: 'https://first.example/api/v1',
+      username: 'first',
+      password: 'secret',
+    })
+    settings.addBot({
+      name: 'second',
+      baseUrl: 'https://second.example/api/v1',
+      username: 'second',
+      password: 'secret',
+    })
+    settings.setActiveBot(first.id)
+    const bot = useBotStore()
+    const switchBot = vi.spyOn(bot, 'switchBot').mockResolvedValue(true)
+
+    const wrapper = mount(BotsPanel, { global: { plugins: [i18n] } })
+    const picker = wrapper.findComponent(FilterMenu)
+    const { options } = picker.props() as { options: { value: string; label: string }[] }
+    const values = options.map((option) => option.value)
+
+    // The last entry is the manager; the bots come first.
+    expect(values).toHaveLength(3)
+    expect(values.at(-1)).toBe('__manage')
+    // Its body is closed until that entry is picked.
+    expect(wrapper.find('.bots__manage').exists()).toBe(false)
+    expect(wrapper.find('.bots__editor').exists()).toBe(false)
+
+    picker.vm.$emit('update:modelValue', '__manage')
+    await nextTick()
+    expect(wrapper.find('.bots__manage').exists()).toBe(true)
+    expect(wrapper.findAll('.bots__row')).toHaveLength(2)
+    expect(switchBot).not.toHaveBeenCalled()
+
+    // Picking a bot switches instead of opening the manager again.
+    picker.vm.$emit('update:modelValue', settings.bots[1]!.id)
+    await flushPromises()
+    expect(switchBot).toHaveBeenCalledWith(settings.bots[1]!.id)
     wrapper.unmount()
   })
 })

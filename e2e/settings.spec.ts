@@ -1,13 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import {
-  API_BASE,
-  PASSWORD,
-  SECOND_BASE,
-  connect,
-  livePage,
-  mockApi,
-  segBlockMatches,
-} from './support/fixtures'
+import { API_BASE, PASSWORD, SECOND_BASE, connect, livePage, mockApi } from './support/fixtures'
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
@@ -23,6 +15,25 @@ const panel = (page: Page, title: string) =>
   livePage(page)
     .locator('.panel')
     .filter({ has: page.locator('.panel__title', { hasText: title }) })
+
+/** The 后端 panel itself, not the 后端控制 block nested inside it. */
+const botsPanel = (page: Page) =>
+  livePage(page)
+    .locator('.panel')
+    .filter({ has: page.locator('.panel__title', { hasText: /^后端$/ }) })
+
+/** The bot picker's last entry opens the manager, which is where add/edit/remove live. */
+const openBotManager = async (page: Page) => {
+  await botsPanel(page).locator('.filter-menu__button').click()
+  await page.locator('.filter-menu__item', { hasText: '管理后端' }).last().click()
+  await expect(botsPanel(page).locator('.bots__manage')).toBeVisible()
+}
+
+/** Picking a bot in the picker is what switches to it. */
+const pickBot = async (page: Page, name: string) => {
+  await botsPanel(page).locator('.filter-menu__button').click()
+  await page.locator('.filter-menu__item', { hasText: name }).first().click()
+}
 
 /** Distance between two boxes, measured from the bottom of one to the top of the next. */
 const gapBetween = async (above: Awaited<ReturnType<typeof panel>>, below: typeof above) => {
@@ -95,23 +106,10 @@ test('the language and time zone dropdown triggers share the settings presentati
   expect(await popupPresentation()).toEqual(languagePopupStyle)
 })
 
-test('the stream-auth block slides to the choice you pick', async ({ page }) => {
-  // Scoped to its field: the page carries more than one segmented control.
-  const seg = livePage(page)
-    .locator('.field', { has: page.locator('.field__label', { hasText: '实时推送鉴权' }) })
-    .locator('.seg')
-  await expect.poll(() => segBlockMatches(seg)).toBe(true)
-
-  // The labels here differ in width — `JWT` next to `ws_token` — which is why the block is
-  // measured rather than computed from the item count.
-  await seg.locator('.seg__item', { hasText: 'ws_token' }).click()
-  await expect(seg.locator('.seg__item[aria-pressed="true"]')).toContainText('ws_token')
-  await expect.poll(() => segBlockMatches(seg)).toBe(true)
-})
-
 test('toasts stay in the lower-right corner above the mobile tab bar', async ({ page }) => {
   // Any toast will do; testing the stored credentials is the one click that always makes one.
-  await panel(page, '机器人').locator('button', { hasText: '测试连接' }).first().click()
+  await openBotManager(page)
+  await botsPanel(page).locator('button', { hasText: '测试连接' }).first().click()
   const toast = page.locator('.toast').first()
   await expect(toast).toBeVisible()
 
@@ -133,10 +131,11 @@ test('toasts stay in the lower-right corner above the mobile tab bar', async ({ 
   await toast.click()
   await expect(toast).toHaveCount(0)
 
-  const longName = '这是一个用于验证很长提示文案会在手机窄屏内自动换行而不会溢出的机器人名称'
-  await livePage(page).locator('button', { hasText: '添加机器人' }).click()
+  const longName = '这是一个用于验证很长提示文案会在手机窄屏内自动换行而不会溢出的后端名称'
+  await openBotManager(page)
+  await livePage(page).locator('button', { hasText: '添加后端' }).click()
   const editor = livePage(page).locator('.bots__editor')
-  await editor.getByLabel('机器人名称').fill(longName)
+  await editor.getByLabel('后端名称').fill(longName)
   await editor.locator('input[inputmode="url"]').fill(API_BASE)
   await editor.getByLabel('用户名').fill('long-toast')
   await editor.getByLabel('密码').fill(PASSWORD)
@@ -334,35 +333,52 @@ test('the cards form two even columns with an even gap before the full-width car
   )
 })
 
-test('enabling bot controls removes the acknowledgement button', async ({ page }) => {
-  const danger = panel(page, '机器人控制')
-  const enable = danger.locator('button', { hasText: '开启控制功能' })
-  const disable = danger.locator('button', { hasText: '关闭控制功能' })
+test('the write switch asks before it enables anything', async ({ page }) => {
+  // The "bot added" toast from the connect step is still counting down; letting it go first
+  // keeps this test's single-toast assertions about one toast.
+  await expect(page.locator('.toast')).toHaveCount(0, { timeout: 8000 })
 
-  await expect(danger.locator('.chip')).toHaveText('已关闭')
-  await expect(disable).toHaveCount(0)
+  const writeSwitch = botsPanel(page).locator('.switch', { hasText: '后端控制' })
+  const toggle = writeSwitch.locator('input[role="switch"]')
+  await writeSwitch.scrollIntoViewIfNeeded()
 
-  await enable.click()
-  await expect(danger.locator('.chip')).toHaveText('已开启')
-  await expect(enable).toHaveCount(0)
-  await expect(disable).toBeVisible()
+  // Off by default, and the switch shows the state rather than asking for it twice.
+  await expect(toggle).not.toBeChecked()
 
-  // Saving confirmation: the toast counts its own life down, so the bar must shrink.
+  // Turning it on opens the risk dialog; the list of what it enables lives in there.
+  await writeSwitch.locator('.switch__track').click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('开启后请谨慎使用')
+  await expect(dialog.locator('li')).toHaveCount(4)
+  // Until it is confirmed, the switch stays off.
+  await expect(toggle).not.toBeChecked()
+
+  await dialog.getByRole('button', { name: '我了解风险，开启控制功能' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(toggle).toBeChecked()
+
+  /*
+   * The toast's own countdown, then its dismissal — both before anything else can run,
+   * because the toast only lives a few seconds and a slow worker would otherwise outlive it.
+   */
   const timer = page.locator('.toast__timer').first()
   await expect(timer).toBeVisible()
-  const start = (await timer.boundingBox())!.width
-  await page.waitForTimeout(1200)
-  expect((await timer.boundingBox())!.width).toBeLessThan(start)
-
-  // Turning them back off returns the acknowledgement flow.
-  await disable.click()
-  await expect(enable).toBeVisible()
-  await expect(disable).toHaveCount(0)
+  // Pin the element: a second toast arriving would move `.first()` to a fresh, wider bar.
+  const bar = await timer.elementHandle()
+  const start = (await bar!.boundingBox())!.width
+  await page.waitForTimeout(400)
+  expect((await bar!.boundingBox())?.width ?? 0).toBeLessThan(start)
 
   // Dismissing animates out: the toast stays on screen for its leave, then goes.
   await page.locator('.toast').first().click()
   await expect(page.locator('.toast')).toHaveCount(1)
   await expect(page.locator('.toast')).toHaveCount(0, { timeout: 3000 })
+
+  // Turning it off needs no confirmation.
+  await writeSwitch.locator('.switch__track').click()
+  await expect(toggle).not.toBeChecked()
+  await expect(dialog).toHaveCount(0)
 })
 
 test('the password stays out of localStorage unless you ask for it', async ({ page }) => {
@@ -380,6 +396,7 @@ test('the password stays out of localStorage unless you ask for it', async ({ pa
 })
 
 test('carries the default bot name over from the connect form', async ({ page }) => {
+  await openBotManager(page)
   const bots = livePage(page).locator('.bots__row')
   await expect(bots).toHaveCount(1)
   // The connect form never asked for a name, so the bot is named after its username.
@@ -388,6 +405,7 @@ test('carries the default bot name over from the connect form', async ({ page })
 })
 
 test('test connection moves success into the bot test button', async ({ page }) => {
+  await openBotManager(page)
   const row = livePage(page).locator('.bots__row').first()
   const button = row.getByRole('button', {
     name: /测试连接|连接成功|Test connection|Connected|Connection successful/,
@@ -405,23 +423,25 @@ test('test connection moves success into the bot test button', async ({ page }) 
 })
 
 test('the bot name follows username until the name is edited', async ({ page }) => {
-  await livePage(page).locator('button', { hasText: '添加机器人' }).click()
+  await openBotManager(page)
+  await livePage(page).locator('button', { hasText: '添加后端' }).click()
   const editor = livePage(page).locator('.bots__editor')
-  const name = editor.getByLabel('机器人名称')
+  const name = editor.getByLabel('后端名称')
   const username = editor.getByLabel('用户名')
 
   await username.fill('second')
   await expect(name).toHaveValue('second')
-  await name.fill('我的机器人')
+  await name.fill('我的后端')
   await username.fill('third')
-  await expect(name).toHaveValue('我的机器人')
+  await expect(name).toHaveValue('我的后端')
 })
 
 test('delete bot opens an inline confirmation instead of a dialog', async ({ page }) => {
-  const botsPanel = panel(page, '机器人')
-  await botsPanel.locator('.bots__row').first().locator('button', { hasText: '删除' }).click()
+  const panelOf = botsPanel(page)
+  await openBotManager(page)
+  await panelOf.locator('.bots__row').first().locator('button', { hasText: '删除' }).click()
 
-  await expect(botsPanel.locator('.inline-confirm')).toContainText(
+  await expect(panelOf.locator('.inline-confirm')).toContainText(
     '将从本机移除 tester，需要重新输入凭据才能再次添加。',
   )
   await expect(page.locator('[role="dialog"]')).toHaveCount(0)
@@ -456,10 +476,11 @@ test('adding a second bot and switching moves the dashboard to it', async ({ pag
 
   // The second origin only exists for this test.
   await mockApi(page, { secondBot: true })
+  await openBotManager(page)
   const bots = livePage(page).locator('.bots__row')
-  await livePage(page).locator('button', { hasText: '添加机器人' }).click()
+  await livePage(page).locator('button', { hasText: '添加后端' }).click()
   const editor = livePage(page).locator('.bots__editor')
-  await expect(editor.getByLabel('机器人名称')).toHaveAttribute('placeholder', '可选')
+  await expect(editor.getByLabel('后端名称')).toHaveAttribute('placeholder', '可选')
   await editor.locator('input[inputmode="url"]').fill(SECOND_BASE)
   await editor.locator('input[autocomplete="username"]').fill('second')
   await editor
@@ -471,9 +492,22 @@ test('adding a second bot and switching moves the dashboard to it', async ({ pag
   // Adding does not steal the selection: the first bot is still the one in use.
   await expect(bots.first()).toContainText('当前')
 
-  await bots.nth(1).locator('button', { hasText: '切换' }).click()
-  await expect(bots.nth(1)).toContainText('当前')
+  // The lamp is live for the bot on screen and muted for the others: this app only polls
+  // the active one, so claiming anything else about them would be a guess.
+  await botsPanel(page).locator('.filter-menu__button').click()
+  const lamps = page.locator('.filter-menu__item .filter-menu__dot')
+  await expect(lamps.first()).toHaveClass(/filter-menu__dot--good/)
+  await expect(lamps.nth(1)).toHaveClass(/filter-menu__dot--muted/)
+  await page.keyboard.press('Escape')
+
+  // Switching is the picker's job now. A switch remounts the page track, so the manager
+  // closes with it and is reopened to check which bot is marked 当前.
+  await pickBot(page, 'second')
   await expect(page.locator('.toast', { hasText: '已切换' })).toHaveCount(1)
+  await expect(botsPanel(page)).toContainText(SECOND_BASE)
+  await openBotManager(page)
+  await expect(bots.nth(1)).toContainText('当前')
+  await expect(bots.first()).not.toContainText('当前')
 
   await page.locator('.rail__item').nth(1).click()
   await expect(page).not.toHaveURL(/filter=/)
@@ -487,14 +521,15 @@ test('adding a second bot and switching moves the dashboard to it', async ({ pag
 
   // Switching back restores the original bot and its address.
   await page.locator('.rail__item').nth(6).click()
-  await bots.first().locator('button', { hasText: '切换' }).click()
+  await pickBot(page, 'tester')
   await page.locator('.rail__item').nth(5).click()
   await expect(livePage(page).locator('.panel', { hasText: '连接状态' })).toContainText(API_BASE)
 })
 
 test('switching bots never bounces through the connect screen', async ({ page }) => {
   await mockApi(page, { secondBot: true })
-  await livePage(page).locator('button', { hasText: '添加机器人' }).click()
+  await openBotManager(page)
+  await livePage(page).locator('button', { hasText: '添加后端' }).click()
   const editor = livePage(page).locator('.bots__editor')
   await editor.getByLabel('名称').fill('second')
   await editor.getByLabel('API 地址').fill(SECOND_BASE)
@@ -523,7 +558,7 @@ test('switching bots never bounces through the connect screen', async ({ page })
     ;(window as unknown as { __stop?: () => void }).__stop = () => clearInterval(timer)
   })
 
-  await livePage(page).locator('.bots__row').nth(1).locator('button', { hasText: '切换' }).click()
+  await pickBot(page, 'second')
   await expect(page.locator('.toast', { hasText: '已切换' })).toHaveCount(1)
   await page.waitForTimeout(600)
 

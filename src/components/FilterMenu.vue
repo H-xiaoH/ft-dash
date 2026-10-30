@@ -1,13 +1,17 @@
 <script setup lang="ts" generic="T extends string">
-import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from './AppIcon.vue'
+
+export type StatusLamp = 'good' | 'warn' | 'bad' | 'muted'
 
 export interface FilterOption<T extends string = string> {
   value: T
   label: string
   /** Right-aligned supporting text, e.g. "UTC+08:00". Never searched; see `searchText`. */
   hint?: string
+  /** A lamp before the label, e.g. whether that bot answers right now. */
+  dot?: StatusLamp
 }
 
 /** A compact dropdown: the current choice stays visible on the button. */
@@ -24,6 +28,8 @@ const props = withDefaults(
     searchable?: boolean
     /** Extra text a row is matched against, keyed by value. Not shown. */
     searchText?: Record<string, string>
+    /** Dimmed text after the current choice on the button, e.g. the bot's endpoint. */
+    triggerHint?: string
   }>(),
   {
     label: '',
@@ -32,6 +38,7 @@ const props = withDefaults(
     align: 'end',
     searchable: false,
     searchText: () => ({}),
+    triggerHint: '',
   },
 )
 
@@ -54,10 +61,8 @@ const visibleOptions = computed(() => {
   )
 })
 
-const current = computed(
-  () =>
-    props.options.find((option) => option.value === model.value)?.label ?? props.options[0]?.label,
-)
+const currentOption = computed(() => props.options.find((option) => option.value === model.value))
+const current = computed(() => currentOption.value?.label ?? props.options[0]?.label)
 /** Ties the listbox to its visible title, which axe requires for a named input field. */
 const titleId = `filter-menu-title-${useId()}`
 
@@ -65,6 +70,19 @@ function choose(value: T) {
   model.value = value
   open.value = false
 }
+
+/**
+ * Escape closes the menu from anywhere, not just from the search box: a list you can open
+ * with the keyboard but not leave with it is a trap.
+ */
+function onKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Escape' || !open.value) return
+  open.value = false
+  trigger.value?.focus()
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 async function toggle() {
   open.value = !open.value
@@ -150,8 +168,14 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
       :aria-label="prefix ? `${prefix}: ${current}` : current"
       @click="toggle"
     >
+      <span
+        v-if="currentOption?.dot"
+        class="filter-menu__dot"
+        :class="`filter-menu__dot--${currentOption.dot}`"
+      />
       <span v-if="prefix" class="filter-menu__prefix">{{ prefix }}</span>
       <span>{{ triggerLabel || current }}</span>
+      <span v-if="triggerHint" class="filter-menu__trigger-hint num">{{ triggerHint }}</span>
       <AppIcon :name="open ? 'chevronUp' : 'chevronDown'" :size="12" />
     </button>
 
@@ -189,6 +213,11 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
               :class="{ 'is-active': option.value === model }"
               @click="choose(option.value)"
             >
+              <span
+                v-if="option.dot"
+                class="filter-menu__dot"
+                :class="`filter-menu__dot--${option.dot}`"
+              />
               <span>{{ option.label }}</span>
               <span v-if="option.hint" class="filter-menu__hint num">{{ option.hint }}</span>
             </button>
@@ -221,10 +250,56 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
   color: var(--text-3);
 }
 
+/* A lamp, not a badge: it says whether that entry is reachable right now. */
+.filter-menu__dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
+.filter-menu__dot--good {
+  background: var(--long);
+}
+
+.filter-menu__dot--warn {
+  background: var(--warn);
+}
+
+.filter-menu__dot--bad {
+  background: var(--short);
+}
+
+/* Off-screen endpoints are long: the button keeps its width and ellipses them. */
+.filter-menu__trigger-hint {
+  max-width: 34vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+
 .filter-menu__backdrop {
   position: fixed;
   inset: 0;
   z-index: 30;
+  /* The same blur-in the dialogs use, lighter: a menu is a smaller interruption. */
+  animation: menu-blur 140ms ease-out both;
+  backdrop-filter: blur(2px);
+}
+
+@keyframes menu-blur {
+  from {
+    backdrop-filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-menu__backdrop {
+    animation: none;
+  }
 }
 
 .filter-menu__list {
