@@ -4,18 +4,15 @@ import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import MetricTile from '@/components/MetricTile.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import EventTape from '@/components/EventTape.vue'
 import { useFormat } from '@/composables/useFormat'
 import { pushToast } from '@/composables/useToast'
 import { HEARTBEAT_STALE_MS, useBotStore } from '@/stores/bot'
-import { useEventsStore } from '@/stores/events'
 import { useSettingsStore } from '@/stores/settings'
 
 const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
 const settings = useSettingsStore()
-const events = useEventsStore()
 
 const stopConfirm = ref(false)
 
@@ -40,33 +37,6 @@ const loadAverage = computed(() => {
     .join(' / ')
 })
 const config = computed(() => bot.showConfig)
-
-const wsLabel = computed(() => {
-  switch (events.status) {
-    case 'open':
-      return t('system.wsConnected')
-    case 'connecting':
-      return t('system.wsConnecting')
-    case 'error':
-    case 'closed':
-      return t('system.wsDisconnected')
-    default:
-      return t('system.wsDisabled')
-  }
-})
-
-const wsAuthLabel = computed(() => {
-  switch (bot.streamAuthMode) {
-    case 'jwt':
-      return t('system.wsAuthJwt')
-    case 'ws_token':
-      return t('system.wsAuthToken')
-    case 'unavailable':
-      return t('system.wsAuthUnavailable')
-    default:
-      return t('system.wsAuthOff')
-  }
-})
 
 async function runStop() {
   const result = await bot.stop()
@@ -134,13 +104,11 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
         :sub="format.dateTime(bot.health?.last_process ?? null)"
       />
       <MetricTile
-        :label="t('system.wsStatus')"
-        :value="wsLabel"
+        :label="t('system.polling')"
+        :value="`${bot.pollIntervalSeconds}s`"
         kind="text"
         small
-        :sub="`${t('system.polling')} ${bot.pollIntervalSeconds}s · ${
-          bot.latencyMs !== null ? `${bot.latencyMs}ms` : '—'
-        }`"
+        :sub="bot.latencyMs !== null ? `${bot.latencyMs} ms` : '—'"
       />
     </div>
 
@@ -226,10 +194,6 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
             <dd>{{ bot.latencyMs !== null ? `${bot.latencyMs} ms` : '—' }}</dd>
             <dt>{{ t('system.lastFetch') }}</dt>
             <dd>{{ format.dateTime(bot.lastFetchAt) }}</dd>
-            <dt>{{ t('system.wsStatus') }}</dt>
-            <dd>{{ wsLabel }}</dd>
-            <dt>{{ t('system.wsAuth') }}</dt>
-            <dd>{{ wsAuthLabel }}</dd>
           </dl>
 
           <div v-if="bot.writesAllowed" class="row row--wrap" style="margin-top: var(--sp-4)">
@@ -271,7 +235,7 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
             </button>
           </div>
           <p v-else class="small muted" style="margin-top: var(--sp-4)">
-            {{ t('actions.controlsDisabledHint') }}
+            {{ t('actions.controlsShortHint') }}
           </p>
         </div>
       </section>
@@ -298,11 +262,6 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
         </div>
       </div>
     </section>
-
-    <!-- The live tape lives here now, next to the connection it depends on. -->
-    <div class="system__tape">
-      <EventTape />
-    </div>
 
     <ConfirmDialog
       :open="stopConfirm"

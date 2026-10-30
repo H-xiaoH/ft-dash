@@ -328,26 +328,28 @@ onMounted(() => {
             :prefix="t('trades.profit')"
             :label="t('trades.profit')"
           />
-          <FilterMenu
-            v-model="sortField"
-            class="trades-sort"
-            :options="sortOptions"
-            :prefix="t('trades.sort')"
-            :label="t('trades.sort')"
-          />
-          <button
-            type="button"
-            class="btn btn--sm btn--icon trades-sort"
-            :aria-label="sortToggleLabel"
-            :title="sortToggleLabel"
-            @click="flipSort"
-          >
-            <AppIcon :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'" />
-          </button>
+          <div class="sort-group trades-sort">
+            <FilterMenu
+              v-model="sortField"
+              class="sort-group__field"
+              :options="sortOptions"
+              :prefix="t('trades.sort')"
+              :label="t('trades.sort')"
+            />
+            <button
+              type="button"
+              class="btn btn--sm btn--icon sort-group__dir"
+              :aria-label="sortToggleLabel"
+              :title="sortToggleLabel"
+              @click="flipSort"
+            >
+              <AppIcon :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'" />
+            </button>
+          </div>
           <!-- On a phone this row also carries the sort pair, so the label gives way. -->
           <button
             type="button"
-            class="btn btn--sm"
+            class="btn btn--sm trades-export"
             :aria-label="t('trades.exportCsv')"
             :title="t('trades.exportCsv')"
             @click="exportCsv"
@@ -556,6 +558,43 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/*
+ * Sort and direction are one control: two buttons in a single frame with a hairline between
+ * them, so they read as "this field, this direction" rather than as two unrelated buttons.
+ */
+.sort-group {
+  display: inline-flex;
+}
+
+.sort-group :deep(.filter-menu__button) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.sort-group__dir {
+  position: relative;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 0;
+}
+
+.sort-group__dir::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 5px;
+  bottom: 5px;
+  width: 1px;
+  background: var(--line-strong);
+}
+
+/* The phone drops the export label; without this it is 4px shorter than its neighbours. */
+@media (max-width: 720px) {
+  .trades-export {
+    height: 30px;
+  }
+}
+
 /* The card list replaces the column headers below 901px, so the sort pair lives here. */
 @media (min-width: 901px) {
   .trades-sort {

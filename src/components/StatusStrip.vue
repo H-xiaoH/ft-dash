@@ -3,14 +3,12 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useFormat } from '@/composables/useFormat'
 import { HEARTBEAT_STALE_MS, useBotStore } from '@/stores/bot'
-import { useEventsStore } from '@/stores/events'
 import AppIcon from './AppIcon.vue'
 
 const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
-const events = useEventsStore()
-const emit = defineEmits<{ refresh: []; openTape: [] }>()
+const emit = defineEmits<{ refresh: [] }>()
 
 const stateKey = computed(() => {
   if (bot.connection === 'connecting') return 'status.starting'
@@ -43,40 +41,6 @@ const heartbeat = computed(() => {
   return format.duration(Math.max(0, age))
 })
 const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STALE_MS)
-
-const streamLabel = computed(() => {
-  switch (events.status) {
-    case 'open':
-      return t('system.wsConnected')
-    case 'connecting':
-      return t('system.wsConnecting')
-    case 'error':
-      return t('system.wsDisconnected')
-    case 'closed':
-      return t('system.wsDisconnected')
-    default:
-      return t('system.wsDisabled')
-  }
-})
-
-/** The reason key wins in the tooltip so a rejected handshake is self-explaining. */
-const streamTooltip = computed(() =>
-  bot.streamReasonKey ? t(bot.streamReasonKey) : streamLabel.value,
-)
-
-const streamTone = computed<'good' | 'warn' | 'bad' | 'flat'>(() => {
-  if (bot.streamReasonKey) return 'bad'
-  switch (events.status) {
-    case 'open':
-      return 'good'
-    case 'connecting':
-      return 'warn'
-    case 'error':
-      return 'bad'
-    default:
-      return 'flat'
-  }
-})
 </script>
 
 <template>
@@ -122,20 +86,6 @@ const streamTone = computed<'good' | 'warn' | 'bad' | 'flat'>(() => {
     </div>
 
     <div class="strip__actions">
-      <button
-        type="button"
-        class="strip__stream"
-        :data-tone="streamTone"
-        :title="streamTooltip"
-        @click="emit('openTape')"
-      >
-        <span
-          :key="streamTone"
-          class="dot"
-          :class="[`dot--${streamTone}`, { 'dot--pulse': streamTone === 'good' }]"
-        />
-        <span class="strip__stream-text">{{ streamLabel }}</span>
-      </button>
       <span v-if="bot.latencyMs !== null" class="strip__latency num muted small">
         {{ bot.latencyMs }}ms
       </span>
@@ -267,38 +217,6 @@ const streamTone = computed<'good' | 'warn' | 'bad' | 'flat'>(() => {
   gap: var(--sp-2);
   flex: none;
   margin-left: auto;
-}
-
-.strip__stream {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  /* WCAG 2.2 target size: on phones the label is hidden and only the dot is left. */
-  min-height: 24px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--r-1);
-  padding: 5px 8px;
-  cursor: pointer;
-  color: var(--text-2);
-  font-size: var(--fs-sm);
-}
-
-.strip__stream:hover {
-  border-color: var(--line-strong);
-  color: var(--text);
-}
-
-.strip__stream[data-tone='good'] .dot {
-  color: var(--long);
-}
-
-.strip__stream[data-tone='warn'] .dot {
-  color: var(--warn);
-}
-
-.strip__stream[data-tone='bad'] .dot {
-  color: var(--short);
 }
 
 .is-spinning {

@@ -60,6 +60,27 @@
   transform: rotate(180deg);
 }
 
+/* --- inset sections ----------------------------------------------------- */
+
+/*
+ * A framed block inside a panel: the bot manager, the write-access switch. Dashed on
+ * purpose, so it reads as part of the panel rather than as a panel of its own.
+ */
+.inset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-2);
+}
+
+.inset__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
 /* --- metrics ------------------------------------------------------------ */
 
 .metric-grid {
@@ -185,44 +206,6 @@
   color: var(--text);
   border-color: var(--line-strong);
   background: var(--ink-750);
-}
-
-.dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--text-3);
-  flex: none;
-}
-
-.dot--good {
-  background: var(--long);
-}
-
-.dot--bad {
-  background: var(--short);
-}
-
-.dot--warn {
-  background: var(--warn);
-}
-
-.dot--pulse {
-  /* One beat, replayed by keying the dot on the stream state — a permanent loop on an
-     always-visible indicator is motion with nothing to say. */
-  animation: dot-pulse 1.6s ease-out;
-}
-
-@keyframes dot-pulse {
-  0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 60%, transparent);
-  }
-  70% {
-    box-shadow: 0 0 0 7px transparent;
-  }
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
 }
 
 /* --- buttons ------------------------------------------------------------ */
@@ -674,13 +657,32 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--ink-900) 72%, transparent);
-  backdrop-filter: blur(3px);
+  background: color-mix(in srgb, var(--ink-900) 60%, transparent);
+  /*
+   * The blur is the transition: the page behind the sheet goes soft as the popup arrives,
+   * which is what makes it read as a sheet over the app rather than as another panel.
+   * Animating `backdrop-filter` is not free, but it only runs for the length of the opening.
+   */
+  animation: overlay-blur 180ms ease-out both;
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--sp-4);
   z-index: 40;
+}
+
+@keyframes overlay-blur {
+  from {
+    backdrop-filter: blur(0);
+    background-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay {
+    animation: none;
+  }
 }
 
 .dialog {
@@ -892,19 +894,6 @@
   font-family: var(--font-data);
   font-variant-numeric: tabular-nums;
   word-break: break-word;
-}
-
-.link-btn {
-  background: none;
-  border: 0;
-  padding: 0;
-  color: var(--accent);
-  cursor: pointer;
-  font-size: inherit;
-  /* WCAG 2.2 target size: the text stays small, the tap area does not. */
-  min-height: 24px;
-  display: inline-flex;
-  align-items: center;
 }
 
 .u-mobile-only {

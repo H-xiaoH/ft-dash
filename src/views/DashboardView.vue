@@ -145,7 +145,6 @@ async function confirmExit() {
         :label="t('kpi.profitFactor')"
         :value="hideFreqtradeSentinel(bot.profit?.profit_factor ?? null)"
         kind="number"
-        :sub="`${t('kpi.sharpe')} ${format.number(bot.profit?.sharpe ?? null, 2)}`"
       />
     </div>
 
@@ -154,7 +153,7 @@ async function confirmExit() {
         <div class="panel__head">
           <span class="panel__title">{{ t('dashboard.dailyPnl') }}</span>
           <div class="panel__actions">
-            <button type="button" class="link-btn small" @click="navigatePage(router, '/stats')">
+            <button type="button" class="btn btn--sm" @click="navigatePage(router, '/stats')">
               {{ t('dashboard.viewAll') }}
             </button>
           </div>
@@ -175,7 +174,7 @@ async function confirmExit() {
           <span class="panel__title">{{ t('kpi.openTrades') }}</span>
           <span class="chip">{{ bot.openTrades.length }}</span>
           <div class="panel__actions">
-            <button type="button" class="link-btn small" @click="openTradesTab('open')">
+            <button type="button" class="btn btn--sm" @click="openTradesTab('open')">
               {{ t('dashboard.viewAll') }}
             </button>
           </div>
@@ -185,7 +184,7 @@ async function confirmExit() {
           <!-- Scrolls sideways on phones: give keyboard users a focus stop (WCAG 2.1.1). -->
           <div
             v-else
-            class="table-wrap"
+            class="table-wrap ov-body"
             tabindex="0"
             role="region"
             :aria-label="t('kpi.openTrades')"
@@ -194,10 +193,10 @@ async function confirmExit() {
               <thead>
                 <tr>
                   <th scope="col">{{ t('trades.pair') }}</th>
-                  <th scope="col" class="u-hide-sm side-col">{{ t('trades.side') }}</th>
-                  <th scope="col" class="num u-hide-sm">{{ t('trades.entryPrice') }}</th>
-                  <th scope="col" class="num u-hide-sm">{{ t('trades.currentPrice') }}</th>
-                  <th scope="col" class="num u-hide-sm">{{ t('trades.stake') }}</th>
+                  <th scope="col" class="ov-side side-col">{{ t('trades.side') }}</th>
+                  <th scope="col" class="num ov-entry">{{ t('trades.entryPrice') }}</th>
+                  <th scope="col" class="num ov-current">{{ t('trades.currentPrice') }}</th>
+                  <th scope="col" class="num ov-stake">{{ t('trades.stake') }}</th>
                   <th scope="col" class="num">{{ t('kpi.unrealized') }}</th>
                   <th scope="col" class="num">{{ t('trades.duration') }}</th>
                   <th v-if="bot.writesAllowed" scope="col" />
@@ -216,7 +215,7 @@ async function confirmExit() {
                         :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
                       />
                       <span class="num">{{ trade.pair }}</span>
-                      <SideBadge class="u-inline-sm" :is-short="trade.is_short" icon-only />
+                      <SideBadge class="ov-side-inline" :is-short="trade.is_short" icon-only />
                       <span
                         v-if="trade.leverage && trade.leverage > 1"
                         class="chip overview__leverage"
@@ -225,12 +224,12 @@ async function confirmExit() {
                       </span>
                     </div>
                   </td>
-                  <td class="u-hide-sm side-col"><SideBadge :is-short="trade.is_short" /></td>
-                  <td class="num u-hide-sm">{{ format.price(trade.open_rate) }}</td>
-                  <td class="num u-hide-sm">
+                  <td class="ov-side side-col"><SideBadge :is-short="trade.is_short" /></td>
+                  <td class="num ov-entry">{{ format.price(trade.open_rate) }}</td>
+                  <td class="num ov-current">
                     {{ format.price(trade.current_rate ?? trade.open_rate) }}
                   </td>
-                  <td class="num u-hide-sm">{{ format.money(trade.stake_amount, stake) }}</td>
+                  <td class="num ov-stake">{{ format.money(trade.stake_amount, stake) }}</td>
                   <td class="num" :class="format.toneClass(trade.profit_ratio)">
                     {{ format.signedMoney(trade.profit_abs ?? 0, stake) }}
                     <div class="small muted">{{ format.ratio(trade.profit_ratio) }}</div>
@@ -256,7 +255,7 @@ async function confirmExit() {
         <div class="panel__head">
           <span class="panel__title">{{ t('dashboard.recentTrades') }}</span>
           <div class="panel__actions">
-            <button type="button" class="link-btn small" @click="openTradesTab('closed')">
+            <button type="button" class="btn btn--sm" @click="openTradesTab('closed')">
               {{ t('dashboard.viewAll') }}
             </button>
           </div>
@@ -266,7 +265,7 @@ async function confirmExit() {
           <!-- Scrolls sideways on phones: give keyboard users a focus stop (WCAG 2.1.1). -->
           <div
             v-else
-            class="table-wrap"
+            class="table-wrap ov-body"
             tabindex="0"
             role="region"
             :aria-label="t('dashboard.recentTrades')"
@@ -275,9 +274,9 @@ async function confirmExit() {
               <thead>
                 <tr>
                   <th scope="col">{{ t('trades.pair') }}</th>
-                  <th scope="col" class="u-hide-sm side-col">{{ t('trades.side') }}</th>
+                  <th scope="col" class="ov-side side-col">{{ t('trades.side') }}</th>
                   <th scope="col" class="num">{{ t('trades.profit') }}</th>
-                  <th scope="col" class="num u-hide-sm">{{ t('trades.exitPrice') }}</th>
+                  <th scope="col" class="num ov-exit">{{ t('trades.exitPrice') }}</th>
                   <th scope="col" class="num">{{ t('trades.duration') }}</th>
                 </tr>
               </thead>
@@ -294,15 +293,15 @@ async function confirmExit() {
                         :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
                       />
                       <span class="num">{{ trade.pair }}</span>
-                      <SideBadge class="u-inline-sm" :is-short="trade.is_short" icon-only />
+                      <SideBadge class="ov-side-inline" :is-short="trade.is_short" icon-only />
                     </div>
                   </td>
-                  <td class="u-hide-sm side-col"><SideBadge :is-short="trade.is_short" /></td>
+                  <td class="ov-side side-col"><SideBadge :is-short="trade.is_short" /></td>
                   <td class="num" :class="format.toneClass(trade.profit_ratio)">
                     {{ format.signedMoney(trade.profit_abs ?? 0, stake) }}
                     <div class="small muted">{{ format.ratio(trade.profit_ratio) }}</div>
                   </td>
-                  <td class="num u-hide-sm">{{ format.price(trade.close_rate ?? null) }}</td>
+                  <td class="num ov-exit">{{ format.price(trade.close_rate ?? null) }}</td>
                   <td class="num">{{ format.duration(durationOf(trade)) }}</td>
                 </tr>
               </tbody>
@@ -327,6 +326,54 @@ async function confirmExit() {
 </template>
 
 <style scoped>
+/*
+ * Which columns the two overview tables carry follows the room they actually have, not the
+ * window: a fixed breakpoint drops data that would have fitted, and keeps data that does not.
+ * Columns arrive one at a time as the panel widens, so the tables read without sideways
+ * scrolling down to a phone.
+ */
+.ov-body {
+  container-type: inline-size;
+}
+
+.ov-side,
+.ov-entry,
+.ov-current,
+.ov-stake,
+.ov-exit {
+  display: none;
+}
+
+@container (min-width: 470px) {
+  .ov-stake {
+    display: table-cell;
+  }
+}
+
+@container (min-width: 580px) {
+  .ov-entry {
+    display: table-cell;
+  }
+}
+
+@container (min-width: 700px) {
+  .ov-current,
+  .ov-exit {
+    display: table-cell;
+  }
+}
+
+/* From here the direction has a column of its own, so the pair cell drops its badge. */
+@container (min-width: 820px) {
+  .ov-side {
+    display: table-cell;
+  }
+
+  .ov-side-inline {
+    display: none;
+  }
+}
+
 /*
  * The overview drops the leverage chip on phones, where the pair cell already carries the
  * badge. Scoped rather than `u-hide-sm`: that helper switches to `table-cell`, which is right

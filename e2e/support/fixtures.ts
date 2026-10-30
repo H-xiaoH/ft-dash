@@ -1,4 +1,4 @@
-import type { Locator, Page, Route } from '@playwright/test'
+import { expect, type Locator, type Page, type Route } from '@playwright/test'
 
 /**
  * Offline fixtures for the end-to-end suite.
@@ -582,6 +582,20 @@ export async function connect(page: Page) {
 }
 
 /**
+ * Write access is off by default and now sits behind a switch plus a risk dialog: the two
+ * clicks every write-action test needs before it can act on a trade.
+ */
+export async function enableWriteAccess(page: Page) {
+  await page.goto('/#/settings')
+  const toggle = page
+    .locator('.page-track > :not(.page-neighbor)')
+    .locator('.switch', { hasText: '后端控制' })
+  await toggle.locator('.switch__track').click()
+  await page.getByRole('dialog').getByRole('button', { name: '我了解风险，开启控制功能' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+}
+
+/**
  * Every route with a string from the page's own content — not from its title, which the
  * shell renders for the page on screen whatever the shell is showing. The pages are all
  * held on the track, so this is what tells which one is actually up.
@@ -593,5 +607,6 @@ export const ROUTES: { path: string; marker: string }[] = [
   { path: '#/market', marker: 'K 线' },
   { path: '#/logs', marker: '运行日志' },
   { path: '#/system', marker: '心跳延迟' },
-  { path: '#/settings', marker: '添加机器人' },
+  // A marker that is on screen without opening anything: adding a bot lives in the manager.
+  { path: '#/settings', marker: '后端控制' },
 ]

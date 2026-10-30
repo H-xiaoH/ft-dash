@@ -72,6 +72,10 @@ test('each risk tile opens the explanation for that ratio alone', async ({ page 
   await expect(dialog).not.toContainText('Calmar')
   await expect(dialog).toContainText('样本少于 30 笔时')
 
+  // A tile that is a <button> must not show the browser's own border beside the hairlines.
+  expect(await sharpe.evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe('0px')
+  expect(await sharpe.evaluate((el) => getComputedStyle(el).borderLeftWidth)).toBe('0px')
+
   // Escape closes it and hands focus back to the tile that opened it.
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
@@ -142,10 +146,19 @@ test('period tables, durations panel and KPI tiles render', async ({ page }) => 
   // The account-level tiles stay removed; the pair column is a different thing.
   await expect(stats.locator('.metric__label', { hasText: '总盈亏' })).toHaveCount(0)
   await expect(livePage(page).locator('.chart__tick').first()).toBeVisible()
-  // The period table's first column is "date", not a repeat of the panel title.
+  // The period detail is folded away until asked for; it opens from the panel head.
   const period = livePage(page).locator('.panel', {
     has: page.locator('.panel__title', { hasText: '周期' }),
   })
+  await expect(period.locator('thead th')).toHaveCount(0)
+  const disclosure = period.getByRole('button', { name: '展开明细' })
+  await expect(disclosure).toHaveAttribute('aria-expanded', 'false')
+  await disclosure.click()
+  await expect(period.getByRole('button', { name: '收起明细' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  )
+  // The period table's first column is "date", not a repeat of the panel title.
   await expect(period.locator('thead th').first()).toHaveText('日期')
   await expect(period.locator('tbody td').first()).toHaveCSS('text-align', 'left')
 })
