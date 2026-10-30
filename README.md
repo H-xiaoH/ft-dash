@@ -53,8 +53,9 @@ An installable Vue PWA that talks to your bot directly.</p>
   staked amount, prices, P&L and duration; sortable columns, a search that expands from the
   toolbar, an outcome filter (all / profitable / losing), per-trade detail (orders, fees,
   funding, leverage, stop loss, liquidation) and CSV export. On phones the same data is a
-  card list instead of a wide table. The loaded history is paged locally at 20 rows per page;
-  the pager resets whenever the filter, search or sort changes.
+  card list instead of a wide table. The loaded history is paged locally — 20 rows by default,
+  and **Settings → Interface** sets anything from 5 to 300, where 300 puts every loaded trade on
+  one page; the pager resets whenever the filter, search or sort changes.
 - 📈 **Statistics** — per-pair totals plus win rate, average holding time, fees, volume and last
   close (derived from the loaded trades, so pairs older than the loaded window show —); a
   daily/weekly/monthly chart with period table; and the average holding time for winners,
@@ -79,7 +80,8 @@ An installable Vue PWA that talks to your bot directly.</p>
   cancellations, protection triggers, warnings, exceptions), shown on the System page.
 - 🎛️ **Bot controls** — pause/resume entries, stop, reload config, close a position, edit the
   blacklist and release locks. These are *off by default* and require an explicit
-  acknowledgement in Settings; destructive actions ask for typed confirmation.
+  acknowledgement in Settings. Every destructive action asks for confirmation in a dialog;
+  closing a position additionally requires typing its pair name.
 
 Interface languages: **简体中文** and **English** (follows the browser by default).
 
@@ -152,9 +154,11 @@ checked on a real device — worth two minutes in Safari with the PWA installed:
    **a fully closed app receives no alerts** — a known limit of a frontend-only app.
 7. **Cross-device**: acting on the bot elsewhere shows up here within seconds.
 
-Open the app, then enter your API base URL, username and password. Credentials are stored in
-this browser only (localStorage, or sessionStorage if you turn "remember" off) and are used
-solely as an `Authorization` header toward the API you entered.
+Open the app, then enter your API base URL, username and password. The sign-in is checked
+against the bot first — only a bot that answers is saved and opened, so a typo leaves nothing
+behind. Credentials are stored in this browser only (localStorage, or sessionStorage if you
+turn "remember" off) and are used solely as an `Authorization` header toward the API you
+entered.
 
 ### 🤖 Several bots
 
@@ -225,10 +229,15 @@ Two transports, two mechanisms — Freqtrade decides which one each accepts:
    reverse proxy, or when you do not want to expose credentials to the login endpoint.
 3. **Disable stream** — poll only. Everything except the live event tape keeps working.
 
+A 401 that survives the Basic retry is not transient — the credentials or the proxy's CORS
+list are wrong. Polling stops and the app returns to the sign-in form (bot list and fields
+intact) instead of leaving a dashboard that cannot fetch anything.
+
 Failures are explicit rather than silent: a rejected handshake (Freqtrade answers `403` for a
 bad token; the browser cannot see a close code) surfaces as "handshake rejected — token
-refused, or your proxy does not forward Upgrade requests", and automatic retries stop after
-three attempts so a broken config cannot spin. Polling is unaffected — Basic auth still works.
+refused, or your proxy does not forward Upgrade requests". Nothing has to be retried by hand:
+after three rejected handshakes the retries slow down to one a minute until the bot answers
+again. Polling is unaffected — Basic auth still works.
 
 ## 📦 Deploying to GitHub Pages
 
