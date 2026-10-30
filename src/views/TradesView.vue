@@ -148,6 +148,27 @@ watch(totalPages, (max) => {
   if (page.value > max) page.value = max
 })
 
+/** The column headers sort the desktop table; on a phone this menu does the same job. */
+const sortOptions = computed<FilterOption<SortKey>[]>(() => [
+  { value: 'open_timestamp', label: t('trades.openDate') },
+  { value: 'pair', label: t('trades.pair') },
+  { value: 'stake_amount', label: t('trades.stake') },
+  { value: 'profit_abs', label: t('trades.profit') },
+  { value: 'duration', label: t('trades.duration') },
+])
+/** Picking a field reuses `toggleSort`, so the direction rule matches the headers. */
+const sortField = computed<SortKey>({
+  get: () => sortKey.value,
+  set: (key) => toggleSort(key),
+})
+const sortDirLabel = computed(() =>
+  t(sortDir.value === 'asc' ? 'trades.sortAsc' : 'trades.sortDesc'),
+)
+
+function flipSort(): void {
+  sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+}
+
 function toggleSort(key: SortKey) {
   if (sortKey.value === key) {
     sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
@@ -304,9 +325,32 @@ onMounted(() => {
             :prefix="t('trades.profit')"
             :label="t('trades.profit')"
           />
-          <button type="button" class="btn btn--sm" @click="exportCsv">
+          <FilterMenu
+            v-model="sortField"
+            class="u-inline-sm"
+            :options="sortOptions"
+            :prefix="t('trades.sort')"
+            :label="t('trades.sort')"
+          />
+          <button
+            type="button"
+            class="btn btn--sm btn--icon u-inline-sm"
+            :aria-label="sortDirLabel"
+            :title="sortDirLabel"
+            @click="flipSort"
+          >
+            <AppIcon :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'" />
+          </button>
+          <!-- On a phone this row also carries the sort pair, so the label gives way. -->
+          <button
+            type="button"
+            class="btn btn--sm"
+            :aria-label="t('trades.exportCsv')"
+            :title="t('trades.exportCsv')"
+            @click="exportCsv"
+          >
             <AppIcon name="download" />
-            {{ t('trades.exportCsv') }}
+            <span class="u-hide-sm">{{ t('trades.exportCsv') }}</span>
           </button>
         </div>
       </div>
@@ -509,6 +553,13 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Five controls share the phone toolbar, so it tightens the gaps to stay on one line. */
+@media (max-width: 720px) {
+  .panel__actions {
+    gap: var(--sp-1);
+  }
+}
+
 .sort {
   display: inline-flex;
   align-items: center;
