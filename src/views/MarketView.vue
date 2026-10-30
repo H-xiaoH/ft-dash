@@ -51,6 +51,11 @@ const formatters: CandleFormatters = {
   change: (ratio) => format.ratio(ratio),
 }
 
+/** One lookup per render instead of a `find` per cell: the list is a few hundred pairs long. */
+const profitByPair = computed(
+  () => new Map(bot.performance.map((entry) => [entry.pair, entry.profit_abs])),
+)
+
 const openPairs = computed(() => new Set(bot.openTrades.map((trade) => trade.pair)))
 
 const pairOptions = computed<FilterOption[]>(() => {
@@ -390,13 +395,8 @@ watch(
                   </span>
                   <span v-else class="muted small">—</span>
                 </td>
-                <td class="num">
-                  {{
-                    format.signedMoney(
-                      bot.performance.find((entry) => entry.pair === pair)?.profit_abs ?? null,
-                      bot.stakeCurrency,
-                    )
-                  }}
+                <td class="num" :class="format.toneClass(profitByPair.get(pair))">
+                  {{ format.signedMoney(profitByPair.get(pair) ?? null, bot.stakeCurrency) }}
                 </td>
               </tr>
             </tbody>
@@ -416,18 +416,8 @@ watch(
                 {{ t('trades.open') }}
               </span>
               <span class="spacer" />
-              <span
-                class="num"
-                :class="
-                  format.toneClass(bot.performance.find((entry) => entry.pair === pair)?.profit_abs)
-                "
-              >
-                {{
-                  format.signedMoney(
-                    bot.performance.find((entry) => entry.pair === pair)?.profit_abs ?? null,
-                    bot.stakeCurrency,
-                  )
-                }}
+              <span class="num" :class="format.toneClass(profitByPair.get(pair))">
+                {{ format.signedMoney(profitByPair.get(pair) ?? null, bot.stakeCurrency) }}
               </span>
             </div>
           </li>
@@ -459,7 +449,7 @@ watch(
           </button>
         </div>
         <p v-if="!bot.writesAllowed" class="small muted">
-          {{ t('actions.controlsDisabledHint') }}
+          {{ t('actions.controlsShortHint') }}
         </p>
         <div v-if="!blacklistRows.length" class="empty">{{ t('empty.table') }}</div>
         <ul v-else class="blist">

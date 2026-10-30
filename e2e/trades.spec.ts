@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { connect, livePage, mockApi, segBlockMatches } from './support/fixtures'
+import { connect, enableWriteAccess, livePage, mockApi, segBlockMatches } from './support/fixtures'
 
 const touchAt = (
   page: Page,
@@ -191,12 +191,12 @@ test('the overview "view all" links open the matching trades tab', async ({ page
   const tabs = livePage(page).locator('.seg__item')
 
   await page.goto('/#/')
-  await panel('当前持仓').locator('.link-btn').click()
+  await panel('当前持仓').locator('.btn', { hasText: '查看全部' }).click()
   await expect(page).toHaveURL(/filter=open/)
   await expect(tabs.nth(0)).toHaveAttribute('aria-pressed', 'true')
 
   await page.goto('/#/')
-  await panel('最近平仓').locator('.link-btn').click()
+  await panel('最近平仓').locator('.btn', { hasText: '查看全部' }).click()
   await expect(page).toHaveURL(/filter=closed/)
   await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
 })
@@ -356,8 +356,7 @@ test('a trade drawer takes focus, parks the page, and gives both back on close',
 test('force exit requires the exact pair and Escape only closes its confirmation', async ({
   page,
 }) => {
-  await page.goto('/#/settings')
-  await livePage(page).getByRole('button', { name: '我了解风险，开启控制功能' }).click()
+  await enableWriteAccess(page)
 
   await page.goto('/#/trades?filter=open&trade=99')
   const drawer = page.locator('.overlay--drawer .drawer')
@@ -404,8 +403,7 @@ test('back and forward around an open force-exit confirmation restores focus saf
   const pageErrors: Error[] = []
   page.on('pageerror', (error) => pageErrors.push(error))
 
-  await page.goto('/#/settings')
-  await livePage(page).getByRole('button', { name: '我了解风险，开启控制功能' }).click()
+  await enableWriteAccess(page)
   await page.goto('/#/trades')
   await livePage(page).locator('table tbody tr', { hasText: 'OPEN/USDT' }).click()
 

@@ -14,10 +14,15 @@ const { t } = useI18n()
 const open = ref(false)
 const input = ref<HTMLInputElement | null>(null)
 
+function focusInput() {
+  if (open.value) input.value?.focus()
+}
+
 async function expand() {
   open.value = true
   await nextTick()
-  input.value?.focus()
+  // The transition delays the input's arrival in the browser; the hook below catches that.
+  focusInput()
 }
 
 function collapse() {
@@ -31,38 +36,42 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <button
-    v-if="!open"
-    type="button"
-    class="btn btn--icon"
-    :title="t('common.search')"
-    :aria-label="t('common.search')"
-    @click="expand"
-  >
-    <AppIcon name="search" />
-  </button>
-
-  <div v-else class="search-toggle">
-    <AppIcon name="search" :size="14" />
-    <input
-      ref="input"
-      v-model="model"
-      class="search-toggle__input"
-      type="search"
-      spellcheck="false"
-      :placeholder="props.placeholder"
-      @keydown="onKeydown"
-    />
+  <!-- Opening and closing both animate: the field slides in and back out. -->
+  <Transition name="search" mode="out-in" @after-enter="focusInput">
     <button
+      v-if="!open"
+      key="button"
       type="button"
-      class="search-toggle__close"
-      :title="t('common.clear')"
-      :aria-label="t('common.clear')"
-      @click="collapse"
+      class="btn btn--icon"
+      :title="t('common.search')"
+      :aria-label="t('common.search')"
+      @click="expand"
     >
-      <AppIcon name="close" :size="13" />
+      <AppIcon name="search" />
     </button>
-  </div>
+
+    <div v-else key="field" class="search-toggle">
+      <AppIcon name="search" :size="14" />
+      <input
+        ref="input"
+        v-model="model"
+        class="search-toggle__input"
+        type="search"
+        spellcheck="false"
+        :placeholder="props.placeholder"
+        @keydown="onKeydown"
+      />
+      <button
+        type="button"
+        class="search-toggle__close"
+        :title="t('common.clear')"
+        :aria-label="t('common.clear')"
+        @click="collapse"
+      >
+        <AppIcon name="close" :size="13" />
+      </button>
+    </div>
+  </Transition>
 </template>
 
 <style scoped>
@@ -76,18 +85,32 @@ function onKeydown(event: KeyboardEvent) {
   border-radius: var(--r-1);
   background: var(--ink-900);
   color: var(--text-3);
-  animation: search-in 140ms ease-out;
 }
 
-@keyframes search-in {
-  from {
-    opacity: 0;
-    transform: translateX(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+/*
+ * The field slides in and back out the same way, so closing does not look like the field
+ * was cut out of the toolbar. `mode="out-in"` keeps the icon button arriving after it.
+ */
+.search-enter-active {
+  transition:
+    opacity 140ms ease-out,
+    transform 140ms ease-out;
+}
+
+.search-leave-active {
+  transition:
+    opacity 120ms ease-in,
+    transform 120ms ease-in;
+}
+
+.search-enter-from {
+  opacity: 0;
+  transform: translateX(8px);
+}
+
+.search-leave-to {
+  opacity: 0;
+  transform: translateX(8px);
 }
 
 .search-toggle:focus-within {

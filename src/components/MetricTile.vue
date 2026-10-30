@@ -84,6 +84,10 @@ const toneClass = computed(() => {
   color: inherit;
   text-align: left;
   cursor: pointer;
+  /* Its top and left borders too — otherwise the browser's 2px outset shows as a white
+     frame around two sides of the tile. The right and bottom hairlines come from .metric. */
+  border-top: 0;
+  border-left: 0;
   position: relative;
 }
 

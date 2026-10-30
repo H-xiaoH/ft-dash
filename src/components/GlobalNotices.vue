@@ -3,8 +3,6 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import { HEARTBEAT_STALE_MS, useBotStore } from '@/stores/bot'
-import { useEventsStore } from '@/stores/events'
-import { useSettingsStore } from '@/stores/settings'
 
 interface Notice {
   id: string
@@ -16,8 +14,6 @@ interface Notice {
 
 const { t } = useI18n()
 const bot = useBotStore()
-const events = useEventsStore()
-const settings = useSettingsStore()
 
 /**
  * Only an unreachable bot is reported here. A rejected session bounces back to the sign-in
@@ -34,15 +30,6 @@ const heartbeatLate = computed(
     bot.heartbeatAgeMs !== null &&
     bot.heartbeatAgeMs > HEARTBEAT_STALE_MS,
 )
-
-const streamMessage = computed(() => {
-  if (!settings.websocket) return null
-  if (bot.streamReasonKey) return t(bot.streamReasonKey)
-  if (events.status === 'error' || events.status === 'closed') {
-    return t('notices.websocketDisconnected')
-  }
-  return null
-})
 
 const notices = computed<Notice[]>(() => {
   const next: Notice[] = []
@@ -65,17 +52,6 @@ const notices = computed<Notice[]>(() => {
       tone: 'warn',
       title: t('notices.heartbeatTitle'),
       message: t('system.lagging'),
-    })
-  }
-
-  if (streamMessage.value) {
-    next.push({
-      id: 'websocket',
-      priority: 30,
-      tone: 'warn',
-      title: t('notices.websocketTitle'),
-      // Nothing to press: the store retries on its own, slowly, until the bot answers.
-      message: `${streamMessage.value} ${t('notices.autoRetry')}`,
     })
   }
 
@@ -125,7 +101,9 @@ const notices = computed<Notice[]>(() => {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  padding: var(--sp-3) var(--shell-pad) 0;
+  /* Panels sit inside the frame's padding *and* their page's gutter, so the banners match
+     that inset instead of the frame's, or they read as wider than the content below. */
+  padding: var(--sp-3) calc(var(--shell-pad) * 2) 0;
   background: var(--ink-900);
 }
 

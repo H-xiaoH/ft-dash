@@ -8,7 +8,6 @@ import StatusStrip from '@/components/StatusStrip.vue'
 import ConnectView from '@/views/ConnectView.vue'
 import { usePageDrag } from '@/composables/usePageDrag'
 import { useToasts } from '@/composables/useToast'
-import { navigatePage } from '@/lib/navigation'
 import { NAV_ROUTES } from '@/router'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
@@ -96,11 +95,6 @@ async function refresh() {
   await bot.refreshAll()
 }
 
-/** The live tape lives on the System page. */
-function openTape() {
-  if (route.name !== 'system') void navigatePage(router, '/system')
-}
-
 onMounted(async () => {
   locale.value = settings.locale
   document.documentElement.lang = settings.locale
@@ -177,7 +171,7 @@ watch(
     />
 
     <div class="main">
-      <StatusStrip @refresh="refresh" @open-tape="openTape" />
+      <StatusStrip @refresh="refresh" />
       <GlobalNotices />
 
       <div class="shell__body">
@@ -352,9 +346,14 @@ watch(
 /*
  * The sideways gutter belongs to each page rather than to the frame around the track, so two
  * pages meeting mid-swipe keep twice this between them and read as two sheets.
+ *
+ * Each page also carries the page colour. Two pages are in flight during a swap, and their
+ * regions overlap while they pass: without a background of its own, the one underneath shows
+ * its rows through the one arriving, which reads as the two pages covering each other.
  */
 .page-track > * {
   padding-inline: var(--shell-pad);
+  background: var(--ink-900);
 }
 
 /*
@@ -371,8 +370,10 @@ watch(
 }
 
 /*
- * Page transition: phones slide sideways in the direction you navigated. Only the slide
- * is animated — the cross-fade that used to ride along read as a flash.
+ * Page transition: every width slides sideways, a page at a time, in the direction you
+ * navigated — the same motion the finger produces on a phone. Wide screens used to travel
+ * up and down; pages of different heights never lined up, so the two were on screen together
+ * and appeared to cover each other.
  */
 .page-enter-active,
 .page-leave-active {
@@ -389,6 +390,13 @@ watch(
   top: 0;
   left: 0;
   width: 100%;
+  /*
+   * It stays in the DOM — the geometry below is what the tests and the finger both read —
+   * but it stops painting the moment it starts leaving: two pages on screen at once reads as
+   * the arriving one covering the one it replaces. What is left is the incoming page sliding
+   * in over the empty page area, which is the whole direction cue.
+   */
+  opacity: 0;
 }
 
 .page-enter-from {
@@ -397,26 +405,6 @@ watch(
 
 .page-leave-to {
   transform: translateX(calc(var(--page-leave, 0) * 100%));
-}
-
-@media (min-width: 901px) {
-  /*
-   * Wide screens slide the way the rail reads — a whole page up or down, the same full-page
-   * move a phone gets from its bottom bar.
-   *
-   * The two directions travel different distances, because "a page" means a different thing
-   * to each. The incoming page only has to start below the fold, so a viewport is enough,
-   * while the outgoing one has to clear the top of the window: a viewport would leave the rest
-   * of a tall page (统计 is nearly two screens) hanging in the frame, which reads as the
-   * previous page never having left.
-   */
-  .page-enter-from {
-    transform: translateY(calc(var(--page-enter, 0) * 100dvh));
-  }
-
-  .page-leave-to {
-    transform: translateY(calc(var(--page-leave, 0) * 100%));
-  }
 }
 
 @media (max-width: 900px) {

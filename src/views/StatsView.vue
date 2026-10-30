@@ -39,6 +39,8 @@ const sortDir = ref<'asc' | 'desc'>('desc')
 const periodChartHeight = useChartHeight(140, 0.19, 220)
 /** The period tables list exactly as many rows as the chart draws bars. */
 const PERIOD_ROWS = 30
+/** The date rows are the detail behind the chart: they start folded away. */
+const periodRowsOpen = ref(false)
 /** Paged in the browser like the trade list; the size is a setting (default 10). */
 const pageSize = computed(() => settings.pairTablePageSize)
 
@@ -177,7 +179,7 @@ function drawdownPercent(value: number | null | undefined) {
         :value="bot.availableBalance"
         kind="money"
         :currency="stake"
-        :sub="`${t('kpi.botManaged')} ${format.money(bot.balance?.total_bot ?? null, stake)}`"
+        :sub="`${t('kpi.totalFunds')} ${format.money(bot.balance?.total_bot ?? null, stake)}`"
       />
       <MetricTile
         :label="t('kpi.positionValue')"
@@ -426,6 +428,19 @@ function drawdownPercent(value: number | null | undefined) {
             :style="periodBlockStyle"
           />
         </div>
+        <div class="panel__actions">
+          <button
+            type="button"
+            class="btn btn--sm"
+            :aria-expanded="periodRowsOpen"
+            :aria-label="t(periodRowsOpen ? 'stats.hidePeriods' : 'stats.showPeriods')"
+            :title="t(periodRowsOpen ? 'stats.hidePeriods' : 'stats.showPeriods')"
+            @click="periodRowsOpen = !periodRowsOpen"
+          >
+            <AppIcon :name="periodRowsOpen ? 'chevronUp' : 'chevronDown'" />
+            {{ t(periodRowsOpen ? 'stats.hidePeriods' : 'stats.showPeriods') }}
+          </button>
+        </div>
       </div>
       <div class="panel__body">
         <BarChart
@@ -436,7 +451,7 @@ function drawdownPercent(value: number | null | undefined) {
         />
         <p v-else class="empty">{{ t('stats.noData') }}</p>
       </div>
-      <div class="panel__body panel__body--flush">
+      <div v-if="periodRowsOpen" class="panel__body panel__body--flush">
         <div class="table-wrap u-desktop-only">
           <table class="table">
             <thead>

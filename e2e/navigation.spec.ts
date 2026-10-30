@@ -324,9 +324,9 @@ test('a page travels the way you navigated', async ({ page }) => {
     .evaluate((el) => el.style.getPropertyValue('--page-enter'))
   expect(onPage).toBe('')
 
-  // Wide screens travel the way the rail reads — up and down, a whole page — rather than
-  // sideways. 统计 first: it is nearly two screens tall, which is the case that used to leave
-  // the outgoing page hanging in the frame.
+  // Wide screens travel the way a phone does now — sideways, a page at a time — rather than
+  // up and down: pages differ in height, so a vertical swap kept both of them on screen at
+  // once, which reads as the incoming page covering the one it replaces.
   // The phone transition has to be over first, or its sideways frames land in the sample.
   await page.waitForTimeout(400)
   await page.setViewportSize({ width: 1280, height: 900 })
@@ -336,18 +336,17 @@ test('a page travels the way you navigated', async ({ page }) => {
   await page.waitForTimeout(400)
 
   await page.evaluate(() => {
-    const frames: { leaveBottom: number; enterTop: number; sideways: number }[] = []
+    const frames: { leaveX: number; enterX: number }[] = []
     ;(window as unknown as { __travel?: unknown }).__travel = frames
+    const offset = (el: Element) => {
+      const transform = getComputedStyle(el).transform
+      return transform === 'none' ? 0 : Math.round(new DOMMatrixReadOnly(transform).m41)
+    }
     const tick = () => {
       const leaving = document.querySelector('.page-leave-active')
       const entering = document.querySelector('.page-enter-active')
       if (leaving && entering) {
-        const moved = getComputedStyle(leaving).transform
-        frames.push({
-          leaveBottom: Math.round(leaving.getBoundingClientRect().bottom),
-          enterTop: Math.round(entering.getBoundingClientRect().top),
-          sideways: moved === 'none' ? 0 : Math.round(new DOMMatrixReadOnly(moved).m41),
-        })
+        frames.push({ leaveX: offset(leaving), enterX: offset(entering) })
       }
       requestAnimationFrame(tick)
     }
@@ -359,28 +358,14 @@ test('a page travels the way you navigated', async ({ page }) => {
 
   /** How the two pages moved while the swap ran. */
   const flight = await page.evaluate(
-    () =>
-      (
-        window as unknown as {
-          __travel?: { leaveBottom: number; enterTop: number; sideways: number }[]
-        }
-      ).__travel ?? [],
+    () => (window as unknown as { __travel?: { leaveX: number; enterX: number }[] }).__travel ?? [],
   )
   expect(flight.length).toBeGreaterThan(2)
-  // Sideways: never.
-  expect(flight.every((frame) => frame.sideways === 0)).toBe(true)
-  /*
-   * The page that left is gone: its bottom edge reached the top of the page area, so nothing
-   * of it is left showing (the strip above covers what passes behind it). Moving it by one
-   * viewport instead left 888px of a two-screen page hanging in the frame.
-   */
-  const pageArea = await page
-    .locator('.page-host')
-    .evaluate((el) => Math.round(el.getBoundingClientRect().top))
-  // A frame's tolerance: the last sample lands just before the page is taken out of the DOM.
-  expect(Math.min(...flight.map((frame) => frame.leaveBottom))).toBeLessThanOrEqual(pageArea + 10)
-  // And the new one came in from below.
-  expect(Math.max(...flight.map((frame) => frame.enterTop))).toBeGreaterThan(300)
+  // Forward: the new page arrives from the right, the old one leaves to the left.
+  expect(Math.max(...flight.map((frame) => frame.enterX))).toBeGreaterThan(300)
+  expect(Math.min(...flight.map((frame) => frame.leaveX))).toBeLessThan(-300)
+  // And it lands: the last sample has the incoming page in place.
+  expect(Math.abs(flight[flight.length - 1]!.enterX)).toBeLessThan(60)
 })
 
 test('tapping a tab slides the pages the way a swipe does', async ({ page }) => {
