@@ -254,10 +254,7 @@ export default {
     lastTrade: 'Latest trade',
     noData: 'No statistics yet.',
     ratios: {
-      title: 'How to read these ratios',
       open: 'See the explanation',
-      intro:
-        'All four answer one question: is the money worth the swings and drawdowns it took to earn? Higher is steadier, but any one of them on its own can fool you.',
       sharpe: {
         name: 'Sharpe',
         plain:
@@ -269,23 +266,25 @@ export default {
         name: 'Sortino',
         plain:
           'Only the downside counts as swing, so big gains are not punished. It tracks real experience better, which is why it usually runs above Sharpe.',
-        bench: 'Under 1 means drawdowns ate the return; 2 and up is good; above 3 is excellent.',
+        bench:
+          'Under 1 means drawdowns ate the return; 2 and up is good; above 3 is excellent. The card turns amber under 1 and red when negative.',
       },
       sqn: {
         name: 'SQN (System Quality Number)',
         plain:
           'Steadiness judged trade by trade: the square root of the trade count times average profit per trade, divided by the standard deviation of profit. More trades lift the same behaviour to a higher score.',
         bench:
-          'Below 1.6 poor; 1.6–1.9 below average; 2.0–2.4 average; 2.5–2.9 good; 3.0–5.0 excellent; 5–7 superb; above 7 usually means too few trades.',
+          'Below 1.6 poor; 1.6–1.9 below average; 2.0–2.4 average; 2.5–2.9 good; 3.0–5.0 excellent; 5–7 superb; above 7 usually means too few trades. The card is green from 2.5, amber from 1.6, red below.',
       },
       calmar: {
         name: 'Calmar',
         plain:
           'Whether the profit covers the worst drawdown: annual return divided by max drawdown. Up 30% in a year with a 10% worst drawdown is 3.',
-        bench: 'Below 0.5 ordinary; 0.5–1 fair; 1–3 good; above 3 excellent.',
+        bench:
+          'Below 0.5 ordinary; 0.5–1 fair; 1–3 good; above 3 excellent. The card is green from 1, amber from 0, red when negative.',
       },
       caveat:
-        'These are all ratios, so compare your own bot over time rather than against another strategy. With fewer than 30 trades, ignore all four.',
+        'It is only a ratio: compare your own bot over time rather than against another strategy. With fewer than 30 trades it tells you nothing.',
     },
   },
   logs: {
