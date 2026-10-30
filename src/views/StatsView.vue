@@ -12,7 +12,7 @@ import { useChartHeight } from '@/composables/useChartHeight'
 import { useSegBlock } from '@/composables/useSegBlock'
 import { hideFreqtradeSentinel, toNumber, type Numberish } from '@/lib/format'
 import { buildPairStats, type PairStats } from '@/lib/stats'
-import RatioGuide from '@/components/RatioGuide.vue'
+import RatioGuide, { type RatioKey } from '@/components/RatioGuide.vue'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
 
@@ -76,8 +76,8 @@ const rows = computed<PairStats[]>(() => {
 })
 
 const pairPage = ref(1)
-/** The four ratios on the two tiles share one explanation, opened from either tile. */
-const guideOpen = ref(false)
+/** Each ratio tile opens the explanation for that ratio alone. */
+const guideFor = ref<RatioKey | null>(null)
 const pairTotalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / pageSize.value)))
 const pagedPairs = computed(() =>
   rows.value.slice((pairPage.value - 1) * pageSize.value, pairPage.value * pageSize.value),
@@ -138,14 +138,15 @@ function winRateTone(value: Numberish) {
 }
 
 /**
- * Sharpe and Sortino share the usual reading: below 1 the return does not pay for the
- * risk taken, 1–2 is acceptable, 2 and up is strong. A negative ratio is outright bad.
+ * Colour by the bands the ratio guide spells out: under `weak` is red, under `good` is
+ * amber, and `good` or better is green. Sharpe, Sortino and Calmar are read against 1;
+ * SQN uses Van Tharp's 1.6 (weak) and 2.5 (good).
  */
-function riskRatioTone(value: Numberish) {
+function ratioTone(value: Numberish, weak: number, good: number) {
   const ratio = toNumber(value)
   if (ratio === null) return ''
-  if (ratio < 0) return 'u-neg'
-  return ratio < 1 ? 'u-warn' : 'u-pos'
+  if (ratio < weak) return 'u-neg'
+  return ratio < good ? 'u-warn' : 'u-pos'
 }
 
 /** Freqtrade reports drawdown as a ratio; the tiles show percentages. */
@@ -204,20 +205,34 @@ function drawdownPercent(value: number | null | undefined) {
       <MetricTile
         :label="t('kpi.sharpe')"
         :value="summary?.sharpe ?? null"
-        :tone="riskRatioTone(summary?.sharpe)"
-        :sub="`${t('kpi.sqn')} ${format.number(summary?.sqn ?? null)}`"
+        :tone="ratioTone(summary?.sharpe, 0, 1)"
         interactive
-        :aria-label="`${t('kpi.sharpe')} / ${t('kpi.sqn')} — ${t('stats.ratios.open')}`"
-        @click="guideOpen = true"
+        :aria-label="`${t('kpi.sharpe')} — ${t('stats.ratios.open')}`"
+        @click="guideFor = 'sharpe'"
+      />
+      <MetricTile
+        :label="t('kpi.sqn')"
+        :value="summary?.sqn ?? null"
+        :tone="ratioTone(summary?.sqn, 1.6, 2.5)"
+        interactive
+        :aria-label="`${t('stats.ratios.sqn.name')} — ${t('stats.ratios.open')}`"
+        @click="guideFor = 'sqn'"
       />
       <MetricTile
         :label="t('kpi.sortino')"
         :value="summary?.sortino ?? null"
-        :tone="riskRatioTone(summary?.sortino)"
-        :sub="`${t('kpi.calmar')} ${format.number(summary?.calmar ?? null)}`"
+        :tone="ratioTone(summary?.sortino, 0, 1)"
         interactive
-        :aria-label="`${t('kpi.sortino')} / ${t('kpi.calmar')} — ${t('stats.ratios.open')}`"
-        @click="guideOpen = true"
+        :aria-label="`${t('kpi.sortino')} — ${t('stats.ratios.open')}`"
+        @click="guideFor = 'sortino'"
+      />
+      <MetricTile
+        :label="t('kpi.calmar')"
+        :value="summary?.calmar ?? null"
+        :tone="ratioTone(summary?.calmar, 0, 1)"
+        interactive
+        :aria-label="`${t('stats.ratios.calmar.name')} — ${t('stats.ratios.open')}`"
+        @click="guideFor = 'calmar'"
       />
       <MetricTile
         :label="t('kpi.maxDrawdown')"
@@ -506,7 +521,7 @@ function drawdownPercent(value: number | null | undefined) {
       </div>
     </section>
 
-    <RatioGuide :open="guideOpen" @close="guideOpen = false" />
+    <RatioGuide :ratio="guideFor" @close="guideFor = null" />
   </div>
 </template>
 

@@ -57,30 +57,31 @@ test('the pair table pages by the size set in Settings', async ({ page }) => {
   await expect(pager).toContainText('第 1 / 3 页')
 })
 
-test('the two risk tiles open one plain-language guide', async ({ page }) => {
+test('each risk tile opens the explanation for that ratio alone', async ({ page }) => {
   const sharpe = livePage(page).locator('.metric--button', { hasText: '夏普' }).first()
   await expect(sharpe).toHaveAttribute('aria-label', /夏普.*查看说明/)
 
   await sharpe.click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
-  await expect(dialog).toContainText('这几个比值怎么看')
-
-  // All four ratios the page shows are explained here, with the numbers to read them by.
-  for (const name of ['夏普（Sharpe）', '索提诺（Sortino）', 'SQN', 'Calmar']) {
-    await expect(dialog).toContainText(name)
-  }
+  await expect(dialog.locator('.dialog__title')).toHaveText('夏普（Sharpe）')
   await expect(dialog).toContainText('低于 1：风险没换来补偿')
-  await expect(dialog).toContainText('样本少于 30 笔')
+  // Only its own ratio: no SQN, Sortino or Calmar text in here.
+  await expect(dialog).not.toContainText('SQN')
+  await expect(dialog).not.toContainText('索提诺')
+  await expect(dialog).not.toContainText('Calmar')
+  await expect(dialog).toContainText('样本少于 30 笔时')
 
   // Escape closes it and hands focus back to the tile that opened it.
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
   await expect(sharpe).toBeFocused()
 
-  // So does a click on the backdrop, and the Sortino tile opens the same guide.
-  await livePage(page).locator('.metric--button', { hasText: '索提诺' }).first().click()
-  await expect(dialog).toBeVisible()
+  // Another tile opens its own text, and a click on the backdrop closes it.
+  await livePage(page).locator('.metric--button', { hasText: 'Calmar' }).first().click()
+  await expect(dialog.locator('.dialog__title')).toHaveText('Calmar（收益回撤比）')
+  await expect(dialog).toContainText('1–3 好')
+  await expect(dialog).not.toContainText('夏普')
   await page.mouse.click(8, 8)
   await expect(dialog).toBeHidden()
 })
@@ -176,6 +177,9 @@ test('win/loss counts and risk ratios are colour-coded', async ({ page }) => {
   await expect(tile(page, '胜率').locator('.metric__value')).toHaveClass(/u-pos/)
   await expect(tile(page, '夏普').locator('.metric__value')).toHaveClass(/u-pos/)
   await expect(tile(page, '索提诺').locator('.metric__value')).toHaveClass(/u-pos/)
+  // SQN 1.1 is under its 1.6 line, Calmar 0.9 sits between 0 and 1.
+  await expect(tile(page, 'SQN').locator('.metric__value')).toHaveClass(/u-neg/)
+  await expect(tile(page, 'Calmar').locator('.metric__value')).toHaveClass(/u-warn/)
   // The per-pair row follows the same rule: AAA is one win and one loss.
   const table = livePage(page)
     .locator('.panel', { has: page.locator('.panel__title', { hasText: '交易对' }) })
@@ -196,6 +200,9 @@ test('a losing edge turns the win rate red and a weak ratio amber', async ({ pag
         losing_trades: 3,
         sharpe: 0.4,
         sortino: -0.2,
+        // SQN and Calmar clear their own lines in the same payload.
+        sqn: 2.8,
+        calmar: 3.4,
       },
     }),
   )
@@ -203,4 +210,6 @@ test('a losing edge turns the win rate red and a weak ratio amber', async ({ pag
   await expect(tile(page, '胜率').locator('.metric__value')).toHaveClass(/u-neg/)
   await expect(tile(page, '夏普').locator('.metric__value')).toHaveClass(/u-warn/)
   await expect(tile(page, '索提诺').locator('.metric__value')).toHaveClass(/u-neg/)
+  await expect(tile(page, 'SQN').locator('.metric__value')).toHaveClass(/u-pos/)
+  await expect(tile(page, 'Calmar').locator('.metric__value')).toHaveClass(/u-pos/)
 })

@@ -1,24 +1,28 @@
+<script lang="ts">
+export type RatioKey = 'sharpe' | 'sqn' | 'sortino' | 'calmar'
+</script>
+
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModalFocus } from '@/composables/useModalFocus'
 
-const props = defineProps<{ open: boolean }>()
+const props = defineProps<{
+  /** Which ratio to explain; `null` keeps the dialog closed. */
+  ratio: RatioKey | null
+}>()
 const emit = defineEmits<{ close: [] }>()
 
 const { t } = useI18n()
 const panel = ref<HTMLElement | null>(null)
 
-const { isTopModal } = useModalFocus(
-  computed(() => props.open),
-  panel,
-)
+const open = computed(() => props.ratio !== null)
+const title = computed(() => (props.ratio ? t(`stats.ratios.${props.ratio}.name`) : ''))
 
-/** The four ratios the statistics page shows, in the order they are usually read. */
-const RATIOS = ['sharpe', 'sortino', 'sqn', 'calmar'] as const
+const { isTopModal } = useModalFocus(open, panel)
 
 function onKeydown(event: KeyboardEvent) {
-  if (event.key !== 'Escape' || !props.open || !isTopModal.value) return
+  if (event.key !== 'Escape' || !open.value || !isTopModal.value) return
   event.preventDefault()
   event.stopPropagation()
   emit('close')
@@ -31,7 +35,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 <template>
   <Teleport to="body">
     <div
-      v-if="open"
+      v-if="ratio"
       class="overlay"
       role="dialog"
       aria-modal="true"
@@ -40,7 +44,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
     >
       <div ref="panel" class="dialog ratios" tabindex="-1">
         <div class="dialog__head">
-          <span id="ratio-guide-title" class="dialog__title">{{ t('stats.ratios.title') }}</span>
+          <span id="ratio-guide-title" class="dialog__title">{{ title }}</span>
           <div class="spacer" />
           <button type="button" class="btn btn--icon btn--ghost" @click="emit('close')">
             <span aria-hidden="true">✕</span>
@@ -48,16 +52,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           </button>
         </div>
         <div class="dialog__body">
-          <p class="ratios__intro">{{ t('stats.ratios.intro') }}</p>
-          <dl class="ratios__list">
-            <template v-for="key in RATIOS" :key="key">
-              <dt>{{ t(`stats.ratios.${key}.name`) }}</dt>
-              <dd>
-                <p>{{ t(`stats.ratios.${key}.plain`) }}</p>
-                <p class="ratios__bench">{{ t(`stats.ratios.${key}.bench`) }}</p>
-              </dd>
-            </template>
-          </dl>
+          <p>{{ t(`stats.ratios.${ratio}.plain`) }}</p>
+          <p class="ratios__bench">{{ t(`stats.ratios.${ratio}.bench`) }}</p>
           <p class="ratios__caveat">{{ t('stats.ratios.caveat') }}</p>
         </div>
         <div class="dialog__foot">
@@ -71,56 +67,25 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 </template>
 
 <style scoped>
-.ratios__intro,
-.ratios__caveat {
-  color: var(--text-2);
-  font-size: var(--fs-base);
-}
-
-.ratios__list {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: var(--sp-3) var(--sp-4);
-  margin: var(--sp-4) 0;
-}
-
-.ratios__list dt {
-  color: var(--text-1);
-  font-weight: 600;
-  font-size: var(--fs-base);
-}
-
-/* On a phone the ratio name would eat the column; give each one its own line instead. */
-@media (max-width: 560px) {
-  .ratios__list {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--sp-1) 0;
-  }
-
-  .ratios__list dd {
-    margin-bottom: var(--sp-3);
-  }
-}
-
-.ratios__list dd {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-}
-
-.ratios__list dd p {
-  color: var(--text-2);
-  font-size: var(--fs-base);
-  line-height: 1.5;
-}
-
 .ratios__bench {
-  color: var(--text-1) !important;
+  color: var(--text-1);
+}
+
+.dialog__body p + p {
+  margin-top: var(--sp-3);
 }
 
 .ratios__caveat {
   border-top: 1px solid var(--line);
   padding-top: var(--sp-3);
+  color: var(--text-2);
+  font-size: var(--fs-base);
+}
+
+/* Long ratio names must not push the plain-language line off a phone screen. */
+@media (max-width: 560px) {
+  .dialog__title {
+    font-size: var(--fs-base);
+  }
 }
 </style>
