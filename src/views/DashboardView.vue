@@ -15,10 +15,12 @@ import { isStandalone, navigatePage } from '@/lib/navigation'
 import { hideFreqtradeSentinel, toIsoDate } from '@/lib/format'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
+import { useSettingsStore } from '@/stores/settings'
 
 const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
+const settings = useSettingsStore()
 const router = useRouter()
 
 const exitTarget = ref<Trade | null>(null)
@@ -42,8 +44,9 @@ async function openOverviewTrade(trade: Trade, filter: 'open' | 'closed'): Promi
   await router.push(detail)
 }
 const pnlChartHeight = useChartHeight(150, 0.2, 230)
-/** The overview stays a summary: only the newest closed trades are listed. */
-const OVERVIEW_CLOSED_ROWS = 6
+/** The overview stays a summary; how long is up to the operator (Settings → Interface). */
+const openRows = computed(() => bot.openTrades.slice(0, settings.overviewOpenLimit))
+const closedRows = computed(() => bot.closedByRecency.slice(0, settings.overviewClosedLimit))
 
 const stake = computed(() => bot.stakeCurrency)
 
@@ -202,7 +205,7 @@ async function confirmExit() {
               </thead>
               <tbody>
                 <tr
-                  v-for="trade in bot.openTrades"
+                  v-for="trade in openRows"
                   :key="trade.trade_id"
                   @click="openOverviewTrade(trade, 'open')"
                 >
@@ -275,7 +278,7 @@ async function confirmExit() {
               </thead>
               <tbody>
                 <tr
-                  v-for="trade in bot.closedByRecency.slice(0, OVERVIEW_CLOSED_ROWS)"
+                  v-for="trade in closedRows"
                   :key="trade.trade_id"
                   @click="openOverviewTrade(trade, 'closed')"
                 >
