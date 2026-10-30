@@ -134,7 +134,8 @@ test('a phone sorts through the toolbar, the way the desktop headers do', async 
   expect(await firstPair()).toBe('OPEN/USDT')
 
   const sortMenu = livePage(page).locator('.filter-menu__button', { hasText: '排序' })
-  const direction = livePage(page).getByRole('button', { name: '降序' })
+  // The button names the action, not the state it is already in.
+  const direction = livePage(page).getByRole('button', { name: '改为升序' })
   await expect(direction).toBeVisible()
 
   // The toolbar carries five controls; it has to fit even a 360px phone.
@@ -153,8 +154,8 @@ test('a phone sorts through the toolbar, the way the desktop headers do', async 
   await expect(cards.last()).toContainText('-0.2000')
 
   // The arrow flips the order without reopening the menu.
-  await livePage(page).getByRole('button', { name: '降序' }).click()
-  await expect(livePage(page).getByRole('button', { name: '升序' })).toBeVisible()
+  await livePage(page).getByRole('button', { name: '改为升序' }).click()
+  await expect(livePage(page).getByRole('button', { name: '改为降序' })).toBeVisible()
   await expect(cards.first()).toContainText('-0.2000')
   expect(await firstPair()).toBe('AAA/USDT')
 
@@ -167,7 +168,7 @@ test('a phone sorts through the toolbar, the way the desktop headers do', async 
   await page.setViewportSize({ width: 1280, height: 900 })
   await expect(livePage(page).locator('table tbody tr').first()).toBeVisible()
   await expect(sortMenu).toBeHidden()
-  await expect(livePage(page).getByRole('button', { name: '升序' })).toBeHidden()
+  await expect(livePage(page).getByRole('button', { name: '改为降序' })).toBeHidden()
 })
 
 test('search expands on demand and clears when collapsed', async ({ page }) => {

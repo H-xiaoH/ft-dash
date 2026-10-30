@@ -155,6 +155,7 @@ export default {
     sort: 'Sort',
     sortAsc: 'Ascending',
     sortDesc: 'Descending',
+    sortTo: 'Sort {dir}',
     duration: 'Duration',
     openDate: 'Opened',
     closeDate: 'Closed',
