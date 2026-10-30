@@ -124,6 +124,45 @@ test('outcome filter narrows the list to profitable or losing trades', async ({ 
   await expect(rows).toHaveCount(4)
 })
 
+test('a phone sorts through the toolbar, the way the desktop headers do', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  const cards = livePage(page).locator('.card')
+  const firstPair = () => cards.first().locator('.card__pair').textContent()
+
+  // Default order is newest first, so the still-open position leads.
+  await expect(cards).toHaveCount(5)
+  expect(await firstPair()).toBe('OPEN/USDT')
+
+  const sortMenu = livePage(page).locator('.filter-menu__button', { hasText: '排序' })
+  const direction = livePage(page).getByRole('button', { name: '降序' })
+  await expect(direction).toBeVisible()
+
+  // The toolbar now carries five controls; it still has to fit the phone.
+  const overflow = await livePage(page)
+    .locator('.panel__head')
+    .first()
+    .evaluate((head) => head.scrollWidth - head.clientWidth)
+  expect(overflow).toBeLessThanOrEqual(1)
+
+  // Same rule as the headers: a new field starts at its own natural direction.
+  await sortMenu.click()
+  await page.locator('.filter-menu__item', { hasText: '盈亏' }).click()
+  expect(await firstPair()).toBe('AAA/USDT')
+  await expect(cards.first()).toContainText('0.8000')
+  await expect(cards.last()).toContainText('-0.2000')
+
+  // The arrow flips the order without reopening the menu.
+  await livePage(page).getByRole('button', { name: '降序' }).click()
+  await expect(livePage(page).getByRole('button', { name: '升序' })).toBeVisible()
+  await expect(cards.first()).toContainText('-0.2000')
+  expect(await firstPair()).toBe('AAA/USDT')
+
+  // On a desktop the headers do this job, so the toolbar pair stays hidden.
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await expect(sortMenu).toBeHidden()
+  await expect(livePage(page).getByRole('button', { name: '升序' })).toBeHidden()
+})
+
 test('search expands on demand and clears when collapsed', async ({ page }) => {
   const rows = livePage(page).locator('table tbody tr')
   await expect(livePage(page).locator('.search-toggle input')).toHaveCount(0)
