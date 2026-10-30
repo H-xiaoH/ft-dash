@@ -16,6 +16,29 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
+/** The connect form probes the bot before saving, so the probe needs an answer. */
+function answerProbe(ok = true) {
+  vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
+    const url = String(input)
+    const body = url.includes('/ping')
+      ? { status: 'pong' }
+      : {
+          version: '2026.9',
+          api_version: 2.5,
+          dry_run: true,
+          stake_currency: 'USDT',
+          stake_amount: 'unlimited',
+          max_open_trades: 3,
+        }
+    return Promise.resolve(
+      new Response(JSON.stringify(ok ? body : { detail: 'Incorrect username or password' }), {
+        status: ok ? 200 : 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+  })
+}
+
 describe('BotsPanel', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -27,6 +50,7 @@ describe('BotsPanel', () => {
     useToasts().toasts.value = []
     document.body.innerHTML = ''
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('lets the latest bot switch own the result toast', async () => {
@@ -91,6 +115,7 @@ describe('BotsPanel', () => {
       username: 'existing',
       password: 'secret',
     })
+    answerProbe()
     const bot = useBotStore()
     vi.spyOn(bot, 'connect').mockResolvedValue(true)
     vi.spyOn(bot, 'rebuildClient').mockImplementation(() => undefined)
@@ -108,6 +133,62 @@ describe('BotsPanel', () => {
     expect(added).toBeDefined()
     expect(settings.activeBotId).toBe(added?.id)
     expect(bot.connect).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('saves nothing when the bot refuses the sign-in', async () => {
+    answerProbe(false)
+    const bot = useBotStore()
+    const connect = vi.spyOn(bot, 'connect').mockResolvedValue(true)
+    const settings = useSettingsStore()
+
+    const wrapper = mount(ConnectView, { global: { plugins: [i18n] } })
+    const inputs = wrapper.findAll('input')
+    await inputs[0]!.setValue('typo-bot')
+    await inputs[1]!.setValue('https://typo.example/api/v1')
+    await inputs[2]!.setValue('typo-user')
+    await inputs[3]!.setValue('wrong-password')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    // The probe is what fails: no bot in the list, no connection attempt, and the reason is
+    // shown on this form rather than in the shell.
+    expect(settings.bots).toHaveLength(0)
+    expect(connect).not.toHaveBeenCalled()
+    expect(wrapper.find('.banner--bad').text()).toContain('Wrong username or password')
+    wrapper.unmount()
+  })
+
+  it('only saves a bot the API answers for', async () => {
+    const settings = useSettingsStore()
+    const wrapper = mount(BotsPanel, { global: { plugins: [i18n] } })
+
+    const fillEditor = async (password: string) => {
+      await wrapper
+        .findAll('button')
+        .find((button) => button.text().includes('Add bot'))!
+        .trigger('click')
+      const editor = wrapper.find('.bots__editor')
+      await editor.find('input[inputmode="url"]').setValue('https://new.example/api/v1')
+      await editor.find('input[autocomplete="username"]').setValue('new-user')
+      await editor.find('input[type="password"]').setValue(password)
+      await editor.trigger('submit')
+      await flushPromises()
+    }
+
+    // Refused: nothing is written and the editor stays open for another try.
+    answerProbe(false)
+    await fillEditor('wrong-password')
+    expect(settings.bots).toHaveLength(0)
+    expect(wrapper.find('.bots__editor').exists()).toBe(true)
+    expect(useToasts().toasts.value.at(-1)?.message).toContain('Wrong username or password')
+
+    // Accepted: the same form now lands the bot in the list.
+    answerProbe(true)
+    await wrapper.find('.bots__editor').trigger('submit')
+    await flushPromises()
+    expect(settings.bots).toHaveLength(1)
+    expect(settings.bots[0]?.baseUrl).toBe('https://new.example/api/v1')
     wrapper.unmount()
   })
 })

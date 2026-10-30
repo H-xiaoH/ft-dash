@@ -45,7 +45,12 @@ const showConnect = computed(
     !restoring.value &&
     bot.connection !== 'online' &&
     bot.connection !== 'connecting' &&
-    !bot.showConfig,
+    /*
+     * A rejected session is a sign-in problem, not a shell problem: the form comes back (with
+     * the bot list and the fields still filled in) instead of a dashboard that can no longer
+     * fetch anything.
+     */
+    (bot.connection === 'unauthorized' || !bot.showConfig),
 )
 
 /** How long the pages have to stop changing before the landing one is refreshed. */
@@ -94,10 +99,6 @@ async function refresh() {
 /** The live tape lives on the System page. */
 function openTape() {
   if (route.name !== 'system') void navigatePage(router, '/system')
-}
-
-function openSettings() {
-  void navigatePage(router, '/settings')
 }
 
 onMounted(async () => {
@@ -177,11 +178,7 @@ watch(
 
     <div class="main">
       <StatusStrip @refresh="refresh" @open-tape="openTape" />
-      <GlobalNotices
-        @open-settings="openSettings"
-        @retry="refresh"
-        @retry-stream="bot.retryStream()"
-      />
+      <GlobalNotices />
 
       <div class="shell__body">
         <main class="content">
