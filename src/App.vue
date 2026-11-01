@@ -331,6 +331,7 @@ watch(
             :style="{
               '--page-enter': `${handoff ? 0 : pageDirection}`,
               '--page-leave': `${handoff ? 0 : -pageDirection}`,
+              '--page-leave-opacity': handoff ? 0 : 1,
             }"
           >
             <!-- A bot switch is a new data source, so page-local filters and drawers start fresh. -->
@@ -552,11 +553,8 @@ watch(
   top: 0;
   left: 0;
   width: 100%;
-  /*
-   * Mobile keeps its existing incoming-sheet presentation. Desktop overrides this below
-   * so both pages remain visible on opposite sides of their shared edge.
-   */
-  opacity: 0;
+  /* A completed swipe already shows the parked destination; only its old root is hidden. */
+  opacity: var(--page-leave-opacity, 1);
 }
 
 .page-enter-from {
@@ -582,10 +580,6 @@ watch(
   .page-enter-active,
   .page-leave-active {
     transition: none;
-  }
-
-  .page-leave-active {
-    opacity: 1;
   }
 
   .page-enter-from {

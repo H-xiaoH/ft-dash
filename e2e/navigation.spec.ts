@@ -389,48 +389,77 @@ test('a page travels the way you navigated', async ({ page }) => {
   }
 })
 
-test('tapping a tab slides the pages the way a swipe does', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
+for (const [target, direction] of [
+  [1, 1],
+  [0, -1],
+] as const) {
+  test(`tapping a tab slides the pages the way a swipe does (${direction})`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 780 })
+    // Keep enough samples when native-device mirroring and browser workers share the CPU.
+    await page.addStyleTag({ content: '.page-host { --dur-slide: 400ms; }' })
 
-  // Watch the two pages while the tap is handled: they must be in flight together, each
-  // travelling a full page. The old step animation moved one at a time and only 28px.
-  await page.evaluate(() => {
-    const frames: { leaving: number; entering: number }[] = []
-    ;(window as unknown as { __frames?: unknown }).__frames = frames
-    const offset = (el: Element) => {
-      const transform = getComputedStyle(el).transform
-      return transform === 'none' ? 0 : Math.round(new DOMMatrixReadOnly(transform).m41)
+    if (direction === -1) {
+      await page.goto('/#/trades')
+      await expect(livePage(page).locator('.seg')).toBeVisible()
+      await expect(page.locator('.page-enter-active,.page-leave-active')).toHaveCount(0)
     }
-    /*
-     * The budget starts when the two pages first share the track, not when this recorder
-     * is installed: the tap is dispatched by the test runner, and how long that takes is
-     * not what this test is about. Recording stops once the outgoing page is gone.
-     */
-    let deadline = 0
-    const tick = () => {
-      const pages = [...document.querySelectorAll('.page-track > :not(.page-neighbor)')]
-      if (pages.length === 2) {
-        if (!deadline) deadline = performance.now() + 700
-        frames.push({ leaving: offset(pages[0]), entering: offset(pages[1]) })
+
+    // Watch the two pages while the tap is handled: they must be in flight together, each
+    // travelling a full page. The old step animation moved one at a time and only 28px.
+    await page.evaluate((direction) => {
+      const frames: { leaving: number; entering: number; opacity: number; gap: number }[] = []
+      ;(window as unknown as { __frames?: unknown }).__frames = frames
+      const offset = (el: Element) => {
+        const transform = getComputedStyle(el).transform
+        return transform === 'none' ? 0 : Math.round(new DOMMatrixReadOnly(transform).m41)
       }
-      if (deadline && performance.now() > deadline) return
+      /*
+       * The budget starts when the two pages first share the track, not when this recorder
+       * is installed: the tap is dispatched by the test runner, and how long that takes is
+       * not what this test is about. Recording stops once the outgoing page is gone.
+       */
+      let deadline = 0
+      const tick = () => {
+        const pages = [...document.querySelectorAll('.page-track > :not(.page-neighbor)')]
+        if (pages.length === 2) {
+          if (!deadline) deadline = performance.now() + 700
+          frames.push({
+            leaving: offset(pages[0]),
+            entering: offset(pages[1]),
+            opacity: Number(getComputedStyle(pages[0]!).opacity),
+            gap:
+              direction === 1
+                ? pages[1]!.getBoundingClientRect().left - pages[0]!.getBoundingClientRect().right
+                : pages[0]!.getBoundingClientRect().left - pages[1]!.getBoundingClientRect().right,
+          })
+        }
+        if (deadline && performance.now() > deadline) return
+        requestAnimationFrame(tick)
+      }
       requestAnimationFrame(tick)
-    }
-    requestAnimationFrame(tick)
+    }, direction)
+
+    await page.locator('.tabbar__item').nth(target).click()
+    await expect.poll(() => hash(page)).toBe(target === 1 ? '#/trades' : '#/')
+    await page.waitForTimeout(900)
+
+    const frames = await page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            __frames?: { leaving: number; entering: number; opacity: number; gap: number }[]
+          }
+        ).__frames ?? [],
+    )
+    // Both pages on screen at once: the old one heading left, the new one arriving from the right.
+    expect(frames.length).toBeGreaterThan(2)
+    expect(frames.every((frame) => frame.opacity === 1)).toBe(true)
+    expect(Math.max(...frames.map((frame) => Math.abs(frame.gap)))).toBeLessThan(2)
+    expect(
+      frames.some((frame) => frame.leaving * direction < -20 && frame.entering * direction > 20),
+    ).toBe(true)
   })
-
-  await page.locator('.tabbar__item').nth(1).click()
-  await expect.poll(() => hash(page)).toBe('#/trades')
-  await page.waitForTimeout(900)
-
-  const frames = await page.evaluate(
-    () =>
-      (window as unknown as { __frames?: { leaving: number; entering: number }[] }).__frames ?? [],
-  )
-  // Both pages on screen at once: the old one heading left, the new one arriving from the right.
-  expect(frames.length).toBeGreaterThan(2)
-  expect(frames.some((frame) => frame.leaving < -20 && frame.entering > 20)).toBe(true)
-})
+}
 
 /** Points the mouse at the middle of a rail item, where the wheel walks pages. */
 const railAt = async (page: Page, index: number) => {

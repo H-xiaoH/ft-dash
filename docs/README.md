@@ -38,6 +38,7 @@
 
 ### 导航、布局与动效
 
+- [mobile-page-motion](specs/mobile-page-motion.md) — 手机底栏点击时保留旧页，匹配手指滑动的跟随效果
 - [page-frame-motion](specs/page-frame-motion.md) — 展开与桌面共用页面窗口，短页和长页同帧贴合切换
 - [app-navigation-split](specs/app-navigation-split.md) — 拆分桌面导航与手机底栏
 - [desktop-page-motion](specs/desktop-page-motion.md) — 桌面上下切页与共享页面边界
@@ -65,6 +66,7 @@
 
 ## archive
 
+- [mobile-page-motion-verification](archive/mobile-page-motion-verification.md) — 2026-11-02 手机底栏正反向切页、可见性与接缝验收
 - [independent-refresh-verification](archive/independent-refresh-verification.md) — 2026-11-02 独立刷新、慢心跳与鉴权竞态验收
 - [page-frame-motion-verification](archive/page-frame-motion-verification.md) — 2026-11-02 页面接缝、滚动位置与动画清理验收
 - [ui-and-readme-verification](archive/ui-and-readme-verification.md) — 2026-11-01 排序/盈亏口径修复与六张 README 截图验收
