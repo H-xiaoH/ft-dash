@@ -214,7 +214,7 @@ function canDropSignalColumns(error: ErrorDescription | undefined, columns?: str
   return (status === 400 || status === 422) && /(column|signal|enter_|exit_)/i.test(detail)
 }
 
-function isTransportFailure(error: ErrorDescription | null | undefined): boolean {
+function isTransportFailure(error: ErrorDescription | null | undefined): error is ErrorDescription {
   const status = Number(error?.params?.status)
   return (
     error?.key === 'errors.auth' ||
@@ -223,6 +223,11 @@ function isTransportFailure(error: ErrorDescription | null | undefined): boolean
     error?.key === 'errors.timeout' ||
     (error?.key === 'errors.http' && status >= 500)
   )
+}
+
+function preferredTransportError(errors: (ErrorDescription | null | undefined)[]) {
+  const failures = errors.filter(isTransportFailure)
+  return failures.find((error) => error.key === 'errors.auth') ?? failures[0]
 }
 
 /**
@@ -244,8 +249,7 @@ export class BotSessionController {
   private nextActionToken = 0
   private actionLock: { token: number } | null = null
   private pollTimer: ReturnType<typeof setInterval> | null = null
-  private pollInFlight: { epoch: number; token: number } | null = null
-  private nextPollToken = 0
+  private readonly pollInFlight = new Map<ResourceName, object>()
   private pollTickCount = 0
   private lastBackgroundCheck = 0
   private heartbeatAlerted = false
@@ -414,19 +418,24 @@ export class BotSessionController {
     epoch: number,
   ): void {
     if (epoch !== this.state.epoch) return
-    const failed = results.find((result) => !result.ok && !result.stale)
+    const failures = results.filter((result) => !result.ok && !result.stale)
+    const failed = failures.find((result) => result.error?.key === 'errors.auth') ?? failures[0]
     this.state.resourceErrors[resource] = failed?.error ?? null
     if (!failed) this.state.lastFetchAt = Date.now()
   }
 
   private updateConnectionFromResults(results: CallResult<unknown>[], epoch: number): void {
     if (epoch !== this.state.epoch) return
-    const transportFailure = results.find(
-      (result) => !result.ok && !result.stale && isTransportFailure(result.error),
-    )
-    if (transportFailure) {
-      const key = transportFailure.error?.key
-      this.state.errorKey = transportFailure.error ?? null
+    const failure = preferredTransportError([
+      ...results.filter((result) => !result.ok && !result.stale).map((result) => result.error),
+      this.state.resourceErrors.core,
+      this.state.resourceErrors.trades?.key === 'errors.auth'
+        ? this.state.resourceErrors.trades
+        : null,
+    ])
+    if (failure) {
+      const key = failure.key
+      this.state.errorKey = failure
       this.state.connection = key === 'errors.auth' ? 'unauthorized' : 'unreachable'
       /*
        * 401 is not a transient: the credentials are wrong, or the proxy in front of the API
@@ -647,17 +656,16 @@ export class BotSessionController {
     this.state.refreshing = true
     const promise = (async (): Promise<RefreshSummary> => {
       const results: Partial<Record<ResourceName, CallResult<unknown>>> = {}
-      const core = await this.refreshCore()
-      results.core = { ok: core.ok, stale: core.stale }
-      if (epoch !== this.state.epoch) return summary(epoch, results, true)
-      const trades = await this.refreshTrades()
-      results.trades = { ok: trades.ok, stale: trades.stale }
-      if (epoch !== this.state.epoch) return summary(epoch, results, true)
-      const [analytics, market, system] = await Promise.all([
+      const [core, trades, analytics, market, system] = await Promise.all([
+        this.refreshCore(),
+        this.refreshTrades(),
         this.refreshAnalytics(),
         this.refreshMarket(),
         this.refreshSystem(),
       ])
+      if (epoch !== this.state.epoch) return summary(epoch, results, true)
+      results.core = { ok: core.ok, stale: core.stale }
+      results.trades = { ok: trades.ok, stale: trades.stale }
       results.analytics = { ok: analytics.ok, stale: analytics.stale }
       results.market = { ok: market.ok, stale: market.stale }
       results.system = { ok: system.ok, stale: system.stale }
@@ -689,32 +697,44 @@ export class BotSessionController {
     this.heartbeatAlerted = false
   }
 
-  private async pollTick(): Promise<void> {
-    if (this.pollInFlight) return
-    const run = { epoch: this.state.epoch, token: ++this.nextPollToken }
-    this.pollInFlight = run
+  private async pollResource(
+    resource: ResourceName,
+    refresh: () => Promise<unknown>,
+  ): Promise<void> {
+    if (this.pollInFlight.has(resource)) return
+    const run = {}
+    this.pollInFlight.set(resource, run)
     try {
-      if (run.epoch !== this.state.epoch) return
-      const now = Date.now()
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        if (this.backgroundCheckEnabled() && now - this.lastBackgroundCheck >= 10_000) {
-          this.lastBackgroundCheck = now
-          await this.refreshHealth()
-        }
-        return
-      }
-      this.pollTickCount += 1
-      await this.refreshCore()
-      if (run.epoch !== this.state.epoch) return
-      if (this.pollTickCount % 4 === 0) {
-        await Promise.all([this.refreshTrades(), this.refreshMarket()])
-      }
-      if (this.pollTickCount % 12 === 0) {
-        await Promise.all([this.refreshAnalytics(), this.refreshSystem()])
-      }
+      await refresh()
     } finally {
-      if (this.pollInFlight?.token === run.token) this.pollInFlight = null
+      if (this.pollInFlight.get(resource) === run) this.pollInFlight.delete(resource)
     }
+  }
+
+  private async pollTick(): Promise<void> {
+    const now = Date.now()
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      if (this.backgroundCheckEnabled() && now - this.lastBackgroundCheck >= 10_000) {
+        this.lastBackgroundCheck = now
+        await this.pollResource('core', () => this.refreshHealth())
+      }
+      return
+    }
+    this.pollTickCount += 1
+    const pending = [this.pollResource('core', () => this.refreshCore())]
+    if (this.pollTickCount % 4 === 0) {
+      pending.push(
+        this.pollResource('trades', () => this.refreshTrades()),
+        this.pollResource('market', () => this.refreshMarket()),
+      )
+    }
+    if (this.pollTickCount % 12 === 0) {
+      pending.push(
+        this.pollResource('analytics', () => this.refreshAnalytics()),
+        this.pollResource('system', () => this.refreshSystem()),
+      )
+    }
+    await Promise.all(pending)
   }
 
   private async refreshHealth(): Promise<void> {
@@ -737,7 +757,7 @@ export class BotSessionController {
       clearInterval(this.pollTimer)
       this.pollTimer = null
     }
-    this.pollInFlight = null
+    this.pollInFlight.clear()
   }
 
   async connect(): Promise<boolean> {
@@ -755,15 +775,12 @@ export class BotSessionController {
       const refreshed = await this.refreshAll()
       if (epoch !== this.state.epoch || client !== this.client) return false
       this.state.latencyMs ??= Math.round(performance.now() - started)
-      const requiredResource = refreshed.failed.find(
-        (resource): resource is 'core' | 'trades' =>
-          (resource === 'core' || resource === 'trades') &&
-          isTransportFailure(this.state.resourceErrors[resource]),
+      const requiredError = preferredTransportError(
+        refreshed.failed
+          .filter((resource) => resource === 'core' || resource === 'trades')
+          .map((resource) => this.state.resourceErrors[resource]),
       )
-      const requiredError = requiredResource
-        ? this.state.resourceErrors[requiredResource]
-        : undefined
-      if (requiredError && isTransportFailure(requiredError)) {
+      if (requiredError) {
         this.state.errorKey = requiredError
         this.state.connection = requiredError.key === 'errors.auth' ? 'unauthorized' : 'unreachable'
         return false

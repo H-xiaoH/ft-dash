@@ -68,6 +68,78 @@ function candleResponse(): PairCandlesResponse {
 }
 
 describe('BotSessionController', () => {
+  it('publishes independent resources while health is pending and reports its failure', async () => {
+    const health = deferred<unknown>()
+    const client = fakeClient({ health: vi.fn().mockReturnValue(health.promise) })
+    const session = sessionFor(client)
+    const pending = session.refreshAll()
+    await vi.waitFor(() => expect(session.state.tradesReady).toBe(true))
+    expect(client.tradeStats).toHaveBeenCalledOnce()
+    expect(client.whitelist).toHaveBeenCalledOnce()
+    expect(client.logs).toHaveBeenCalledOnce()
+    expect(session.state.data.daily).not.toBeNull()
+    expect(session.state.data.whitelist).not.toBeNull()
+    expect(session.state.coreReady).toBe(false)
+    expect(session.state.refreshing).toBe(true)
+    health.reject(new ApiError('cors', 'health unavailable'))
+    const result = await pending
+    expect(result.failed).toEqual(['core'])
+    expect(result.succeeded).toEqual(['trades', 'analytics', 'market', 'system'])
+    expect(session.state.refreshing).toBe(false)
+  })
+
+  it('preserves authentication failure when another core request also fails and trades succeed', async () => {
+    const trades = deferred<unknown>()
+    const session = sessionFor(
+      fakeClient({
+        status: vi.fn().mockRejectedValue(new ApiError('cors', 'unreachable')),
+        health: vi.fn().mockRejectedValue(new ApiError('auth', 'Unauthorized', { status: 401 })),
+        trades: vi.fn().mockReturnValue(trades.promise),
+      }),
+    )
+    session.state.connection = 'online'
+    const pending = session.refreshAll()
+    await vi.waitFor(() => expect(session.state.connection).toBe('unauthorized'))
+    trades.resolve({ trades: [] })
+    await pending
+    expect(session.state.connection).toBe('unauthorized')
+    expect(session.state.errorKey?.key).toBe('errors.auth')
+  })
+
+  it('keeps a trades authentication error ahead of a core network error when connecting', async () => {
+    const session = sessionFor(
+      fakeClient({
+        status: vi.fn().mockRejectedValue(new ApiError('cors', 'unreachable')),
+        trades: vi.fn().mockRejectedValue(new ApiError('auth', 'Unauthorized', { status: 401 })),
+      }),
+    )
+    await expect(session.connect()).resolves.toBe(false)
+    expect(session.state.connection).toBe('unauthorized')
+    expect(session.state.errorKey?.key).toBe('errors.auth')
+  })
+
+  it('polls other groups on schedule without repeating a pending core group', async () => {
+    vi.useFakeTimers()
+    const health = deferred<unknown>()
+    const client = fakeClient({ health: vi.fn().mockReturnValue(health.promise) })
+    const session = sessionFor(client)
+    try {
+      session.startPolling()
+      await vi.advanceTimersByTimeAsync(12_000)
+      expect(client.health).toHaveBeenCalledOnce()
+      expect(client.trades).toHaveBeenCalledTimes(3)
+      expect(client.whitelist).toHaveBeenCalledTimes(3)
+      expect(client.tradeStats).toHaveBeenCalledOnce()
+      expect(client.logs).toHaveBeenCalledOnce()
+      health.resolve({})
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(client.health).toHaveBeenCalledTimes(2)
+    } finally {
+      session.cleanup()
+      vi.useRealTimers()
+    }
+  })
+
   it('alerts once during failed background health checks and rearms after recovery', async () => {
     vi.useFakeTimers()
     const originalVisibility = document.visibilityState
