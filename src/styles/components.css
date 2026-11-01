@@ -189,17 +189,35 @@
 
 .chip--good {
   color: var(--long);
-  border-color: color-mix(in srgb, var(--long) 35%, transparent);
+  border-color: rgb(36 201 138 / 35%);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .chip--good {
+    border-color: color-mix(in srgb, var(--long) 35%, transparent);
+  }
 }
 
 .chip--bad {
   color: var(--short);
-  border-color: color-mix(in srgb, var(--short) 35%, transparent);
+  border-color: rgb(255 91 91 / 35%);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .chip--bad {
+    border-color: color-mix(in srgb, var(--short) 35%, transparent);
+  }
 }
 
 .chip--warn {
   color: var(--warn);
-  border-color: color-mix(in srgb, var(--warn) 35%, transparent);
+  border-color: rgb(255 165 59 / 35%);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .chip--warn {
+    border-color: color-mix(in srgb, var(--warn) 35%, transparent);
+  }
 }
 
 .chip--accent {
@@ -258,13 +276,25 @@
 }
 
 .btn--danger {
-  border-color: color-mix(in srgb, var(--short) 55%, var(--line));
+  border-color: rgb(154 64 64);
   color: var(--short);
 }
 
+@supports (color: color-mix(in srgb, black, white)) {
+  .btn--danger {
+    border-color: color-mix(in srgb, var(--short) 55%, var(--line));
+  }
+}
+
 .btn--danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--short) 16%, var(--ink-800));
+  background: rgb(58 32 32);
   border-color: var(--short);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .btn--danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--short) 16%, var(--ink-800));
+  }
 }
 
 .btn--ghost {
@@ -577,13 +607,27 @@
 }
 
 .banner--bad {
-  border-color: color-mix(in srgb, var(--short) 45%, var(--line));
-  background: color-mix(in srgb, var(--short) 10%, var(--ink-850));
+  border-color: rgb(132 58 58);
+  background: rgb(39 23 23);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .banner--bad {
+    border-color: color-mix(in srgb, var(--short) 45%, var(--line));
+    background: color-mix(in srgb, var(--short) 10%, var(--ink-850));
+  }
 }
 
 .banner--warn {
-  border-color: color-mix(in srgb, var(--warn) 45%, var(--line));
-  background: color-mix(in srgb, var(--warn) 10%, var(--ink-850));
+  border-color: rgb(132 91 44);
+  background: rgb(39 30 19);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .banner--warn {
+    border-color: color-mix(in srgb, var(--warn) 45%, var(--line));
+    background: color-mix(in srgb, var(--warn) 10%, var(--ink-850));
+  }
 }
 
 .banner__body {
@@ -657,13 +701,14 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--ink-900) 60%, transparent);
+  background: rgb(0 0 0 / 60%);
   /*
    * The blur is the transition: the page behind the sheet goes soft as the popup arrives,
    * which is what makes it read as a sheet over the app rather than as another panel.
    * Animating `backdrop-filter` is not free, but it only runs for the length of the opening.
    */
-  animation: overlay-blur 180ms ease-out both;
+
+  -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
@@ -672,16 +717,51 @@
   z-index: 40;
 }
 
-@keyframes overlay-blur {
-  from {
-    backdrop-filter: blur(0);
-    background-color: transparent;
+@supports (color: color-mix(in srgb, black, white)) {
+  .overlay {
+    background: color-mix(in srgb, var(--ink-900) 60%, transparent);
   }
 }
 
+/* The backdrop and sheet share enter/leave timing. */
+.popup-enter-active,
+.popup-leave-active,
+.drawer-overlay-enter-active,
+.drawer-overlay-leave-active {
+  animation: none;
+  transition:
+    opacity 200ms ease,
+    backdrop-filter 200ms ease,
+    background-color 200ms ease;
+}
+.popup-enter-active .dialog,
+.popup-leave-active .dialog {
+  transition: transform 200ms ease;
+}
+.popup-enter-from,
+.popup-leave-to,
+.drawer-overlay-enter-from,
+.drawer-overlay-leave-to {
+  opacity: 0;
+  -webkit-backdrop-filter: blur(0);
+  backdrop-filter: blur(0);
+  background-color: transparent;
+}
+.popup-enter-from .dialog,
+.popup-leave-to .dialog {
+  transform: scale(0.96);
+  transform-origin: center;
+}
 @media (prefers-reduced-motion: reduce) {
-  .overlay {
-    animation: none;
+  .popup-enter-active,
+  .popup-leave-active,
+  .popup-enter-active .dialog,
+  .popup-leave-active .dialog,
+  .drawer-overlay-enter-active,
+  .drawer-overlay-leave-active,
+  .drawer-overlay-enter-active .drawer,
+  .drawer-overlay-leave-active .drawer {
+    transition: none !important;
   }
 }
 
@@ -736,8 +816,8 @@
   max-width: calc(100vw - 32px);
 }
 
-/* Leave the mobile tab bar and its safe area clear while keeping the same right-hand anchor. */
-@media (max-width: 900px) {
+/* Match the narrow shell breakpoint so toasts clear its tab bar. */
+@media not all and (min-width: 720px) {
   .toast-stack {
     bottom: calc(var(--tabbar-space) + var(--sp-4) + env(safe-area-inset-bottom, 0px));
   }
@@ -814,11 +894,23 @@
 }
 
 .toast--good {
-  border-color: color-mix(in srgb, var(--long) 55%, var(--line));
+  border-color: rgb(34 125 90);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .toast--good {
+    border-color: color-mix(in srgb, var(--long) 55%, var(--line));
+  }
 }
 
 .toast--bad {
-  border-color: color-mix(in srgb, var(--short) 55%, var(--line));
+  border-color: rgb(154 64 64);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .toast--bad {
+    border-color: color-mix(in srgb, var(--short) 55%, var(--line));
+  }
 }
 
 /* --- layout helpers ---------------------------------------------------- */

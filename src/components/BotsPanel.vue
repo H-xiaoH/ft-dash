@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import ControlsPanel from '@/components/ControlsPanel.vue'
 import FilterMenu, { type FilterOption, type StatusLamp } from '@/components/FilterMenu.vue'
 import InlineConfirm from '@/components/InlineConfirm.vue'
 import { pushToast } from '@/composables/useToast'
-import { describeError, FreqtradeApiClient, normalizeBaseUrl } from '@/data/freqtrade'
+import { describeError, FreqtradeApiClient } from '@/data/freqtrade'
 import { defaultBotName, type Bot } from '@/lib/bots'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
@@ -41,16 +41,36 @@ let switchRequest = 0
 const MANAGE = '__manage'
 const manageOpen = ref(false)
 
+const probeLamps = ref<Record<string, StatusLamp>>({})
+let probeController: AbortController | null = null
+
+function probeBackends(open: boolean) {
+  probeController?.abort()
+  if (!open) return
+  const controller = new AbortController()
+  probeController = controller
+  for (const entry of settings.bots) {
+    if (entry.id === settings.activeBotId) continue
+    probeLamps.value[entry.id] = 'warn'
+    const api = new FreqtradeApiClient(entry)
+    // Ping is public; show_config also checks the saved credentials.
+    void api
+      .ping({ signal: controller.signal, timeoutMs: 5000 })
+      .then(() => api.showConfig({ signal: controller.signal, timeoutMs: 5000 }))
+      .then(() => {
+        if (!controller.signal.aborted) probeLamps.value[entry.id] = 'good'
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) probeLamps.value[entry.id] = 'bad'
+      })
+  }
+}
+onBeforeUnmount(() => probeController?.abort())
+
 const activeBot = computed(
   () => settings.bots.find((entry) => entry.id === settings.activeBotId) ?? null,
 )
 
-/**
- * The lamp follows the poll: green while the bot answers, amber while a request is in
- * flight (or the first connection is still being made), red once it stops answering.
- * Every other bot is unknown here — this app only talks to the one on screen — so it stays
- * a muted dot instead of pretending to be healthy.
- */
 const lamp = computed<StatusLamp>(() => {
   if (bot.connection === 'unreachable' || bot.connection === 'unauthorized') return 'bad'
   if (bot.connection === 'online') return bot.refreshing ? 'warn' : 'good'
@@ -79,7 +99,10 @@ const botOptions = computed<FilterOption[]>(() => [
     value: entry.id,
     label: entry.name,
     hint: entry.id === settings.activeBotId ? t('bots.current') : undefined,
-    dot: entry.id === settings.activeBotId ? activeLamp.value : ('muted' as const),
+    dot:
+      entry.id === settings.activeBotId
+        ? activeLamp.value
+        : (probeLamps.value[entry.id] ?? 'muted'),
   })),
   { value: MANAGE, label: t('bots.manage') },
 ])
@@ -154,60 +177,49 @@ async function submit() {
   const entry = form.value
   if (!entry || !canSave.value || saving.value) return
   saving.value = true
-  const baseUrl = normalizeBaseUrl(entry.baseUrl) || entry.baseUrl.trim()
-  const username = entry.username.trim()
-  const name = entry.name.trim() || defaultBotName(username, baseUrl)
-  const stored = entry.id ? settings.bots.find((item) => item.id === entry.id) : undefined
-  /*
-   * Ask before saving: a bot that cannot answer must not appear in the list, and that is what
-   * the connect form already does. A bare rename or a new ws_token keeps working offline, so
-   * the probe only runs when the endpoint or the credentials are what changed.
-   */
-  const password = entry.password || stored?.password || ''
-  const credentialsChanged =
-    !stored ||
-    entry.password.length > 0 ||
-    baseUrl !== stored.baseUrl ||
-    username !== stored.username
-  if (password && credentialsChanged) {
-    try {
-      const probe = new FreqtradeApiClient({ baseUrl, username, password })
+  try {
+    const username = entry.username.trim()
+    const stored = entry.id ? settings.bots.find((item) => item.id === entry.id) : undefined
+    const password = entry.password || stored?.password || ''
+    const probe = new FreqtradeApiClient({ baseUrl: entry.baseUrl, username, password })
+    const baseUrl = probe.baseUrl
+    const name = entry.name.trim() || defaultBotName(username, baseUrl)
+    const credentialsChanged =
+      !stored ||
+      entry.password.length > 0 ||
+      baseUrl !== stored.baseUrl ||
+      username !== stored.username
+    // Renaming or updating the stream token stays available while the backend is offline.
+    if (password && credentialsChanged) {
       await probe.ping()
       await probe.showConfig()
-    } catch (error) {
-      const described = describeError(error)
-      pushToast(t(described.key, described.params ?? {}), 'bad')
-      saving.value = false
-      return
     }
-  }
 
-  if (entry.id) {
-    settings.updateBot(entry.id, {
-      name,
-      baseUrl,
-      username: entry.username,
-      password: entry.password || undefined,
-      wsToken: entry.wsToken,
-    })
-    if (entry.id === settings.activeBotId) {
-      bot.rebuildClient()
-      await bot.connect()
+    if (entry.id) {
+      settings.updateBot(entry.id, {
+        name,
+        baseUrl,
+        username,
+        password: entry.password || undefined,
+        wsToken: entry.wsToken,
+      })
+      if (entry.id === settings.activeBotId) {
+        bot.rebuildClient()
+        await bot.connect()
+      } else {
+        pushToast(t('common.saved'), 'good')
+      }
     } else {
-      pushToast(t('common.saved'), 'good')
+      settings.addBot({ name, baseUrl, username, password: entry.password, wsToken: entry.wsToken })
+      pushToast(t('bots.added', { name }), 'good')
     }
-  } else {
-    settings.addBot({
-      name,
-      baseUrl,
-      username: entry.username,
-      password: entry.password,
-      wsToken: entry.wsToken,
-    })
-    pushToast(t('bots.added', { name }), 'good')
+    form.value = null
+  } catch (error) {
+    const described = describeError(error)
+    pushToast(t(described.key, described.params ?? {}), 'bad')
+  } finally {
+    saving.value = false
   }
-  saving.value = false
-  form.value = null
 }
 
 /** Probes one bot on its own client so the active connection is left alone. */
@@ -322,6 +334,7 @@ async function confirmRemove() {
         :options="botOptions"
         :trigger-hint="activeBot?.baseUrl ?? ''"
         :label="t('bots.select')"
+        @open-change="probeBackends"
       />
 
       <form v-if="passwordEntry" class="bots__prompt" @submit.prevent="submitPassword">
@@ -535,7 +548,13 @@ async function confirmRemove() {
 
 .bots__test--ok {
   color: var(--long);
-  border-color: color-mix(in srgb, var(--long) 35%, transparent);
+  border-color: rgb(36 201 138 / 35%);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .bots__test--ok {
+    border-color: color-mix(in srgb, var(--long) 35%, transparent);
+  }
 }
 
 .bots__prompt,

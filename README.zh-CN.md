@@ -52,7 +52,7 @@
   开仓价与当前价、盈亏、持仓时长；表头点击排序，搜索按钮点开才展开，结果过滤（全部 / 盈利 /
   亏损），单笔详情抽屉（订单、手续费、资金费、杠杆、止损、强平价）与 CSV 导出。手机端同一
   数据以卡片列表呈现，不需要横向滚动。已加载的历史记录在浏览器内翻页，默认每页 20 条，
-  可在**设置 → 界面**里改成 5 到 300 条，取 300 就是一页列出已加载的全部；切换筛选、搜索或排序
+  可在**设置 → 界面**里改成 5 到 300 条，填 0 则显示已加载的全部；切换筛选、搜索或排序
   会自动回到第 1 页。
 - 📈 **统计** — 按交易对的总计，外加胜率（含盈利/亏损笔数）、平均持仓时长、手续费、成交额与最近
   平仓时间（由已加载的成交明细推导，不额外请求接口；超出该窗口的老交易对显示 `—`）；日/周/月
@@ -240,7 +240,7 @@ iOS Safari 15.5（2022 年 5 月）之前不覆盖，那些系统上停靠页仍
 ## 🔌 兼容性
 
 基于 **Freqtrade 2026.9 / API v2.5** 开发，并在实盘 futures 实例上做过端到端验证。它读取
-`/ping`、`/show_config`、`/version`、`/health`、`/sysinfo`、`/balance`、`/profit`、
+`/ping`、`/show_config`、`/health`、`/sysinfo`、`/balance`、`/profit`、
 `/profit_all`、`/status`、`/count`、`/trades`、`/performance`、`/stats`、`/daily`、`/weekly`、
 `/monthly`、`/logs`、`/whitelist`、`/blacklist`、`/locks` 与 `/pair_candles`；在开启控制功能后
 会向 `/start`、`/stop`、`/stopentry`、`/reload_config`、`/forceexit`、`/blacklist` 与

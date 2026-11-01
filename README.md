@@ -54,8 +54,7 @@ An installable Vue PWA that talks to your bot directly.</p>
   toolbar, an outcome filter (all / profitable / losing), per-trade detail (orders, fees,
   funding, leverage, stop loss, liquidation) and CSV export. On phones the same data is a
   card list instead of a wide table. The loaded history is paged locally — 20 rows by default,
-  and **Settings → Interface** sets anything from 5 to 300, where 300 puts every loaded trade on
-  one page; the pager resets whenever the filter, search or sort changes.
+  and **Settings → Interface** sets anything from 5 to 300, or 0 to show all loaded trades; the pager resets whenever the filter, search or sort changes.
 - 📈 **Statistics** — per-pair totals plus win rate, average holding time, fees, volume and last
   close (derived from the loaded trades, so pairs older than the loaded window show —); a
   daily/weekly/monthly chart with period table; and the average holding time for winners,
@@ -281,7 +280,7 @@ Never commit a real host, username or password: `.env*` files are git-ignored.
 ## 🔌 Compatibility
 
 Built against **Freqtrade 2026.9 / API v2.5** and verified end to end against a live futures
-instance. It reads `/ping`, `/show_config`, `/version`, `/health`, `/sysinfo`, `/balance`,
+instance. It reads `/ping`, `/show_config`, `/health`, `/sysinfo`, `/balance`,
 `/profit`, `/profit_all`, `/status`, `/count`, `/trades`, `/performance`, `/stats`,
 `/daily`, `/weekly`, `/monthly`, `/logs`, `/whitelist`, `/blacklist`, `/locks` and
 `/pair_candles`, and posts to `/start`, `/stop`, `/stopentry`, `/reload_config`, `/forceexit`,

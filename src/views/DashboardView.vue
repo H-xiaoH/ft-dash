@@ -374,6 +374,34 @@ async function confirmExit() {
   }
 }
 
+/* Safari 15.5 has no container queries; use the viewport minus the shell gutters. */
+@supports not (container-type: inline-size) {
+  @media (min-width: 518px) {
+    .ov-stake {
+      display: table-cell;
+    }
+  }
+  @media (min-width: 628px) {
+    .ov-entry {
+      display: table-cell;
+    }
+  }
+  @media (min-width: 824px) {
+    .ov-current,
+    .ov-exit {
+      display: table-cell;
+    }
+  }
+  @media (min-width: 944px) {
+    .ov-side {
+      display: table-cell;
+    }
+    .ov-side-inline {
+      display: none;
+    }
+  }
+}
+
 /*
  * The overview drops the leverage chip on phones, where the pair cell already carries the
  * badge. Scoped rather than `u-hide-sm`: that helper switches to `table-cell`, which is right

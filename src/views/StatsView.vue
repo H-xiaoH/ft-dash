@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CollapseTransition from '@/components/CollapseTransition.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
@@ -67,9 +68,9 @@ const rows = computed<PairStats[]>(() => {
       case 'avgDuration':
         return ((a.avgDuration ?? 0) - (b.avgDuration ?? 0)) * direction
       case 'fees':
-        return (a.fees - b.fees) * direction
+        return ((a.fees ?? -Infinity) - (b.fees ?? -Infinity)) * direction
       case 'volume':
-        return (a.volume - b.volume) * direction
+        return ((a.volume ?? -Infinity) - (b.volume ?? -Infinity)) * direction
       case 'lastTrade':
         return ((a.lastTrade ?? 0) - (b.lastTrade ?? 0)) * direction
       default:
@@ -231,13 +232,14 @@ function drawdownPercent(value: number | null | undefined) {
         :value="summary?.avg_duration ?? '—'"
         kind="text"
         small
-        :sub="`${t('kpi.tradingVolume')} ${format.compact(summary?.trading_volume ?? null)}`"
+        :sub="`${t('kpi.tradingVolume')} ${format.money(summary?.trading_volume ?? null, stake)}`"
       />
     </div>
 
     <section class="panel">
       <div class="panel__head">
         <span class="panel__title">{{ t('stats.pairs') }}</span>
+        <span class="panel__meta">{{ t('stats.loadedWindow') }}</span>
         <span class="panel__meta num">{{ rows.length }} / {{ allRows.length }}</span>
         <div class="panel__actions row">
           <SearchToggle v-model="search" :placeholder="t('market.searchPairs')" />
@@ -321,7 +323,7 @@ function drawdownPercent(value: number | null | undefined) {
                 <td>{{ row.count }}</td>
                 <td class="num" :class="winRateTone(row.winRate)">
                   {{ format.percent(row.winRate) }}
-                  <div class="small muted">
+                  <div v-if="row.lastTrade !== null" class="small muted">
                     <span class="u-pos">{{ row.wins }}</span> /
                     <span class="u-neg">{{ row.losses }}</span>
                   </div>
@@ -451,52 +453,54 @@ function drawdownPercent(value: number | null | undefined) {
         />
         <p v-else class="empty">{{ t('stats.noData') }}</p>
       </div>
-      <div v-if="periodRowsOpen" class="panel__body panel__body--flush">
-        <div class="table-wrap u-desktop-only">
-          <table class="table">
-            <thead>
-              <tr>
-                <th scope="col">{{ t('stats.date') }}</th>
-                <th scope="col" class="num">{{ t('stats.profitAbs') }}</th>
-                <th scope="col" class="num">{{ t('stats.relProfit') }}</th>
-                <th scope="col" class="num">{{ t('stats.tradeCount') }}</th>
-                <th scope="col" class="num">{{ t('stats.startingBalance') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="entry in periodData.slice(0, PERIOD_ROWS)" :key="entry.date">
-                <td>{{ format.day(entry.date) }}</td>
-                <td class="num" :class="format.toneClass(entry.abs_profit)">
-                  {{ format.signedMoney(entry.abs_profit, stake) }}
-                </td>
-                <td class="num" :class="format.toneClass(entry.rel_profit)">
-                  {{ format.ratio(entry.rel_profit) }}
-                </td>
-                <td class="num">{{ entry.trade_count }}</td>
-                <td class="num">{{ format.money(entry.starting_balance, stake) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      <CollapseTransition>
+        <div v-if="periodRowsOpen" class="panel__body panel__body--flush">
+          <div class="table-wrap u-desktop-only">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th scope="col">{{ t('stats.date') }}</th>
+                  <th scope="col" class="num">{{ t('stats.profitAbs') }}</th>
+                  <th scope="col" class="num">{{ t('stats.relProfit') }}</th>
+                  <th scope="col" class="num">{{ t('stats.tradeCount') }}</th>
+                  <th scope="col" class="num">{{ t('stats.startingBalance') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="entry in periodData.slice(0, PERIOD_ROWS)" :key="entry.date">
+                  <td>{{ format.day(entry.date) }}</td>
+                  <td class="num" :class="format.toneClass(entry.abs_profit)">
+                    {{ format.signedMoney(entry.abs_profit, stake) }}
+                  </td>
+                  <td class="num" :class="format.toneClass(entry.rel_profit)">
+                    {{ format.ratio(entry.rel_profit) }}
+                  </td>
+                  <td class="num">{{ entry.trade_count }}</td>
+                  <td class="num">{{ format.money(entry.starting_balance, stake) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-        <ul class="cards u-mobile-only">
-          <li v-for="entry in periodData.slice(0, PERIOD_ROWS)" :key="entry.date" class="card">
-            <div class="card__row">
-              <span class="num">{{ format.day(entry.date) }}</span>
-              <span class="spacer" />
-              <span class="num" :class="format.toneClass(entry.abs_profit)">
-                {{ format.signedMoney(entry.abs_profit, stake) }}
-              </span>
-            </div>
-            <div class="card__row small muted">
-              <span>{{ format.ratio(entry.rel_profit) }}</span>
-              <span>{{ t('stats.tradeCount') }} {{ entry.trade_count }}</span>
-              <span class="spacer" />
-              <span>{{ format.money(entry.starting_balance, stake) }}</span>
-            </div>
-          </li>
-        </ul>
-      </div>
+          <ul class="cards u-mobile-only">
+            <li v-for="entry in periodData.slice(0, PERIOD_ROWS)" :key="entry.date" class="card">
+              <div class="card__row">
+                <span class="num">{{ format.day(entry.date) }}</span>
+                <span class="spacer" />
+                <span class="num" :class="format.toneClass(entry.abs_profit)">
+                  {{ format.signedMoney(entry.abs_profit, stake) }}
+                </span>
+              </div>
+              <div class="card__row small muted">
+                <span>{{ format.ratio(entry.rel_profit) }}</span>
+                <span>{{ t('stats.tradeCount') }} {{ entry.trade_count }}</span>
+                <span class="spacer" />
+                <span>{{ format.money(entry.starting_balance, stake) }}</span>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </CollapseTransition>
     </section>
 
     <section class="panel">

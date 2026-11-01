@@ -35,14 +35,23 @@ test('the wheel scrolls the page and never switches pages', async ({ page }) => 
 })
 
 /** Drives one touch of a drag; the tests always start, move, then end. */
-const touchAt = (
+const touchAt = async (
   page: Page,
   type: 'touchstart' | 'touchmove' | 'touchend',
   x: number,
   y = 500,
   selector = '.shell__body',
-) =>
-  page.evaluate(
+) => {
+  if (type === 'touchstart') {
+    // Let the resize event settle before starting a new gesture after setViewportSize.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    )
+  }
+  await page.evaluate(
     ({ type, x, y, selector }) => {
       const target = document.querySelector(selector) as Element
       const point = new Touch({ identifier: 1, target, clientX: x, clientY: y })
@@ -57,6 +66,7 @@ const touchAt = (
     },
     { type, x, y, selector },
   )
+}
 
 test('the page follows the finger and commits past a third of the screen', async ({ page }) => {
   // A drag touches the transition machinery directly, so watch the console while it runs.
@@ -324,48 +334,60 @@ test('a page travels the way you navigated', async ({ page }) => {
     .evaluate((el) => el.style.getPropertyValue('--page-enter'))
   expect(onPage).toBe('')
 
-  // Wide screens travel the way a phone does now — sideways, a page at a time — rather than
-  // up and down: pages differ in height, so a vertical swap kept both of them on screen at
-  // once, which reads as the incoming page covering the one it replaces.
-  // The phone transition has to be over first, or its sideways frames land in the sample.
   await page.waitForTimeout(400)
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.locator('.rail__item').nth(2).click()
   await expect.poll(() => hash(page)).toBe('#/stats')
-  // Let that swap finish, or its tail lands in the sample and covers the one being measured.
   await page.waitForTimeout(400)
 
-  await page.evaluate(() => {
-    const frames: { leaveX: number; enterX: number }[] = []
-    ;(window as unknown as { __travel?: unknown }).__travel = frames
-    const offset = (el: Element) => {
-      const transform = getComputedStyle(el).transform
-      return transform === 'none' ? 0 : Math.round(new DOMMatrixReadOnly(transform).m41)
-    }
-    const tick = () => {
-      const leaving = document.querySelector('.page-leave-active')
-      const entering = document.querySelector('.page-enter-active')
-      if (leaving && entering) {
-        frames.push({ leaveX: offset(leaving), enterX: offset(entering) })
+  for (const [index, name, direction] of [
+    [4, 'logs', 1],
+    [2, 'stats', -1],
+  ] as const) {
+    await page.evaluate((direction) => {
+      const frames: { gap: number; x: number; y: number; opacity: number }[] = []
+      ;(window as unknown as { __verticalTravel: unknown }).__verticalTravel = frames
+      const started = performance.now()
+      const tick = () => {
+        const leaving = document.querySelector('.page-leave-active')
+        const entering = document.querySelector('.page-enter-active')
+        if (leaving && entering) {
+          const oldRect = leaving.getBoundingClientRect()
+          const newRect = entering.getBoundingClientRect()
+          const transform = getComputedStyle(entering).transform
+          const matrix = new DOMMatrixReadOnly(transform === 'none' ? undefined : transform)
+          frames.push({
+            gap: direction === 1 ? newRect.top - oldRect.bottom : oldRect.top - newRect.bottom,
+            x: matrix.m41,
+            y: matrix.m42,
+            opacity: Number(getComputedStyle(leaving).opacity),
+          })
+        }
+        if (performance.now() - started < 700) requestAnimationFrame(tick)
       }
       requestAnimationFrame(tick)
-    }
-    requestAnimationFrame(tick)
-  })
-  await page.locator('.rail__item').nth(4).click()
-  await expect.poll(() => hash(page)).toBe('#/logs')
-  await page.waitForTimeout(600)
-
-  /** How the two pages moved while the swap ran. */
-  const flight = await page.evaluate(
-    () => (window as unknown as { __travel?: { leaveX: number; enterX: number }[] }).__travel ?? [],
-  )
-  expect(flight.length).toBeGreaterThan(2)
-  // Forward: the new page arrives from the right, the old one leaves to the left.
-  expect(Math.max(...flight.map((frame) => frame.enterX))).toBeGreaterThan(300)
-  expect(Math.min(...flight.map((frame) => frame.leaveX))).toBeLessThan(-300)
-  // And it lands: the last sample has the incoming page in place.
-  expect(Math.abs(flight[flight.length - 1]!.enterX)).toBeLessThan(60)
+    }, direction)
+    await page.locator('.rail__item').nth(index).click()
+    await expect.poll(() => hash(page)).toBe(`#/${name}`)
+    await page.waitForTimeout(700)
+    const frames = await page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            __verticalTravel: { gap: number; x: number; y: number; opacity: number }[]
+          }
+        ).__verticalTravel,
+    )
+    expect(frames.length).toBeGreaterThan(2)
+    expect(Math.max(...frames.map((frame) => Math.abs(frame.x)))).toBeLessThan(1)
+    expect(Math.max(...frames.map((frame) => frame.y * direction))).toBeGreaterThan(100)
+    expect(
+      Math.max(...frames.map((frame) => Math.abs(frame.gap))),
+      JSON.stringify(frames),
+    ).toBeLessThan(2)
+    expect(frames.every((frame) => frame.opacity === 1)).toBe(true)
+    expect(Math.abs(frames.at(-1)!.y)).toBeLessThan(60)
+  }
 })
 
 test('tapping a tab slides the pages the way a swipe does', async ({ page }) => {
@@ -565,4 +587,24 @@ test('landing on a page refreshes once, after the pages stop changing', async ({
   expect(performanceAt).toBeGreaterThanOrEqual(lastWheelAt + 250)
   await page.waitForTimeout(600)
   expect((await sinceWheel()).length).toBe(1)
+})
+
+test('rapid desktop selections finish on the latest page and release the transition', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.locator('.rail__item').nth(2).click()
+  await expect(page.locator('.page-enter-active')).toHaveCount(1)
+  await page.evaluate(() => {
+    const links = document.querySelectorAll<HTMLAnchorElement>('.rail__item')
+    links[4]!.click()
+    links[6]!.click()
+  })
+  await expect.poll(() => hash(page)).toBe('#/settings')
+  await expect(page.locator('.page-enter-active, .page-leave-active')).toHaveCount(0)
+  expect(
+    await page.locator('.page-host').evaluate((el) => (el as HTMLElement).style.minHeight),
+  ).toBe('')
+  await page.locator('.rail__item').nth(1).click()
+  await expect.poll(() => hash(page)).toBe('#/trades')
 })

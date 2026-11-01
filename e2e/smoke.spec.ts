@@ -71,7 +71,7 @@ test.describe('connect screen', () => {
     // The bot goes away: every later request fails at the network level.
     await page.route(`${API_ORIGIN}/**`, (route) => route.abort())
 
-    await expect(page.locator('.strip__state-label')).toHaveText('不可用')
+    await expect(page.locator('.strip__state-label')).toHaveText('未连通')
     // The sentence still exists — in the banner, which also says the poll keeps trying.
     await expect(page.locator('.global-notices')).toContainText('请求被浏览器拦截')
     await expect(page.locator('.global-notices')).toContainText('正在自动重试')

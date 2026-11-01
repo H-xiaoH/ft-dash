@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
 import BotsPanel from '@/components/BotsPanel.vue'
-import FilterMenu from '@/components/FilterMenu.vue'
+import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
 import ConnectView from '@/views/ConnectView.vue'
 import { i18n } from '@/i18n'
 import { useBotStore } from '@/stores/bot'
@@ -42,6 +42,55 @@ function answerProbe(ok = true) {
 }
 
 describe('BotsPanel', () => {
+  it('recovers the connect form after an invalid URL', async () => {
+    answerProbe()
+    const bot = useBotStore()
+    vi.spyOn(bot, 'connect').mockResolvedValue(true)
+    const wrapper = mount(ConnectView, { global: { plugins: [i18n] } })
+    const vm = wrapper.vm as unknown as { submit: () => Promise<void> }
+    const inputs = wrapper.findAll('input')
+    await inputs[1]!.setValue('http://[')
+    await inputs[2]!.setValue('u')
+    await inputs[3]!.setValue('p')
+    try {
+      await expect(vm.submit()).resolves.toBeUndefined()
+      await nextTick()
+      expect(wrapper.find('.banner--bad').text()).toContain(i18n.global.t('errors.config'))
+      expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeUndefined()
+      await inputs[1]!.setValue('https://new.example')
+      await vm.submit()
+      expect(useSettingsStore().bots).toHaveLength(1)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('recovers the backend editor after an invalid URL', async () => {
+    answerProbe()
+    const wrapper = mount(BotsPanel, { global: { plugins: [i18n] } })
+    wrapper.findComponent(FilterMenu).vm.$emit('update:modelValue', '__manage')
+    await nextTick()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Add backend'))!
+      .trigger('click')
+    const editor = wrapper.find('.bots__editor')
+    await editor.find('input[inputmode="url"]').setValue('http://[')
+    await editor.find('input[autocomplete="username"]').setValue('u')
+    await editor.find('input[type="password"]').setValue('p')
+    const vm = wrapper.vm as unknown as { submit: () => Promise<void> }
+    try {
+      await expect(vm.submit()).resolves.toBeUndefined()
+      await nextTick()
+      expect(useToasts().toasts.value.at(-1)?.message).toBe(i18n.global.t('errors.config'))
+      await editor.find('input[inputmode="url"]').setValue('https://new.example')
+      await vm.submit()
+      expect(useSettingsStore().bots).toHaveLength(1)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()
@@ -54,6 +103,44 @@ describe('BotsPanel', () => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
+
+  it.each([true, false])(
+    'probes inactive backends without switching (healthy: %s)',
+    async (healthy) => {
+      answerProbe(healthy)
+      const settings = useSettingsStore()
+      const first = settings.addBot({
+        name: 'first',
+        baseUrl: 'https://first.example',
+        username: 'u',
+        password: 'p',
+      })
+      const other = settings.addBot({
+        name: 'other',
+        baseUrl: 'https://other.example',
+        username: 'u',
+        password: 'p',
+      })
+      settings.setActiveBot(first.id)
+      const wrapper = mount(BotsPanel, { global: { plugins: [i18n] } })
+      const picker = wrapper.findComponent(FilterMenu)
+      picker.vm.$emit('open-change', true)
+      await nextTick()
+      expect(
+        (picker.vm.$props as { options: FilterOption[] }).options.find(
+          (entry) => entry.value === other.id,
+        )?.dot,
+      ).toBe('warn')
+      await flushPromises()
+      expect(
+        (picker.vm.$props as { options: FilterOption[] }).options.find(
+          (entry) => entry.value === other.id,
+        )?.dot,
+      ).toBe(healthy ? 'good' : 'bad')
+      expect(settings.activeBotId).toBe(first.id)
+      wrapper.unmount()
+    },
+  )
 
   it('lets the latest bot switch own the result toast', async () => {
     const settings = useSettingsStore()

@@ -23,6 +23,7 @@ const appVersion = __APP_VERSION__
 
 /** An empty box says what an untouched field would use, and what the field accepts. */
 const countPlaceholder = (key: keyof typeof COUNT_SETTINGS) => {
+  if (key === 'tradesPerPage') return t('settings.tradesPagePlaceholder')
   const { fallback, min, max } = COUNT_SETTINGS[key]
   return t('settings.countDefault', { n: fallback, min, max })
 }
@@ -126,7 +127,6 @@ async function clearData() {
                 inputmode="numeric"
                 @change="settings.commitCount('dashboardOpenLimit')"
               />
-              <span class="field__hint">{{ t('settings.openLimitHint') }}</span>
             </label>
             <label class="field">
               <span class="field__label">{{ t('settings.closedLimit') }}</span>
@@ -140,7 +140,6 @@ async function clearData() {
                 inputmode="numeric"
                 @change="settings.commitCount('dashboardClosedLimit')"
               />
-              <span class="field__hint">{{ t('settings.closedLimitHint') }}</span>
             </label>
             <label class="field">
               <span class="field__label">{{ t('settings.tradesPerPage') }}</span>
@@ -148,13 +147,12 @@ async function clearData() {
                 v-model.number="settings.tradesPerPage"
                 class="input num"
                 type="number"
-                :min="COUNT_SETTINGS.tradesPerPage.min"
+                :min="0"
                 :max="COUNT_SETTINGS.tradesPerPage.max"
                 :placeholder="countPlaceholder('tradesPerPage')"
                 inputmode="numeric"
                 @change="settings.commitCount('tradesPerPage')"
               />
-              <span class="field__hint">{{ t('settings.tradesPerPageHint') }}</span>
             </label>
             <label class="field">
               <span class="field__label">{{ t('settings.pairTablePerPage') }}</span>
@@ -168,7 +166,6 @@ async function clearData() {
                 inputmode="numeric"
                 @change="settings.commitCount('pairTablePerPage')"
               />
-              <span class="field__hint">{{ t('settings.pairTablePerPageHint') }}</span>
             </label>
           </div>
         </section>
@@ -299,7 +296,13 @@ async function clearData() {
 }
 
 .settings__danger {
-  border-color: color-mix(in srgb, var(--short) 35%, var(--line));
+  border-color: rgb(109 52 52);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .settings__danger {
+    border-color: color-mix(in srgb, var(--short) 35%, var(--line));
+  }
 }
 
 .stream-auth {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CollapseTransition from '@/components/CollapseTransition.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -135,9 +136,13 @@ const filterStatus = computed(() =>
 const openCount = computed(() => bot.openTrades.length)
 const closedCount = computed(() => bot.profit?.closed_trade_count ?? bot.closedTrades.length)
 const allCount = computed(() => allTrades.value.length)
-const totalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / pageSize.value)))
+const totalPages = computed(() =>
+  pageSize.value === 0 ? 1 : Math.max(1, Math.ceil(rows.value.length / pageSize.value)),
+)
 const pagedRows = computed(() =>
-  rows.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value),
+  pageSize.value === 0
+    ? rows.value
+    : rows.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value),
 )
 
 // Any change to the query or ordering restarts from the first page.
@@ -364,7 +369,7 @@ onMounted(() => {
         <div class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-filter-status>
           {{ filterStatus }}
         </div>
-        <Transition name="trade-filter" mode="out-in">
+        <CollapseTransition>
           <div :key="filter" class="trade-filter-content" data-filter-content>
             <div v-if="!rows.length" class="empty">{{ t('empty.table') }}</div>
             <div v-else class="table-wrap u-desktop-only">
@@ -511,7 +516,7 @@ onMounted(() => {
               </li>
             </ul>
           </div>
-        </Transition>
+        </CollapseTransition>
       </div>
 
       <div class="panel__head panel__pager">
@@ -629,23 +634,6 @@ onMounted(() => {
 
 .trade-filter-content {
   min-width: 0;
-}
-
-.trade-filter-enter-active,
-.trade-filter-leave-active {
-  transition:
-    opacity var(--dur-quick) ease,
-    transform var(--dur-quick) var(--ease-out-strong);
-}
-
-.trade-filter-enter-from {
-  opacity: 0;
-  transform: translateY(6px);
-}
-
-.trade-filter-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
 }
 
 @media (max-width: 900px) {

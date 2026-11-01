@@ -55,16 +55,6 @@ const notices = computed<Notice[]>(() => {
     })
   }
 
-  if (bot.compatibility?.warningKey) {
-    next.push({
-      id: 'compatibility',
-      priority: 40,
-      tone: 'warn',
-      title: t('compatibility.title'),
-      message: t(bot.compatibility.warningKey, bot.compatibility.warningParams ?? {}),
-    })
-  }
-
   return next.sort((a, b) => a.priority - b.priority)
 })
 </script>

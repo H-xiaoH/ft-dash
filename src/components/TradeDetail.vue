@@ -72,7 +72,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 <template>
   <Teleport to="body">
-    <Transition name="drawer-overlay" appear>
+    <Transition name="drawer-overlay" appear @before-leave="(el) => el.setAttribute('inert', '')">
       <div
         v-if="trade"
         :key="trade.trade_id"
@@ -238,7 +238,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 /* Desktop: slides in from the right. Phones override this to rise from the bottom. */
 .drawer-overlay-enter-active,
 .drawer-overlay-leave-active {
-  transition: opacity 180ms ease;
+  transition:
+    opacity 200ms ease,
+    backdrop-filter 200ms ease,
+    background-color 200ms ease;
 }
 
 .drawer-overlay-enter-active .drawer,
@@ -293,7 +296,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   justify-content: flex-end;
 }
 
-@media (max-width: 900px) {
+@media not all and (min-width: 720px) {
   /* A bottom sheet should rise from the bottom, not slide in from the side. */
   .drawer-overlay-enter-from .drawer,
   .drawer-overlay-leave-to .drawer {

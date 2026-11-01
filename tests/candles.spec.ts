@@ -34,6 +34,54 @@ const trade = (over: Partial<Trade>): Trade =>
   ({ pair: 'AAA/USDT', open_date: times[0], open_rate: 1, ...over }) as Trade
 
 describe('collectCandleMarks', () => {
+  it('places non-aligned fills inside candle intervals, including the last candle', () => {
+    const marks = collectCandleMarks({
+      meta: meta(
+        ['date'],
+        times.map((time) => [time]),
+      ),
+      candles,
+      trades: [
+        trade({
+          open_date: '2026-10-09 09:00:42',
+          close_date: '2026-10-09 09:24:59',
+          close_rate: 1.1,
+        }),
+      ],
+      pair: 'AAA/USDT',
+    })
+    expect(marks).toEqual([
+      { index: 0, side: 'buy', kind: 'fill', price: 1 },
+      { index: 4, side: 'sell', kind: 'fill', price: 1.1 },
+    ])
+  })
+
+  it('does not assign a fill in a missing candle interval to the previous candle', () => {
+    const marks = collectCandleMarks({
+      meta: meta(['date'], []),
+      candles: [candles[0]!, candles[2]!],
+      trades: [trade({ open_date: '2026-10-09 09:07:00' })],
+      pair: 'AAA/USDT',
+    })
+    expect(marks).toEqual([])
+  })
+
+  it('uses left-closed right-open candle intervals and excludes the end of the last one', () => {
+    const marks = collectCandleMarks({
+      meta: meta(
+        ['date'],
+        times.map((time) => [time]),
+      ),
+      candles,
+      trades: [
+        trade({ open_date: times[1], close_date: '2026-10-09 09:25:00', close_rate: 1.1 }),
+        trade({ open_date: '2026-10-09 08:59:59' }),
+      ],
+      pair: 'AAA/USDT',
+    })
+    expect(marks).toEqual([{ index: 1, side: 'buy', kind: 'fill', price: 1 }])
+  })
+
   it('marks the candles the strategy signalled, both ways', () => {
     const marks = collectCandleMarks({
       meta: meta(

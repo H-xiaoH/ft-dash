@@ -12,7 +12,6 @@ const { rawBot, rawEvents, rawSettings } = vi.hoisted(() => ({
     errorKey: null as { key: string; params?: Record<string, unknown> } | null,
     heartbeatAgeMs: null as number | null,
     streamReasonKey: null as string | null,
-    compatibility: null as { warningKey?: string } | null,
   },
   rawEvents: { status: 'off' as string },
   rawSettings: { websocket: false },
@@ -33,7 +32,6 @@ describe('GlobalNotices', () => {
       errorKey: null,
       heartbeatAgeMs: null,
       streamReasonKey: null,
-      compatibility: null,
     })
     Object.assign(rawEvents, { status: 'off' })
     rawSettings.websocket = false
@@ -46,6 +44,16 @@ describe('GlobalNotices', () => {
 
     expect(wrapper.text()).toContain('Retrying automatically')
     expect(wrapper.findAll('button')).toHaveLength(0)
+  })
+
+  it('still warns when an online backend heartbeat exceeds 30 seconds', () => {
+    rawBot.connection = 'online'
+    rawBot.heartbeatAgeMs = 30_001
+    const wrapper = mountNotices()
+    expect(wrapper.findAll('.banner')).toHaveLength(1)
+    expect(wrapper.find('.banner--warn').exists()).toBe(true)
+    expect(wrapper.text()).toContain(i18n.global.t('notices.heartbeatTitle'))
+    expect(wrapper.text()).toContain(i18n.global.t('system.lagging'))
   })
 
   it('says nothing about a rejected session, which goes back to the sign-in form', () => {

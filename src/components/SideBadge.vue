@@ -45,11 +45,23 @@ const label = computed(() => (props.isShort ? t('trades.short') : t('trades.long
 
 .side--long {
   color: var(--long);
-  border: 1px solid color-mix(in srgb, var(--long) 32%, transparent);
+  border: 1px solid rgb(36 201 138 / 32%);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .side--long {
+    border: 1px solid color-mix(in srgb, var(--long) 32%, transparent);
+  }
 }
 
 .side--short {
   color: var(--short);
-  border: 1px solid color-mix(in srgb, var(--short) 32%, transparent);
+  border: 1px solid rgb(255 91 91 / 32%);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .side--short {
+    border: 1px solid color-mix(in srgb, var(--short) 32%, transparent);
+  }
 }
 </style>

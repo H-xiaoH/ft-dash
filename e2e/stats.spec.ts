@@ -65,12 +65,12 @@ test('each risk tile opens the explanation for that ratio alone', async ({ page 
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
   await expect(dialog.locator('.dialog__title')).toHaveText('夏普（Sharpe）')
-  await expect(dialog).toContainText('低于 1：风险没换来补偿')
+  await expect(dialog).toContainText('界面参考分档：低于 0 标红，0 至低于 1 标黄，1 及以上标绿。')
   // Only its own ratio: no SQN, Sortino or Calmar text in here.
   await expect(dialog).not.toContainText('SQN')
   await expect(dialog).not.toContainText('索提诺')
   await expect(dialog).not.toContainText('Calmar')
-  await expect(dialog).toContainText('样本少于 30 笔时')
+  await expect(dialog).toContainText('短期、少量交易或亏损样本不足时')
 
   // A tile that is a <button> must not show the browser's own border beside the hairlines.
   expect(await sharpe.evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe('0px')
@@ -81,10 +81,32 @@ test('each risk tile opens the explanation for that ratio alone', async ({ page 
   await expect(dialog).toBeHidden()
   await expect(sharpe).toBeFocused()
 
+  for (const [tile, title, text, bands] of [
+    [
+      'SQN',
+      'SQN（系统质量数）',
+      '交易笔数也会影响读数',
+      '低于 1.6 标红，1.6 至低于 2.5 标黄，2.5 及以上标绿',
+    ],
+    [
+      '索提诺',
+      '索提诺（Sortino）',
+      '亏损样本过少时，读数可能不稳定',
+      '低于 0 标红，0 至低于 1 标黄，1 及以上标绿',
+    ],
+  ]) {
+    await livePage(page).locator('.metric--button', { hasText: tile }).first().click()
+    await expect(dialog.locator('.dialog__title')).toHaveText(title!)
+    await expect(dialog).toContainText(text!)
+    await expect(dialog).toContainText(bands!)
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+  }
+
   // Another tile opens its own text, and a click on the backdrop closes it.
   await livePage(page).locator('.metric--button', { hasText: 'Calmar' }).first().click()
   await expect(dialog.locator('.dialog__title')).toHaveText('Calmar（收益回撤比）')
-  await expect(dialog).toContainText('1–3 好')
+  await expect(dialog).toContainText('最大回撤越小，读数通常越高')
   await expect(dialog).not.toContainText('夏普')
   await page.mouse.click(8, 8)
   await expect(dialog).toBeHidden()

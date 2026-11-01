@@ -8,6 +8,7 @@ import StatusStrip from '@/components/StatusStrip.vue'
 import ConnectView from '@/views/ConnectView.vue'
 import { usePageDrag } from '@/composables/usePageDrag'
 import { useToasts } from '@/composables/useToast'
+import { isWideLayout } from '@/lib/layout'
 import { NAV_ROUTES } from '@/router'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
@@ -75,7 +76,7 @@ const pageTitle = computed(() => {
 
 /**
  * Position of the current page in the nav order: drives the sliding indicator and the
- * direction a mobile page transition travels.
+ * direction a page transition travels.
  */
 const navIndex = computed(() =>
   Math.max(
@@ -89,6 +90,83 @@ let previousIndex = navIndex.value
 watch(navIndex, (next) => {
   pageDirection.value = next >= previousIndex ? 1 : -1
   previousIndex = next
+})
+
+let viewportEpoch = 0
+let motionTimer = 0
+let leavingPageHeight = 0
+let motionFinished: Promise<void> | null = null
+let resolveMotion: (() => void) | null = null
+let motionHost: HTMLElement | null = null
+const desktopMotion = isWideLayout
+const removeMotionGuard = router.beforeEach(async (to, from) => {
+  if (to.path !== from.path && desktopMotion() && motionFinished) {
+    const epoch = viewportEpoch
+    await motionFinished
+    if (epoch !== viewportEpoch) return false
+  }
+})
+onBeforeUnmount(() => {
+  removeMotionGuard()
+  finishPageMotion()
+})
+
+function measureLeavingPage(element: Element) {
+  if (!desktopMotion()) return
+  window.clearTimeout(motionTimer)
+  motionTimer = window.setTimeout(finishPageMotion, 500)
+  leavingPageHeight = element.getBoundingClientRect().height
+  motionHost = element.closest<HTMLElement>('.page-host')
+  motionHost?.style.setProperty('min-height', `${leavingPageHeight}px`)
+  motionFinished = new Promise((resolve) => {
+    resolveMotion = resolve
+  })
+}
+
+function beforePageEnter(element: Element) {
+  if (desktopMotion()) (element as HTMLElement).style.transition = 'none'
+}
+
+function preparePageEnter(element: Element) {
+  if (!desktopMotion()) return
+  const host = element.closest<HTMLElement>('.page-host')
+  const height = element.getBoundingClientRect().height
+  // Both pages travel the same distance: the page above owns the shared edge.
+  const distance = pageDirection.value > 0 ? leavingPageHeight : height
+  host?.style.setProperty('--page-distance', `${distance}px`)
+  host?.style.setProperty('min-height', `${Math.max(leavingPageHeight, height)}px`)
+  // Establish the measured start before enabling the CSS transition.
+  void (element as HTMLElement).offsetHeight
+  ;(element as HTMLElement).style.transition = ''
+}
+
+function finishPageMotion() {
+  window.clearTimeout(motionTimer)
+  motionHost?.style.removeProperty('min-height')
+  motionHost = null
+  resolveMotion?.()
+  resolveMotion = null
+  motionFinished = null
+  finishHandoff()
+}
+
+const resizingPages = ref(false)
+let resizeTimer = 0
+function resetPageMotion() {
+  viewportEpoch += 1
+  const host = document.querySelector('.page-host')
+  if (!host?.querySelector('.page-enter-active, .page-leave-active')) return
+  resizingPages.value = true
+  finishPageMotion()
+  window.clearTimeout(resizeTimer)
+  resizeTimer = window.setTimeout(() => {
+    resizingPages.value = false
+  }, 300)
+}
+onMounted(() => window.addEventListener('resize', resetPageMotion, { passive: true }))
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', resetPageMotion)
+  window.clearTimeout(resizeTimer)
 })
 
 async function refresh() {
@@ -184,6 +262,7 @@ watch(
           -->
           <div
             class="page-host"
+            :class="{ 'page-host--resizing': resizingPages }"
             :style="{
               '--page-enter': `${handoff ? 0 : pageDirection}`,
               '--page-leave': `${handoff ? 0 : -pageDirection}`,
@@ -205,7 +284,11 @@ watch(
                 <Transition
                   name="page"
                   :duration="handoff ? 0 : undefined"
-                  @after-enter="finishHandoff"
+                  @before-leave="measureLeavingPage"
+                  @before-enter="beforePageEnter"
+                  @enter="preparePageEnter"
+                  @after-enter="finishPageMotion"
+                  @enter-cancelled="finishPageMotion"
                 >
                   <component :is="Component" />
                 </Transition>
@@ -333,6 +416,7 @@ watch(
  */
 .page-host {
   min-width: 0;
+  overflow: hidden;
   overflow: clip;
 }
 
@@ -369,21 +453,15 @@ watch(
   contain: paint;
 }
 
-/*
- * Page transition: every width slides sideways, a page at a time, in the direction you
- * navigated — the same motion the finger produces on a phone. Wide screens used to travel
- * up and down; pages of different heights never lined up, so the two were on screen together
- * and appeared to cover each other.
- */
+/* Mobile pages travel horizontally; desktop pages share a vertical edge. */
 .page-enter-active,
 .page-leave-active {
   transition: transform var(--dur-slide) var(--ease-out-strong);
 }
 
 /*
- * The two pages trade places at the same time — the same full-width slide the finger
- * produces — so the outgoing one leaves the flow instead of stacking under the new page
- * and doubling the scroll height for a frame.
+ * Both pages move together. The outgoing page leaves normal flow so the two pages do not
+ * stack and double the document height during the transition.
  */
 .page-leave-active {
   position: absolute;
@@ -391,10 +469,8 @@ watch(
   left: 0;
   width: 100%;
   /*
-   * It stays in the DOM — the geometry below is what the tests and the finger both read —
-   * but it stops painting the moment it starts leaving: two pages on screen at once reads as
-   * the arriving one covering the one it replaces. What is left is the incoming page sliding
-   * in over the empty page area, which is the whole direction cue.
+   * Mobile keeps its existing incoming-sheet presentation. Desktop overrides this below
+   * so both pages remain visible on opposite sides of their shared edge.
    */
   opacity: 0;
 }
@@ -407,7 +483,31 @@ watch(
   transform: translateX(calc(var(--page-leave, 0) * 100%));
 }
 
-@media (max-width: 900px) {
+/* Folding or rotation must not continue an animation on its former axis. */
+.page-host--resizing .page-enter-active,
+.page-host--resizing .page-leave-active {
+  transition: none !important;
+  transform: none !important;
+}
+.page-host--resizing .page-leave-active {
+  visibility: hidden;
+}
+
+@media (min-width: 720px) {
+  .page-leave-active {
+    opacity: 1;
+  }
+
+  .page-enter-from {
+    transform: translateY(calc(var(--page-enter, 0) * var(--page-distance, 0px)));
+  }
+
+  .page-leave-to {
+    transform: translateY(calc(var(--page-leave, 0) * var(--page-distance, 0px)));
+  }
+}
+
+@media not all and (min-width: 720px) {
   .shell {
     --shell-pad: var(--sp-3);
     --shell-pad-bottom: calc(var(--tabbar-space) + env(safe-area-inset-bottom, 0px));

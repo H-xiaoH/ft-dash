@@ -185,7 +185,7 @@ function tabLit(index: number): string {
   display: none;
 }
 
-@media (max-width: 900px) {
+@media not all and (min-width: 720px) {
   .rail {
     display: none;
   }
@@ -197,11 +197,18 @@ function tabLit(index: number): string {
     right: 0;
     display: flex;
     justify-content: space-between;
-    background: color-mix(in srgb, var(--ink-850) 94%, transparent);
+    background: rgb(15 15 15 / 94%);
+    -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
     border-top: 1px solid var(--line);
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
     z-index: 30;
+  }
+
+  @supports (color: color-mix(in srgb, black, white)) {
+    .tabbar {
+      background: color-mix(in srgb, var(--ink-850) 94%, transparent);
+    }
   }
 
   .tabbar__item {
@@ -216,12 +223,18 @@ function tabLit(index: number): string {
      * per tab — and fading between muted and accent instead of snapping. The drag itself
      * overrides the transition, so the light is under the block rather than trailing it.
      */
-    color: color-mix(in srgb, var(--accent) var(--lit, 0%), var(--text-3));
+    color: var(--text-3);
     transition: color var(--dur-slide) var(--ease-out-strong);
     text-decoration: none;
     font-size: 10px;
     position: relative;
     z-index: 1;
+  }
+
+  @supports (color: color-mix(in srgb, black, white)) {
+    .tabbar__item {
+      color: color-mix(in srgb, var(--accent) var(--lit, 0%), var(--text-3));
+    }
   }
 
   /* One sliding block behind the active tab. */
@@ -234,11 +247,22 @@ function tabLit(index: number): string {
     /* One slot per tab, derived from the route table rather than hard-coded. */
     width: calc((100% - 8px) / var(--nav-count, 7));
     border-radius: var(--r-1);
-    background: color-mix(in srgb, var(--accent) 14%, var(--ink-800));
+    background: rgb(51 51 51);
     transition: transform var(--dur-slide) var(--ease-out-strong);
     pointer-events: none;
     /* Its own layer, so following the finger stays on whole device pixels. */
     will-change: transform;
+  }
+  @supports (color: color-mix(in srgb, black, white)) {
+    .tabbar__indicator {
+      background: color-mix(in srgb, var(--accent) 14%, var(--ink-800));
+    }
+  }
+}
+
+@supports not (color: color-mix(in srgb, black, white)) {
+  .tabbar__item.is-active {
+    color: var(--accent);
   }
 }
 </style>

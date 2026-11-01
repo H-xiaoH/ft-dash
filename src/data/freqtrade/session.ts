@@ -1,12 +1,5 @@
 import { reactive } from 'vue'
-import {
-  describeError,
-  FreqtradeApiClient,
-  REFERENCE_CONTRACT,
-  type CompatibilityResult,
-  type Credentials,
-  type RequestOptions,
-} from './index'
+import { describeError, FreqtradeApiClient, type Credentials, type RequestOptions } from './index'
 import type {
   BalanceResponse,
   BlacklistResponse,
@@ -68,7 +61,6 @@ export interface BotSessionState {
   coreReady: boolean
   tradesReady: boolean
   refreshing: boolean
-  compatibility: CompatibilityResult | null
   errorKey: ErrorDescription | null
   resourceErrors: Record<ResourceName, ErrorDescription | null>
   actionPending: string | null
@@ -184,7 +176,6 @@ function createState(botId: string, epoch: number): BotSessionState {
     coreReady: false,
     tradesReady: false,
     refreshing: false,
-    compatibility: null,
     errorKey: null,
     resourceErrors: emptyResourceErrors(),
     actionPending: null,
@@ -347,7 +338,6 @@ export class BotSessionController {
     this.state.coreReady = false
     this.state.tradesReady = false
     this.state.refreshing = false
-    this.state.compatibility = null
     this.state.errorKey = null
     this.state.resourceErrors = emptyResourceErrors()
     this.state.latencyMs = null
@@ -730,10 +720,11 @@ export class BotSessionController {
   private async refreshHealth(): Promise<void> {
     const epoch = this.state.epoch
     const result = await this.call('core.health', (client, options) => client.health(options))
-    if (epoch === this.state.epoch && result.ok) {
-      this.state.data.health = result.value as HealthResponse
-      this.evaluateHeartbeat()
-    }
+    if (epoch !== this.state.epoch || result.stale) return
+    if (result.ok) this.state.data.health = result.value as HealthResponse
+    else this.state.coreReady = false
+    this.updateConnectionFromResults([result], epoch)
+    this.evaluateHeartbeat()
   }
 
   startPolling(): void {
@@ -757,20 +748,6 @@ export class BotSessionController {
       const client = this.ensureClient()
       await client.ping()
       if (epoch !== this.state.epoch || client !== this.client) return false
-      let compatibility: CompatibilityResult
-      try {
-        compatibility = await client.inspectCompatibility()
-      } catch {
-        compatibility = {
-          status: 'unknown',
-          detectedVersion: null,
-          apiVersion: null,
-          referenceContract: REFERENCE_CONTRACT,
-          warningKey: 'compatibility.versionUnknown',
-        }
-      }
-      if (epoch !== this.state.epoch || client !== this.client) return false
-      this.state.compatibility = compatibility
       const config = await client.showConfig()
       if (epoch !== this.state.epoch || client !== this.client) return false
       this.state.data.showConfig = config

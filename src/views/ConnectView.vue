@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import FilterMenu from '@/components/FilterMenu.vue'
 import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from '@/i18n'
-import { describeError, FreqtradeApiClient, normalizeBaseUrl } from '@/data/freqtrade'
+import { describeError, FreqtradeApiClient } from '@/data/freqtrade'
 import { defaultBotName } from '@/lib/bots'
 import { pushToast } from '@/composables/useToast'
 import { useBotStore } from '@/stores/bot'
@@ -46,52 +46,37 @@ async function submit() {
   if (!canSubmit.value || submitting.value) return
   submitting.value = true
   failure.value = null
-  const normalized = normalizeBaseUrl(baseUrl.value) || baseUrl.value.trim()
-  const label = name.value.trim() || defaultBotName(username.value, normalized)
-  const credentials = {
-    baseUrl: normalized,
-    username: username.value.trim(),
-    password: password.value,
-  }
-  /*
-   * Ask the bot before writing anything down. A mistyped password used to leave a bot in the
-   * list and open a shell with no data in it; the sign-in is now the thing that gets checked,
-   * and the app only moves on — and only saves — once the API has answered.
-   */
   try {
+    const credentials = {
+      baseUrl: baseUrl.value,
+      username: username.value.trim(),
+      password: password.value,
+    }
     const probe = new FreqtradeApiClient(credentials)
+    const normalized = probe.baseUrl
+    const label = name.value.trim() || defaultBotName(credentials.username, normalized)
     await probe.ping()
     await probe.showConfig()
+
+    const existing = settings.bots.find(
+      (entry) => entry.baseUrl === normalized && entry.username === credentials.username,
+    )
+    const input = { ...credentials, baseUrl: normalized, name: label }
+    if (existing) {
+      settings.updateBot(existing.id, input)
+      settings.setActiveBot(existing.id)
+    } else {
+      const added = settings.addBot(input)
+      settings.setActiveBot(added.id)
+    }
+    bot.rebuildClient()
+    const ok = await bot.connect()
+    if (ok) pushToast(t('bots.added', { name: label }), 'good')
   } catch (error) {
     failure.value = describeError(error)
+  } finally {
     submitting.value = false
-    return
   }
-
-  const existing = settings.bots.find(
-    (entry) => entry.baseUrl === normalized && entry.username === username.value.trim(),
-  )
-  if (existing) {
-    settings.updateBot(existing.id, {
-      name: label,
-      baseUrl: credentials.baseUrl,
-      username: credentials.username,
-      password: credentials.password,
-    })
-    settings.setActiveBot(existing.id)
-  } else {
-    const added = settings.addBot({
-      name: label,
-      baseUrl: credentials.baseUrl,
-      username: credentials.username,
-      password: credentials.password,
-    })
-    settings.setActiveBot(added.id)
-  }
-  bot.rebuildClient()
-  const ok = await bot.connect()
-  if (ok) pushToast(t('bots.added', { name: label }), 'good')
-  submitting.value = false
 }
 </script>
 
@@ -258,7 +243,13 @@ async function submit() {
   height: 12px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow: 0 0 0 6px rgb(232 234 237 / 18%);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .connect__mark-dot {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
 }
 
 .connect__title {

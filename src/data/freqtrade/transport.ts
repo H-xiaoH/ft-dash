@@ -96,8 +96,7 @@ function isApiError(value: unknown): value is ApiError {
 }
 
 /**
- * Handles only transport concerns. Endpoint response validation belongs to the client so
- * this class can also be used for the small compatibility probe.
+ * Handles only transport concerns. Endpoint response validation belongs to the client.
  */
 export class FreqtradeTransport {
   readonly baseUrl: string

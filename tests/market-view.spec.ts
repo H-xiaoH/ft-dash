@@ -65,6 +65,76 @@ async function makeRouter() {
 }
 
 describe('MarketView', () => {
+  it('refreshes successful candles every thirty seconds and stops after unmount', async () => {
+    vi.useFakeTimers()
+    const router = await makeRouter()
+    const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })
+    try {
+      await nextTick()
+      pending[0]?.resolve(response('AAA/USDT'))
+      await vi.advanceTimersByTimeAsync(29_000)
+      expect(bot.fetchCandles).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1_001)
+      expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
+      pending[1]?.resolve(response('AAA/USDT'))
+      await vi.advanceTimersByTimeAsync(1)
+      wrapper.unmount()
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
+    } finally {
+      if (wrapper.exists()) wrapper.unmount()
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not restart a refresh loop when a timer-started request resolves after unmount', async () => {
+    vi.useFakeTimers()
+    const router = await makeRouter()
+    const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })
+    try {
+      await nextTick()
+      pending[0]?.resolve(response('AAA/USDT'))
+      await vi.advanceTimersByTimeAsync(30_001)
+      expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
+      wrapper.unmount()
+      pending[1]?.resolve(response('AAA/USDT'))
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
+    } finally {
+      if (wrapper.exists()) wrapper.unmount()
+      vi.useRealTimers()
+    }
+  })
+
+  it('pauses candle refreshes while hidden and refreshes stale candles on return', async () => {
+    vi.useFakeTimers()
+    const originalVisibility = document.visibilityState
+    const router = await makeRouter()
+    const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })
+    try {
+      await nextTick()
+      pending[0]?.resolve(response('AAA/USDT'))
+      await vi.advanceTimersByTimeAsync(1)
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(bot.fetchCandles).toHaveBeenCalledTimes(1)
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+      await nextTick()
+      expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
+    } finally {
+      wrapper.unmount()
+      Object.defineProperty(document, 'visibilityState', {
+        value: originalVisibility,
+        configurable: true,
+      })
+      vi.useRealTimers()
+    }
+  })
+
   let pending: PendingRequest[]
 
   beforeAll(async () => {
@@ -178,10 +248,10 @@ describe('MarketView', () => {
     expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
     expect(pending[1]?.pair).toBe('AAA/USDT')
 
-    // Success stops the loop.
+    // Success changes the cadence from retry to regular refresh.
     pending[1]?.resolve(response('AAA/USDT'))
     await flushPromises()
-    await vi.advanceTimersByTimeAsync(30_000)
+    await vi.advanceTimersByTimeAsync(29_000)
     expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
 
     wrapper.unmount()

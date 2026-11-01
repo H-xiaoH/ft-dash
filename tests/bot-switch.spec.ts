@@ -143,6 +143,52 @@ const corePayloads: Record<string, unknown> = {
 }
 
 describe('switching bots', () => {
+  it('checks controls and current readiness again at the write entry', async () => {
+    const settings = addTestBots()
+    settings.websocket = false
+    const fetcher = vi.fn((input: RequestInfo | URL, options?: RequestInit) => {
+      const path = new URL(String(input)).pathname.replace('/api/v1', '')
+      if (options?.method === 'POST') return Promise.resolve(jsonResponse({ status: 'ok' }))
+      if (path === '/show_config') return Promise.resolve(jsonResponse(showConfig('FirstBot')))
+      if (path === '/trades')
+        return Promise.resolve(
+          jsonResponse({ trades: [], trades_count: 0, offset: 0, total_trades: 0 }),
+        )
+      return Promise.resolve(jsonResponse(corePayloads[path] ?? {}))
+    })
+    vi.stubGlobal('fetch', fetcher)
+    const bot = useBotStore()
+    await bot.connect()
+    bot.stopPolling()
+    const writeCount = () =>
+      fetcher.mock.calls.filter(([, options]) => options?.method === 'POST').length
+    try {
+      for (const [enabled, acknowledged] of [
+        [false, false],
+        [true, false],
+        [false, true],
+      ]) {
+        settings.allowControls = enabled!
+        settings.controlsAcknowledged = acknowledged!
+        expect(await bot.stop()).toBeNull()
+        expect(writeCount()).toBe(0)
+      }
+      settings.allowControls = true
+      settings.controlsAcknowledged = true
+      expect(bot.writesAllowed).toBe(true)
+      expect(await bot.stop()).toEqual({ status: 'ok' })
+      expect(writeCount()).toBe(1)
+      // A confirmation opened earlier must not bypass a failed core refresh.
+      fetcher.mockImplementationOnce(() => Promise.resolve(new Response('{}', { status: 500 })))
+      await bot.refreshCore()
+      expect(bot.writesAllowed).toBe(false)
+      expect(await bot.forceExit(1)).toBeNull()
+      expect(writeCount()).toBe(1)
+    } finally {
+      bot.cleanup()
+    }
+  })
+
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()
@@ -154,6 +200,31 @@ describe('switching bots', () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  it('connects from config without requesting the version endpoint', async () => {
+    const settings = addTestBots()
+    settings.websocket = false
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const path = new URL(String(input)).pathname.replace('/api/v1', '')
+      if (path === '/show_config')
+        return jsonResponse({ ...showConfig('first'), version: '2099.1', api_version: 99 })
+      if (path === '/trades')
+        return jsonResponse({ trades: [], trades_count: 0, offset: 0, total_trades: 0 })
+      return jsonResponse(corePayloads[path] ?? {})
+    })
+    vi.stubGlobal('fetch', fetcher)
+    const bot = useBotStore()
+    try {
+      await expect(bot.connect()).resolves.toBe(true)
+      expect(bot.showConfig?.version).toBe('2099.1')
+      expect(bot.showConfig?.api_version).toBe(99)
+      expect(
+        fetcher.mock.calls.some(([url]) => new URL(String(url)).pathname.endsWith('/version')),
+      ).toBe(false)
+    } finally {
+      bot.cleanup()
+    }
   })
 
   it('drops a reply that arrives after the dashboard moved to another bot', async () => {

@@ -289,37 +289,6 @@ describe('FreqtradeApi', () => {
     })
   })
 
-  it('warns for a non-target Freqtrade version without rejecting the connection', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ version: '2026.8', api_version: 2.5 }))
-    const api = new FreqtradeApiClient(credentials)
-
-    await expect(api.inspectCompatibility()).resolves.toMatchObject({
-      status: 'warning',
-      detectedVersion: '2026.8',
-      apiVersion: 2.5,
-    })
-  })
-
-  it('completes compatibility checks from show config when version only reports the release', async () => {
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(jsonResponse({ version: '2026.9' }))
-      .mockResolvedValueOnce(jsonResponse({ version: '2026.9', api_version: 2.5 }))
-    const api = new FreqtradeApiClient(credentials)
-
-    await expect(api.inspectCompatibility()).resolves.toMatchObject({
-      status: 'compatible',
-      detectedVersion: '2026.9',
-      apiVersion: 2.5,
-    })
-  })
-
-  it('returns an unknown warning when the version probe cannot be read', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ detail: 'Not Found' }, 404))
-    const api = new FreqtradeApiClient(credentials)
-
-    await expect(api.inspectCompatibility()).resolves.toMatchObject({ status: 'unknown' })
-  })
-
   it('surfaces FastAPI validation detail', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       jsonResponse({ detail: [{ msg: 'field required', type: 'value_error' }] }, 422),

@@ -39,12 +39,13 @@ export default {
   },
   status: {
     running: '运行中',
-    paused: '已暂停入场',
+    paused: '已暂停',
     stopped: '已停止',
-    starting: '启动中',
-    unavailable: '不可用',
+    connecting: '连接中',
+    idle: '未连接',
+    unreachable: '未连通',
     unauthorized: '未授权',
-    unknown: '状态未知',
+    unknown: '未知',
   },
   connect: {
     title: '连接到你的后端',
@@ -91,12 +92,6 @@ export default {
     needPassword: '「{name}」没有保存的密码，输入后即可连接',
     connect: '连接',
     empty: '还没有后端，先添加一个。',
-  },
-  compatibility: {
-    title: '兼容性提示',
-    versionMismatch:
-      '已连接，但检测到 Freqtrade {detectedVersion} / API {apiVersion}；当前按 {referenceContract} 处理，部分接口可能出现错误。',
-    versionUnknown: '已连接，但无法确认 Freqtrade/API 版本；部分接口可能出现错误。',
   },
   notices: {
     title: '系统提示',
@@ -228,6 +223,7 @@ export default {
     showOnlyPositions: '仅看有持仓',
   },
   stats: {
+    loadedWindow: '胜率、持仓时长、手续费和成交额仅统计已加载交易',
     pairs: '交易对表现',
     name: '交易对',
     date: '日期',
@@ -258,32 +254,33 @@ export default {
       sharpe: {
         name: '夏普（Sharpe）',
         plain:
-          '每承受 1 份波动，赚回多少：收益减去无风险利率，再除以波动。涨得猛也算波动，所以暴涨反而会把它拉低。',
+          '将收益与整体波动一起看。收益相近时，波动越小，夏普通常越高；上涨和下跌造成的波动都会计入。它衡量收益的稳定程度，不代表实际赚了多少钱。',
         bench:
-          '低于 1：风险没换来补偿；1–2 合格；2–3 很好；3 以上优秀。卡片上低于 {good} 标黄、为负标红。',
+          '界面参考分档：低于 {weak} 标红，{weak} 至低于 {good} 标黄，{good} 及以上标绿。这些阈值仅用于读数提示，不代表策略合格或未来收益。',
       },
       sortino: {
         name: '索提诺（Sortino）',
-        plain: '只把下跌那部分算作波动，涨多猛不惩罚。更贴近实盘感受，所以一般比夏普高。',
+        plain:
+          '将收益与负收益的波动一起看。它帮助观察盈利表现与亏损波动之间的关系。亏损样本过少时，读数可能不稳定；高分也不等于不会出现大亏损。',
         bench:
-          '低于 1 说明回撤吃掉了收益；2 以上算好；3 以上优秀。卡片上低于 {good} 标黄、为负标红。',
+          '界面参考分档：低于 {weak} 标红，{weak} 至低于 {good} 标黄，{good} 及以上标绿。这些阈值仅用于读数提示，不代表策略合格或未来收益。',
       },
       sqn: {
         name: 'SQN（系统质量数）',
         plain:
-          '按一笔笔交易的盈亏衡量策略稳不稳：√交易笔数 × 每笔平均盈利 ÷ 每笔盈亏的标准差。笔数越多，同样的表现分数越高。',
+          '综合每笔平均盈亏、盈亏差异和交易笔数。平均盈利更高、各笔结果更一致时，分数通常更高。交易笔数也会影响读数，因此比较时要同时看样本规模，不能只比分数。',
         bench:
-          '{weak} 以下差；1.6–1.9 平均以下；2.0–2.4 平均；{good}–2.9 好；3.0–5.0 优秀；5–7 极好；7 以上多半是样本太少。卡片上 {good} 以上标绿、{weak}–{good} 标黄、以下标红。',
+          '界面参考分档：低于 {weak} 标红，{weak} 至低于 {good} 标黄，{good} 及以上标绿。这些阈值仅用于读数提示，不代表策略合格或未来收益。',
       },
       calmar: {
         name: 'Calmar（收益回撤比）',
         plain:
-          '赚来的钱够不够填平最惨那一次回撤：年化收益 ÷ 最大回撤。一年赚 30%、最多回撤 10%，就是 3。',
+          '将收益与统计期间内最大的回撤一起看。收益相近时，最大回撤越小，读数通常越高。它受观察区间影响很大，短期高分并不意味着经历了充分的风险检验。',
         bench:
-          '低于 0.5 一般；0.5–1 还行；1–3 好；3 以上优秀。卡片上 {good} 以上标绿、0–{good} 标黄、为负标红。',
+          '界面参考分档：低于 {weak} 标红，{weak} 至低于 {good} 标黄，{good} 及以上标绿。这些阈值仅用于读数提示，不代表策略合格或未来收益。',
       },
       caveat:
-        '这只是个比值，适合和「上周的自己」比，不适合拿去跟别的策略硬对。样本少于 30 笔时，看它意义不大。',
+        '比较前，先确认统计区间、交易笔数、资金规模和计算口径一致。短期、少量交易或亏损样本不足时，读数容易失真。显示「—」表示缺少有效读数，不能当作 0 或没有风险。',
     },
   },
   logs: {
@@ -346,14 +343,11 @@ export default {
     clearDataConfirm: '这会把保存的凭据与偏好一并删除。',
     countDefault: '默认: {n}（{min}–{max}）',
     display: '界面',
-    openLimit: '总览：当前持仓上限',
-    openLimitHint: '超过这个数量后，总览只列出前几条，其余到交易页看。',
-    closedLimit: '总览：最近平仓上限',
-    closedLimitHint: '总览的「最近平仓」最多列多少条。',
-    tradesPerPage: '交易页：每页条数',
-    pairTablePerPage: '统计：每页交易对数',
-    pairTablePerPageHint: '交易对表现表格每页显示多少个交易对，5 到 300。',
-    tradesPerPageHint: '交易列表每页显示多少条，5 到 300；填 300 就是一页列出已加载的全部。',
+    openLimit: '总览持仓显示数',
+    closedLimit: '总览平仓显示数',
+    tradesPerPage: '交易每页条数',
+    tradesPagePlaceholder: '0 显示全部',
+    pairTablePerPage: '统计每页交易对数',
     pwaTitle: '安装为应用',
     install: '添加到主屏幕',
     installed: '已安装',

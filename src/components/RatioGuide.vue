@@ -32,37 +32,39 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 <template>
   <Teleport to="body">
-    <div
-      v-if="ratio"
-      class="overlay"
-      role="dialog"
-      aria-modal="true"
-      :aria-labelledby="titleId"
-      @click.self="emit('close')"
-    >
-      <div ref="panel" class="dialog ratios" tabindex="-1">
-        <div class="dialog__head">
-          <span :id="titleId" class="dialog__title">{{ title }}</span>
-          <div class="spacer" />
-          <button type="button" class="btn btn--icon btn--ghost" @click="emit('close')">
-            <span aria-hidden="true">✕</span>
-            <span class="sr-only">{{ t('common.close') }}</span>
-          </button>
-        </div>
-        <div class="dialog__body">
-          <p>{{ t(`stats.ratios.${ratio}.plain`) }}</p>
-          <p class="ratios__bench">
-            {{ t(`stats.ratios.${ratio}.bench`, { ...RATIO_BANDS[ratio] }) }}
-          </p>
-          <p class="ratios__caveat">{{ t('stats.ratios.caveat') }}</p>
-        </div>
-        <div class="dialog__foot">
-          <button type="button" class="btn btn--primary" @click="emit('close')">
-            {{ t('common.close') }}
-          </button>
+    <Transition name="popup" appear @before-leave="(el) => el.setAttribute('inert', '')">
+      <div
+        v-if="ratio"
+        class="overlay"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="titleId"
+        @click.self="emit('close')"
+      >
+        <div ref="panel" class="dialog ratios" tabindex="-1">
+          <div class="dialog__head">
+            <span :id="titleId" class="dialog__title">{{ title }}</span>
+            <div class="spacer" />
+            <button type="button" class="btn btn--icon btn--ghost" @click="emit('close')">
+              <span aria-hidden="true">✕</span>
+              <span class="sr-only">{{ t('common.close') }}</span>
+            </button>
+          </div>
+          <div class="dialog__body">
+            <p>{{ t(`stats.ratios.${ratio}.plain`) }}</p>
+            <p class="ratios__bench">
+              {{ t(`stats.ratios.${ratio}.bench`, { ...RATIO_BANDS[ratio] }) }}
+            </p>
+            <p class="ratios__caveat">{{ t('stats.ratios.caveat') }}</p>
+          </div>
+          <div class="dialog__foot">
+            <button type="button" class="btn btn--primary" @click="emit('close')">
+              {{ t('common.close') }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
 

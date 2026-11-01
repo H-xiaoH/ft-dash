@@ -133,8 +133,14 @@ textarea {
 
 a {
   color: var(--accent);
-  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-decoration-color: rgb(232 234 237 / 45%);
   text-underline-offset: 2px;
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  a {
+    text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
 }
 
 :focus-visible {
@@ -178,7 +184,13 @@ a {
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  background: rgb(232 234 237 / 35%);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
 }
 
 /* Scrollbars stay out of the way but remain visible on hover. */

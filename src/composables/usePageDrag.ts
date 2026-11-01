@@ -1,4 +1,5 @@
 import { onBeforeUnmount, onMounted } from 'vue'
+import { isWideLayout } from '@/lib/layout'
 import { NAV_ROUTES } from '@/router'
 import { usePageTrack } from './usePageTrack'
 
@@ -72,7 +73,13 @@ export function usePageDrag(isBlocked: () => boolean) {
 
   function onTouchStart(event: TouchEvent) {
     gesture = null
-    if (track.busy() || event.touches.length !== 1 || gestureIsTaken(event.target)) return
+    if (
+      isWideLayout() ||
+      track.busy() ||
+      event.touches.length !== 1 ||
+      gestureIsTaken(event.target)
+    )
+      return
     // The bar belongs to its tabs: a touch there never becomes a page drag.
     if (event.target instanceof Element && event.target.closest('.tabbar')) return
     const touch = event.touches[0]
@@ -181,16 +188,27 @@ export function usePageDrag(isBlocked: () => boolean) {
     }, WHEEL_SETTLE_MS)
   }
 
+  function resetGesture() {
+    gesture = null
+    window.clearTimeout(wheel?.timer)
+    wheel = null
+    track.reset()
+  }
+
   onMounted(() => {
     window.addEventListener('touchstart', onTouchStart, { passive: true })
     window.addEventListener('touchmove', onTouchMove, { passive: false })
     window.addEventListener('touchend', onTouchEnd, { passive: true })
+    window.addEventListener('touchcancel', resetGesture, { passive: true })
+    window.addEventListener('resize', resetGesture, { passive: true })
   })
 
   onBeforeUnmount(() => {
     window.removeEventListener('touchstart', onTouchStart)
     window.removeEventListener('touchmove', onTouchMove)
     window.removeEventListener('touchend', onTouchEnd)
+    window.removeEventListener('touchcancel', resetGesture)
+    window.removeEventListener('resize', resetGesture)
     window.clearTimeout(wheel?.timer)
   })
 

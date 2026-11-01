@@ -11,8 +11,8 @@ export interface PairStats {
   losses: number
   winRate: number | null
   avgDuration: number | null
-  fees: number
-  volume: number
+  fees: number | null
+  volume: number | null
   lastTrade: number | null
 }
 
@@ -54,11 +54,15 @@ export function buildPairStats(performance: PerformanceEntry[], trades: Trade[])
       avgDuration: durations.length
         ? durations.reduce((sum, duration) => sum + duration, 0) / durations.length
         : null,
-      fees: pairTrades.reduce(
-        (sum, trade) => sum + (trade.fee_open_cost ?? 0) + (trade.fee_close_cost ?? 0),
-        0,
-      ),
-      volume: pairTrades.reduce((sum, trade) => sum + (trade.open_trade_value ?? 0), 0),
+      fees: pairTrades.length
+        ? pairTrades.reduce(
+            (sum, trade) => sum + (trade.fee_open_cost ?? 0) + (trade.fee_close_cost ?? 0),
+            0,
+          )
+        : null,
+      volume: pairTrades.length
+        ? pairTrades.reduce((sum, trade) => sum + (trade.open_trade_value ?? 0), 0)
+        : null,
       lastTrade: closes.length ? Math.max(...closes) : null,
     }
   })

@@ -104,11 +104,11 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
         :sub="format.dateTime(bot.health?.last_process ?? null)"
       />
       <MetricTile
-        :label="t('system.polling')"
-        :value="`${bot.pollIntervalSeconds}s`"
+        :label="t('system.latency')"
+        :value="bot.latencyMs !== null ? `${bot.latencyMs} ms` : '—'"
         kind="text"
         small
-        :sub="bot.latencyMs !== null ? `${bot.latencyMs} ms` : '—'"
+        :sub="`${t('system.polling')} ${bot.pollIntervalSeconds}s`"
       />
     </div>
 

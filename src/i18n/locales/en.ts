@@ -41,8 +41,9 @@ export default {
     running: 'Running',
     paused: 'Entries paused',
     stopped: 'Stopped',
-    starting: 'Starting',
-    unavailable: 'Unavailable',
+    connecting: 'Connecting',
+    idle: 'Not connected',
+    unreachable: 'Connection failed',
     unauthorized: 'Unauthorized',
     unknown: 'Unknown state',
   },
@@ -93,13 +94,6 @@ export default {
     needPassword: '“{name}” has no stored password — enter it to connect',
     connect: 'Connect',
     empty: 'No backends yet — add one.',
-  },
-  compatibility: {
-    title: 'Compatibility warning',
-    versionMismatch:
-      'Connected, but detected Freqtrade {detectedVersion} / API {apiVersion}; this app targets {referenceContract}. Some endpoints may fail.',
-    versionUnknown:
-      'Connected, but the Freqtrade/API version could not be confirmed. Some endpoints may fail.',
   },
   notices: {
     title: 'System notices',
@@ -233,6 +227,7 @@ export default {
     showOnlyPositions: 'Positions only',
   },
   stats: {
+    loadedWindow: 'Win rate, duration, fees and volume use loaded trades only',
     pairs: 'Pair performance',
     name: 'Pair',
     date: 'Date',
@@ -263,33 +258,33 @@ export default {
       sharpe: {
         name: 'Sharpe',
         plain:
-          'Return per unit of swing: return minus the risk-free rate, divided by volatility. A big jump counts as volatility too, so a spike pulls it down.',
+          'Looks at return alongside overall volatility. For similar returns, lower volatility usually means a higher Sharpe ratio; both upward and downward variation count. It measures consistency of returns, not how much money was made.',
         bench:
-          'Under 1 the risk was not paid for; 1–2 acceptable; 2–3 strong; above 3 excellent. The card turns amber under {good} and red when negative.',
+          'Interface reference bands: red below {weak}, amber from {weak} to below {good}, and green from {good}. These thresholds help read the value; they do not certify a strategy or predict future returns.',
       },
       sortino: {
         name: 'Sortino',
         plain:
-          'Only the downside counts as swing, so big gains are not punished. It tracks real experience better, which is why it usually runs above Sharpe.',
+          'Looks at return alongside variation in negative returns. It helps compare profitability with downside volatility. Too few losing observations can make the reading unstable; a high score does not rule out a large loss.',
         bench:
-          'Under 1 means drawdowns ate the return; 2 and up is good; above 3 is excellent. The card turns amber under {good} and red when negative.',
+          'Interface reference bands: red below {weak}, amber from {weak} to below {good}, and green from {good}. These thresholds help read the value; they do not certify a strategy or predict future returns.',
       },
       sqn: {
         name: 'SQN (System Quality Number)',
         plain:
-          'Steadiness judged trade by trade: the square root of the trade count times average profit per trade, divided by the standard deviation of profit. More trades lift the same behaviour to a higher score.',
+          'Combines average profit or loss per trade, variation between trades, and trade count. Higher average profits and more consistent results usually raise the score. Trade count also affects it, so compare sample sizes alongside scores.',
         bench:
-          'Below {weak} poor; 1.6–1.9 below average; 2.0–2.4 average; {good}–2.9 good; 3.0–5.0 excellent; 5–7 superb; above 7 usually means too few trades. The card is green from {good}, amber from {weak}, red below.',
+          'Interface reference bands: red below {weak}, amber from {weak} to below {good}, and green from {good}. These thresholds help read the value; they do not certify a strategy or predict future returns.',
       },
       calmar: {
         name: 'Calmar',
         plain:
-          'Whether the profit covers the worst drawdown: annual return divided by max drawdown. Up 30% in a year with a 10% worst drawdown is 3.',
+          'Looks at return alongside the largest drawdown in the measured period. For similar returns, a smaller maximum drawdown usually means a higher reading. The observation window matters: a high short-term score does not show that the strategy has faced a broad range of risks.',
         bench:
-          'Below 0.5 ordinary; 0.5–1 fair; 1–3 good; above 3 excellent. The card is green from {good}, amber from {weak}, red when negative.',
+          'Interface reference bands: red below {weak}, amber from {weak} to below {good}, and green from {good}. These thresholds help read the value; they do not certify a strategy or predict future returns.',
       },
       caveat:
-        'It is only a ratio: compare your own bot over time rather than against another strategy. With fewer than 30 trades it tells you nothing.',
+        'Before comparing, check that the measurement window, trade count, capital, and calculation method are comparable. Short periods, small samples, or too few losing observations can distort readings. An em dash means no valid reading is available, not zero or no risk.',
     },
   },
   logs: {
@@ -353,15 +348,11 @@ export default {
     clearDataConfirm: 'This removes saved credentials and preferences.',
     countDefault: 'Default: {n} ({min}–{max})',
     display: 'Interface',
-    openLimit: 'Overview: open positions shown',
-    openLimitHint: 'Past this many, the overview lists the first few and the rest live on Trades.',
-    closedLimit: 'Overview: recently closed shown',
-    closedLimitHint: 'How many rows "Recently closed" lists.',
-    tradesPerPage: 'Trades: rows per page',
-    pairTablePerPage: 'Statistics: pairs per page',
-    pairTablePerPageHint: 'How many pairs the per-pair table shows per page, 5 to 300.',
-    tradesPerPageHint:
-      'Rows per page in the trade list, 5 to 300; 300 lists everything loaded on one page.',
+    openLimit: 'Overview positions shown',
+    closedLimit: 'Overview closed trades shown',
+    tradesPerPage: 'Trades per page',
+    tradesPagePlaceholder: '0 shows all',
+    pairTablePerPage: 'Statistics pairs per page',
     pwaTitle: 'Install as app',
     install: 'Add to home screen',
     installed: 'Installed',

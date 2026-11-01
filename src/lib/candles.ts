@@ -40,15 +40,21 @@ export function collectCandleMarks(input: {
 }): CandleMark[] {
   const { meta, candles, trades, pair } = input
 
-  const indexAt = new Map<number, number>()
-  candles.forEach((candle, index) => {
-    const at = parseTimestamp(candle.time ?? null)
-    if (at !== null) indexAt.set(at, index)
-  })
-  /** Which candle a moment belongs to, or nothing when it falls outside the window. */
+  const times = candles.map((candle) => parseTimestamp(candle.time ?? null))
+  const interval = meta?.timeframe_ms
+  /** Fills happen inside a candle, not necessarily at its opening timestamp. */
   const indexOf = (time: number | string | null | undefined) => {
     const at = parseTimestamp(time ?? null)
-    return at === null ? undefined : indexAt.get(at)
+    if (at === null) return undefined
+    const index = times.findIndex((start, index) => {
+      if (start === null || at < start) return false
+      const end =
+        interval && interval > 0
+          ? Math.min(times[index + 1] ?? Infinity, start + interval)
+          : (times[index + 1] ?? start)
+      return at === start || at < end
+    })
+    return index < 0 ? undefined : index
   }
 
   const marks: CandleMark[] = []

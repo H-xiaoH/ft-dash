@@ -448,7 +448,13 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 .candles svg:focus-visible {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: 0 0 0 2px rgb(232 234 237 / 40%);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .candles svg:focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
 }
 
 .candles__axis {
@@ -502,9 +508,16 @@ function onKeydown(event: KeyboardEvent) {
   padding: 6px 8px;
   border: 1px solid var(--line);
   border-radius: var(--r-1);
-  background: color-mix(in srgb, var(--ink-850) 88%, transparent);
+  background: rgb(15 15 15 / 88%);
+  -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
   pointer-events: none;
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .candles__readout {
+    background: color-mix(in srgb, var(--ink-850) 88%, transparent);
+  }
 }
 
 .candles__time {

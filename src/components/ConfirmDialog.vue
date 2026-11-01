@@ -54,45 +54,47 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="overlay" role="dialog" aria-modal="true" @click.self="emit('cancel')">
-      <div ref="panel" class="dialog" tabindex="-1">
-        <div class="dialog__head">
-          <span class="dialog__title">{{ title }}</span>
-          <div class="spacer" />
-          <button type="button" class="btn btn--icon btn--ghost" @click="emit('cancel')">
-            <span aria-hidden="true">✕</span>
-            <span class="sr-only">{{ t('common.close') }}</span>
-          </button>
-        </div>
-        <div class="dialog__body">
-          <!-- A slot for callers whose explanation is a list, not one sentence. -->
-          <slot name="body">
-            <p v-if="body">{{ body }}</p>
-          </slot>
-          <p v-if="tone === 'danger'" class="confirm-warning">{{ t('actions.confirmBody') }}</p>
-          <label v-if="requireText" class="field">
-            <span class="field__label">{{
-              requiredHint ?? t('actions.forceExitConfirm', { pair: requireText })
-            }}</span>
-            <input v-model="typed" class="input num" autocomplete="off" spellcheck="false" />
-          </label>
-        </div>
-        <div class="dialog__foot">
-          <button type="button" class="btn" @click="emit('cancel')">
-            {{ cancelLabel ?? t('common.cancel') }}
-          </button>
-          <button
-            type="button"
-            class="btn"
-            :class="tone === 'danger' ? 'btn--danger' : 'btn--primary'"
-            :disabled="!canConfirm || pending"
-            @click="emit('confirm')"
-          >
-            {{ pending ? t('actions.running') : (confirmLabel ?? t('actions.run')) }}
-          </button>
+    <Transition name="popup" appear @before-leave="(el) => el.setAttribute('inert', '')">
+      <div v-if="open" class="overlay" role="dialog" aria-modal="true" @click.self="emit('cancel')">
+        <div ref="panel" class="dialog" tabindex="-1">
+          <div class="dialog__head">
+            <span class="dialog__title">{{ title }}</span>
+            <div class="spacer" />
+            <button type="button" class="btn btn--icon btn--ghost" @click="emit('cancel')">
+              <span aria-hidden="true">✕</span>
+              <span class="sr-only">{{ t('common.close') }}</span>
+            </button>
+          </div>
+          <div class="dialog__body">
+            <!-- A slot for callers whose explanation is a list, not one sentence. -->
+            <slot name="body">
+              <p v-if="body">{{ body }}</p>
+            </slot>
+            <p v-if="tone === 'danger'" class="confirm-warning">{{ t('actions.confirmBody') }}</p>
+            <label v-if="requireText" class="field">
+              <span class="field__label">{{
+                requiredHint ?? t('actions.forceExitConfirm', { pair: requireText })
+              }}</span>
+              <input v-model="typed" class="input num" autocomplete="off" spellcheck="false" />
+            </label>
+          </div>
+          <div class="dialog__foot">
+            <button type="button" class="btn" @click="emit('cancel')">
+              {{ cancelLabel ?? t('common.cancel') }}
+            </button>
+            <button
+              type="button"
+              class="btn"
+              :class="tone === 'danger' ? 'btn--danger' : 'btn--primary'"
+              :disabled="!canConfirm || pending"
+              @click="open && canConfirm && !pending && emit('confirm')"
+            >
+              {{ pending ? t('actions.running') : (confirmLabel ?? t('actions.run')) }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
 

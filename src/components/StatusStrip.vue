@@ -10,24 +10,28 @@ const format = useFormat()
 const bot = useBotStore()
 const emit = defineEmits<{ refresh: [] }>()
 
-const stateKey = computed(() => {
-  if (bot.connection === 'connecting') return 'status.starting'
-  // State words, not sentences: this is a one-line bar, and the banner underneath carries
-  // the explanation together with the buttons that can act on it.
-  if (bot.connection === 'unreachable') return 'status.unavailable'
-  const state = bot.showConfig?.state
-  if (state === 'running') return 'status.running'
-  if (state === 'paused') return 'status.paused'
-  if (state === 'stopped') return 'status.stopped'
-  return bot.connection === 'online' ? 'status.running' : 'status.unknown'
-})
-
-const stateTone = computed(() => {
-  if (bot.connection !== 'online') return 'bad'
-  const state = bot.showConfig?.state
-  if (state === 'paused') return 'warn'
-  if (state === 'stopped') return 'bad'
-  return 'good'
+const status = computed(() => {
+  // A cached backend state cannot override the current connection state.
+  switch (bot.connection) {
+    case 'connecting':
+      return { key: 'status.connecting', tone: 'warn' }
+    case 'unreachable':
+      return { key: 'status.unreachable', tone: 'bad' }
+    case 'unauthorized':
+      return { key: 'status.unauthorized', tone: 'bad' }
+    case 'idle':
+      return { key: 'status.idle', tone: 'muted' }
+  }
+  switch (bot.showConfig?.state) {
+    case 'running':
+      return { key: 'status.running', tone: 'good' }
+    case 'paused':
+      return { key: 'status.paused', tone: 'warn' }
+    case 'stopped':
+      return { key: 'status.stopped', tone: 'bad' }
+    default:
+      return { key: 'status.unknown', tone: 'muted' }
+  }
 })
 
 const equity = computed(() => bot.balance)
@@ -45,15 +49,21 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
 
 <template>
   <header class="strip">
-    <div class="strip__state" :data-tone="stateTone">
+    <div class="strip__state" :data-tone="status.tone">
       <!--
         Keyed on the state, not on every fetch: at a 1-second poll a beat per round is
         constant motion, and this dot only has something to say when the state changes.
       -->
-      <span :key="`${stateTone}-${bot.connection}`" class="strip__pulse" :data-tone="stateTone" />
-      <span class="strip__state-label">{{ t(stateKey) }}</span>
+      <span
+        :key="`${status.key}-${status.tone}-${bot.connection}`"
+        class="strip__pulse"
+        :data-tone="status.tone"
+      />
+      <span class="strip__state-label">{{ t(status.key) }}</span>
       <span v-if="bot.isLiveAccount" class="chip chip--bad">{{ t('connect.liveTrading') }}</span>
-      <span v-else-if="bot.showConfig" class="chip">{{ t('connect.dryRun') }}</span>
+      <span v-else-if="bot.showConfig?.dry_run === true" class="chip">{{
+        t('connect.dryRun')
+      }}</span>
     </div>
 
     <div class="strip__metrics">
@@ -153,7 +163,7 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
 @keyframes beat {
   0% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 70%, transparent);
+    box-shadow: 0 0 0 0 currentColor;
   }
   40% {
     transform: scale(1.35);
@@ -229,7 +239,7 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
   }
 }
 
-@media (max-width: 900px) {
+@media not all and (min-width: 720px) {
   .strip {
     gap: var(--sp-3);
     padding: 0 var(--sp-3);

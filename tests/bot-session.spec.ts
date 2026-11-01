@@ -23,12 +23,6 @@ function fakeClient(overrides: Record<string, unknown> = {}): FreqtradeApiClient
   return {
     ping: vi.fn().mockResolvedValue({ status: 'pong' }),
     showConfig: vi.fn().mockResolvedValue({}),
-    inspectCompatibility: vi.fn().mockResolvedValue({
-      status: 'compatible',
-      detectedVersion: '2026.9',
-      apiVersion: 2.5,
-      referenceContract: 'freqtrade-2026.9-api-v2.5',
-    }),
     status: vi.fn().mockResolvedValue([]),
     count: vi.fn().mockResolvedValue({}),
     balance: vi.fn().mockResolvedValue({}),
@@ -74,6 +68,39 @@ function candleResponse(): PairCandlesResponse {
 }
 
 describe('BotSessionController', () => {
+  it('alerts once during failed background health checks and rearms after recovery', async () => {
+    vi.useFakeTimers()
+    const originalVisibility = document.visibilityState
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+    const health = vi.fn().mockRejectedValue(new ApiError('cors', 'down'))
+    const alert = vi.fn()
+    const session = new BotSessionController({
+      botId: 'first',
+      credentials,
+      clientFactory: () => fakeClient({ health }),
+      backgroundCheckEnabled: () => true,
+      onHeartbeatAlert: alert,
+    })
+    session.state.data.health = { last_process_ts: Date.now() } as never
+    try {
+      session.startPolling()
+      await vi.advanceTimersByTimeAsync(65_000)
+      expect(alert).toHaveBeenCalledOnce()
+      health.mockImplementation(async () => ({ last_process_ts: Date.now() }))
+      await vi.advanceTimersByTimeAsync(12_000)
+      health.mockRejectedValue(new ApiError('cors', 'down again'))
+      await vi.advanceTimersByTimeAsync(45_000)
+      expect(alert).toHaveBeenCalledTimes(2)
+    } finally {
+      session.cleanup()
+      Object.defineProperty(document, 'visibilityState', {
+        value: originalVisibility,
+        configurable: true,
+      })
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps a snapshot stale until core and trades are both fresh', async () => {
     const session = sessionFor(fakeClient())
     session.setSnapshotStale(true)
@@ -181,67 +208,18 @@ describe('BotSessionController', () => {
     expect(session.state.actionPending).toBeNull()
   })
 
-  it('allows a mismatched version while publishing a warning', async () => {
-    const client = fakeClient({
-      inspectCompatibility: vi.fn().mockResolvedValue({
-        status: 'warning',
-        detectedVersion: '2025.12',
-        apiVersion: 2.5,
-        referenceContract: 'freqtrade-2026.9-api-v2.5',
-        warningKey: 'compatibility.versionMismatch',
-      }),
-    })
-    const session = sessionFor(client)
-
-    await expect(session.connect()).resolves.toBe(true)
-    expect(session.state.compatibility?.status).toBe('warning')
-    expect(session.state.connection).toBe('online')
-  })
-
-  it('drops a stale compatibility result after switching bots', async () => {
-    const compatibility = deferred<{
-      status: 'warning'
-      detectedVersion: string
-      apiVersion: number
-      referenceContract: 'freqtrade-2026.9-api-v2.5'
-      warningKey: 'compatibility.versionMismatch'
-    }>()
-    const inspectCompatibility = vi.fn().mockReturnValue(compatibility.promise)
-    const session = sessionFor(fakeClient({ inspectCompatibility }))
+  it('drops config that arrives after a connect was superseded', async () => {
+    const config = deferred<Record<string, unknown>>()
+    const showConfig = vi.fn().mockReturnValue(config.promise)
+    const session = sessionFor(fakeClient({ showConfig }))
     const connecting = session.connect()
-
     await Promise.resolve()
     await Promise.resolve()
-    expect(inspectCompatibility).toHaveBeenCalledOnce()
-
+    expect(showConfig).toHaveBeenCalledOnce()
     session.setBot('second', { ...credentials, baseUrl: 'https://second.example.com/api/v1' })
-    compatibility.resolve({
-      status: 'warning',
-      detectedVersion: '2025.12',
-      apiVersion: 2.5,
-      referenceContract: 'freqtrade-2026.9-api-v2.5',
-      warningKey: 'compatibility.versionMismatch',
-    })
-
+    config.resolve({ version: '2099.1', api_version: 99 })
     await expect(connecting).resolves.toBe(false)
-    expect(session.state.compatibility).toBeNull()
-  })
-
-  it('stays connected when compatibility cannot be confirmed', async () => {
-    const client = fakeClient({
-      inspectCompatibility: vi.fn().mockResolvedValue({
-        status: 'unknown',
-        detectedVersion: null,
-        apiVersion: null,
-        referenceContract: 'freqtrade-2026.9-api-v2.5',
-        warningKey: 'compatibility.versionUnknown',
-      }),
-    })
-    const session = sessionFor(client)
-
-    await expect(session.connect()).resolves.toBe(true)
-    expect(session.state.connection).toBe('online')
-    expect(session.state.compatibility?.warningKey).toBe('compatibility.versionUnknown')
+    expect(session.state.data.showConfig).toBeNull()
   })
 
   it('does not report a successful connect after a transport failure', async () => {

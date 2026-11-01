@@ -1,4 +1,4 @@
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { navigatePage } from '@/lib/navigation'
 import { NAV_ROUTES } from '@/router'
@@ -44,6 +44,7 @@ export function usePageTrack() {
   const target = ref<string | null>(null)
 
   let handoffTimer = 0
+  let gestureRun = 0
   /** A committed gesture is still sliding into place; a new one would fight over it. */
   let settling = false
   /** Views the router's own loaders have handed over, so a switch costs nothing. */
@@ -149,7 +150,7 @@ export function usePageTrack() {
 
   /**
    * Walks to another page without sliding the track: the wheel moves between pages the way
-   * a tap does, and the page's own transition is what animates — nothing on wide screens.
+   * a tap does, and the page's own transition animates the swap.
    */
   async function goTo(index: number) {
     const entry = NAV_ROUTES[index]
@@ -164,6 +165,7 @@ export function usePageTrack() {
     const from = routeIndex()
     const entry = NAV_ROUTES[index]
     if (!entry || index === from) return cancel()
+    const run = ++gestureRun
     const step = index - from
     settling = true
     dragging.value = false
@@ -171,18 +173,21 @@ export function usePageTrack() {
     transition.value = SETTLE
     offset.value = -step * (width.value || window.innerWidth)
     await settle()
+    if (run !== gestureRun) return
     try {
       // The page it lands on must be on screen before the router takes over, otherwise
       // the swap would land on an empty track.
       await resolvePage(index)
+      if (run !== gestureRun) return
       handoff.value = true
       await navigatePage(router, entry.path)
+      if (run !== gestureRun || !settling) return
       // The reset waits for the enter to finish — clearing the handoff earlier re-arms the
       // slide, and the page you just swiped to slides in a second time. This is the safety
       // net for an enter that never reports back.
       handoffTimer = window.setTimeout(finishHandoff, 600)
     } catch {
-      finishHandoff()
+      if (run === gestureRun) finishHandoff()
     }
   }
 
@@ -217,6 +222,21 @@ export function usePageTrack() {
     settling = false
   }
 
+  /** A resized or cancelled touch no longer owns a position on the track. */
+  function reset(park = true) {
+    gestureRun += 1
+    window.clearTimeout(handoffTimer)
+    handoffTimer = 0
+    transition.value = 'none'
+    offset.value = 0
+    width.value = 0
+    target.value = null
+    dragging.value = false
+    handoff.value = false
+    settling = false
+    if (park) parkRail()
+  }
+
   /**
    * A page that changes without a handoff — a tap, the wheel, a deep link — still has to
    * hand the track over to the new index, or the page that just left would be held twice.
@@ -225,7 +245,10 @@ export function usePageTrack() {
   watch(
     () => route.name,
     () => {
-      if (!settling) parkRail()
+      if (!settling) {
+        if (dragging.value || offset.value !== 0) reset()
+        else parkRail()
+      }
     },
   )
 
@@ -233,6 +256,8 @@ export function usePageTrack() {
   function loadAllPages() {
     parkRail()
   }
+
+  onBeforeUnmount(() => reset(false))
 
   return {
     offset,
@@ -251,6 +276,7 @@ export function usePageTrack() {
     commit,
     cancel,
     finishHandoff,
+    reset,
     loadAllPages,
   }
 }

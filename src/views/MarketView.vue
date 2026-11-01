@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
@@ -148,7 +148,18 @@ const chartMarks = computed(() =>
  * track and therefore mounted too, so a fetch started on mount would run for a page nobody
  * is looking at: the candles are asked for when this page is the one being walked to.
  */
-const isCurrentPage = () => route.name === 'market'
+const pageVisible = ref(document.visibilityState !== 'hidden')
+let disposed = false
+const isCurrentPage = () => !disposed && route.name === 'market' && pageVisible.value
+const onVisibilityChange = () => {
+  pageVisible.value = document.visibilityState !== 'hidden'
+}
+onMounted(() => document.addEventListener('visibilitychange', onVisibilityChange))
+onBeforeUnmount(() => {
+  disposed = true
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.clearTimeout(candleRetryTimer)
+})
 
 let candleRequestGeneration = 0
 /**
@@ -190,18 +201,17 @@ async function loadCandles(
   candleError.value = !result
   loadingCandles.value = false
   window.clearTimeout(candleRetryTimer)
-  // Only a success is fresh; a failure schedules its own retry.
   if (result) candleFetchedAt.set(candleKey(pair, currentTimeframe), Date.now())
-  else scheduleCandleRetry(pair, currentTimeframe)
+  scheduleCandleRefresh(pair, currentTimeframe, result ? CANDLE_TTL_MS : CANDLE_RETRY_MS)
 }
 
-function scheduleCandleRetry(pair: string, currentTimeframe: string) {
+function scheduleCandleRefresh(pair: string, currentTimeframe: string, delay: number) {
   window.clearTimeout(candleRetryTimer)
   candleRetryTimer = window.setTimeout(() => {
     if (!isCurrentPage() || pair !== selectedPair.value) return
     const generation = ++candleRequestGeneration
     void loadCandles(pair, currentTimeframe, generation, () => true)
-  }, CANDLE_RETRY_MS)
+  }, delay)
 }
 
 async function submitBlacklist() {
@@ -233,7 +243,7 @@ async function confirmLockDelete() {
 }
 
 watch(
-  () => [selectedPair.value, timeframe.value, route.name] as const,
+  () => [selectedPair.value, timeframe.value, route.name, pageVisible.value] as const,
   ([pair, currentTimeframe], _, onCleanup) => {
     if (!pair || !isCurrentPage()) return
     const generation = ++candleRequestGeneration
@@ -245,6 +255,9 @@ watch(
     const cached = bot.candleCache[candleKey(pair, currentTimeframe)]
     if (!cached || isCandleStale(pair, currentTimeframe)) {
       void loadCandles(pair, currentTimeframe, generation, () => !cancelled)
+    } else {
+      const age = Date.now() - (candleFetchedAt.get(candleKey(pair, currentTimeframe)) ?? 0)
+      scheduleCandleRefresh(pair, currentTimeframe, Math.max(1, CANDLE_TTL_MS - age))
     }
   },
   { immediate: true },

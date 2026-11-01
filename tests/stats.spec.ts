@@ -87,8 +87,8 @@ describe('buildPairStats', () => {
     expect(row.winRate).toBeNull()
     expect(row.avgDuration).toBeNull()
     expect(row.lastTrade).toBeNull()
-    expect(row.fees).toBe(0)
-    expect(row.volume).toBe(0)
+    expect(row.fees).toBeNull()
+    expect(row.volume).toBeNull()
   })
 
   it('treats break-even trades as neither a win nor a loss', () => {

@@ -267,7 +267,12 @@ function onKeydown(event: KeyboardEvent) {
 
 /* A whole-chart focus ring should read as a hint, not a warning. */
 .chart__plot:focus-visible {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: 0 0 0 2px rgb(232 234 237 / 40%);
+}
+@supports (color: color-mix(in srgb, black, white)) {
+  .chart__plot:focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
 }
 
 .chart__grid {
@@ -280,7 +285,13 @@ function onKeydown(event: KeyboardEvent) {
   position: absolute;
   left: 0;
   right: 0;
-  border-top: 1px dashed color-mix(in srgb, var(--line) 70%, transparent);
+  border-top: 1px dashed rgb(31 31 31 / 70%);
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .chart__tick {
+    border-top: 1px dashed color-mix(in srgb, var(--line) 70%, transparent);
+  }
 }
 
 .chart__tick--zero {
@@ -349,8 +360,14 @@ function onKeydown(event: KeyboardEvent) {
   top: 0;
   bottom: 0;
   width: 1px;
-  background: color-mix(in srgb, var(--text-3) 85%, transparent);
+  background: rgb(138 143 150 / 85%);
   pointer-events: none;
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  .chart__cursor {
+    background: color-mix(in srgb, var(--text-3) 85%, transparent);
+  }
 }
 
 .chart__tooltip-title {

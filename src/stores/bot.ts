@@ -69,7 +69,6 @@ export const useBotStore = defineStore('bot', () => {
   const refreshing = computed(() => session.value?.state.refreshing ?? false)
   const actionPending = computed(() => session.value?.state.actionPending ?? null)
   const snapshotStale = computed(() => session.value?.state.snapshotStale ?? false)
-  const compatibility = computed(() => session.value?.state.compatibility ?? null)
 
   const showConfig = computed(() => session.value?.state.data.showConfig ?? null)
   const health = computed(() => session.value?.state.data.health ?? null)
@@ -157,6 +156,7 @@ export const useBotStore = defineStore('bot', () => {
   const writesAllowed = computed(
     () =>
       settings.writesEnabled &&
+      connection.value === 'online' &&
       !snapshotStale.value &&
       session.value?.state.coreReady === true &&
       session.value?.state.tradesReady === true &&
@@ -658,6 +658,7 @@ export const useBotStore = defineStore('bot', () => {
   // --- write actions -------------------------------------------------------
 
   function runAction<T>(name: string, task: (client: FreqtradeApiClient) => Promise<T>) {
+    if (!writesAllowed.value) return Promise.resolve(null)
     return ensureSession()
       .runAction(name, task)
       .then((result) => {
@@ -686,7 +687,6 @@ export const useBotStore = defineStore('bot', () => {
     lastFetchAt,
     refreshing,
     actionPending,
-    compatibility,
     showConfig,
     health,
     sysinfo,

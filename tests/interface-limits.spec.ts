@@ -57,16 +57,18 @@ describe('interface limits', () => {
     expect(settings.pairTablePageSize).toBe(300)
   })
 
-  it('offers the whole loaded window as the largest page', () => {
+  it('uses zero for all loaded trades and keeps it across reloads', () => {
     const settings = useSettingsStore()
-    // 300 is what the app loads, so a 300-row page is "everything" without a second mode.
-    settings.tradesPerPage = 300
-    expect(settings.tradesPageSize).toBe(300)
-
+    settings.tradesPerPage = 0
+    expect(settings.commitCount('tradesPerPage')).toBe(0)
+    expect(settings.tradesPageSize).toBe(0)
+    settings.tradesPerPage = '' as unknown as number
+    expect(settings.commitCount('tradesPerPage')).toBe(0)
     setActivePinia(createPinia())
-    expect(useSettingsStore().tradesPageSize).toBe(300)
-
-    // Nothing above that is accepted, and nothing below 5.
+    expect(useSettingsStore().tradesPerPage).toBe(0)
+    expect(useSettingsStore().tradesPageSize).toBe(0)
+    useSettingsStore().tradesPerPage = '' as unknown as number
+    expect(useSettingsStore().commitCount('tradesPerPage')).toBe(0)
     useSettingsStore().tradesPerPage = 900
     expect(useSettingsStore().tradesPageSize).toBe(300)
   })
@@ -109,7 +111,7 @@ describe('interface limits', () => {
     expect(settings.commitCount('tradesPerPage')).toBe(30)
 
     // Below the minimum takes the minimum, above the maximum the maximum.
-    settings.tradesPerPage = 0
+    settings.tradesPerPage = -1
     expect(settings.commitCount('tradesPerPage')).toBe(5)
     settings.tradesPerPage = 999
     expect(settings.commitCount('tradesPerPage')).toBe(300)

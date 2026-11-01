@@ -46,16 +46,20 @@ interface StoredSettings {
 export const COUNT_SETTINGS = {
   dashboardOpenLimit: { min: 1, max: 50, fallback: 6 },
   dashboardClosedLimit: { min: 1, max: 50, fallback: 6 },
-  /**
-   * The top of the range is the number of trades the app loads at all, so the largest page
-   * holds everything there is — no separate "unlimited" state to explain.
-   */
+  /** Positive page sizes; zero separately means all loaded trades. */
   tradesPerPage: { min: 5, max: 300, fallback: 20 },
   pairTablePerPage: { min: 5, max: 300, fallback: 10 },
 } as const
 
 type CountKey = keyof typeof COUNT_SETTINGS
 const COUNT_KEYS = Object.keys(COUNT_SETTINGS) as CountKey[]
+const isAllTrades = (key: CountKey, value: unknown) =>
+  key === 'tradesPerPage' && (value === 0 || value === '0')
+function normalizeCount(key: CountKey, value: unknown): number {
+  if (isAllTrades(key, value)) return 0
+  const { fallback, min, max } = COUNT_SETTINGS[key]
+  return clampCount(value, fallback, min, max)
+}
 
 /** Nothing picked yet means "follow the browser", which is what the app did at boot. */
 const DEFAULT_LOCALE: LocalePreference = 'system'
@@ -159,15 +163,7 @@ export const useSettingsStore = defineStore('settings', () => {
     window.addEventListener('languagechange', onLanguageChange)
     onScopeDispose(() => window.removeEventListener('languagechange', onLanguageChange))
   }
-  const count = <K extends CountKey>(key: K, stored: unknown) =>
-    ref(
-      clampCount(
-        stored,
-        COUNT_SETTINGS[key].fallback,
-        COUNT_SETTINGS[key].min,
-        COUNT_SETTINGS[key].max,
-      ),
-    )
+  const count = <K extends CountKey>(key: K, stored: unknown) => ref(normalizeCount(key, stored))
 
   /** The raw inputs, which may briefly hold "" while being retyped. */
   const dashboardOpenLimit = count('dashboardOpenLimit', persisted.dashboardOpenLimit)
@@ -181,12 +177,8 @@ export const useSettingsStore = defineStore('settings', () => {
     pairTablePerPage,
   }
 
-  /** What the views read: never empty, never zero, never above what the range allows. */
-  const clamped = (key: CountKey) =>
-    computed(() => {
-      const { fallback, min, max } = COUNT_SETTINGS[key]
-      return clampCount(countRefs[key].value, fallback, min, max)
-    })
+  /** Normalized view values; zero is the explicit all-trades mode. */
+  const clamped = (key: CountKey) => computed(() => normalizeCount(key, countRefs[key].value))
   const overviewOpenLimit = clamped('dashboardOpenLimit')
   const overviewClosedLimit = clamped('dashboardClosedLimit')
   const tradesPageSize = clamped('tradesPerPage')
@@ -198,7 +190,7 @@ export const useSettingsStore = defineStore('settings', () => {
    * anything else — clearing local data, a stored default — is remembered too.
    */
   const lastCount = Object.fromEntries(
-    COUNT_KEYS.map((key) => [key, COUNT_SETTINGS[key].fallback]),
+    COUNT_KEYS.map((key) => [key, countRefs[key].value]),
   ) as Record<CountKey, number>
   watch(
     () => COUNT_KEYS.map((key) => countRefs[key].value),
@@ -206,7 +198,8 @@ export const useSettingsStore = defineStore('settings', () => {
       for (const key of COUNT_KEYS) {
         const { min, max } = COUNT_SETTINGS[key]
         const value = countRefs[key].value
-        if (Number.isInteger(value) && value >= min && value <= max) lastCount[key] = value
+        if (isAllTrades(key, value) || (Number.isInteger(value) && value >= min && value <= max))
+          lastCount[key] = value
       }
     },
     { flush: 'sync' },
@@ -225,7 +218,9 @@ export const useSettingsStore = defineStore('settings', () => {
     const value = typeof raw === 'number' ? raw : raw === '' ? Number.NaN : Number(raw)
     const settled =
       Number.isFinite(value) && Number.isInteger(value)
-        ? Math.min(max, Math.max(min, value))
+        ? isAllTrades(key, value)
+          ? 0
+          : Math.min(max, Math.max(min, value))
         : lastCount[key]
     countRefs[key].value = settled
     return settled

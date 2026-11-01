@@ -90,16 +90,19 @@ test('the language and time zone dropdown triggers share the settings presentati
   const languagePopup = page.locator('.filter-menu__list')
   await expect(languagePopup).toBeVisible()
   await expect(languagePopup.locator('.filter-menu__search')).toHaveCount(0)
+  await expect(languagePopup).not.toHaveClass(/menu-list-enter-active/)
   const languagePopupBox = (await languagePopup.boundingBox())!
   const languageTriggerBox = (await language.locator('.filter-menu__button').boundingBox())!
   expect(Math.round(languagePopupBox.x)).toBe(Math.round(languageTriggerBox.x))
   const languagePopupStyle = await popupPresentation()
   await page.locator('.filter-menu__backdrop').click()
+  await expect(languagePopup).toHaveCount(0)
 
   await timezone.locator('.filter-menu__button').click()
   const timezonePopup = page.locator('.filter-menu__list')
   await expect(timezonePopup).toBeVisible()
   await expect(timezonePopup.locator('.filter-menu__search')).toBeVisible()
+  await expect(timezonePopup).not.toHaveClass(/menu-list-enter-active/)
   const timezonePopupBox = (await timezonePopup.boundingBox())!
   const timezoneTriggerBox = (await timezone.locator('.filter-menu__button').boundingBox())!
   expect(Math.round(timezonePopupBox.x)).toBe(Math.round(timezoneTriggerBox.x))
@@ -492,12 +495,11 @@ test('adding a second bot and switching moves the dashboard to it', async ({ pag
   // Adding does not steal the selection: the first bot is still the one in use.
   await expect(bots.first()).toContainText('当前')
 
-  // The lamp is live for the bot on screen and muted for the others: this app only polls
-  // the active one, so claiming anything else about them would be a guess.
+  // Opening the picker probes the inactive backend without switching to it.
   await botsPanel(page).locator('.filter-menu__button').click()
   const lamps = page.locator('.filter-menu__item .filter-menu__dot')
   await expect(lamps.first()).toHaveClass(/filter-menu__dot--good/)
-  await expect(lamps.nth(1)).toHaveClass(/filter-menu__dot--muted/)
+  await expect(lamps.nth(1)).toHaveClass(/filter-menu__dot--good/)
   await page.keyboard.press('Escape')
 
   // Switching is the picker's job now. A switch remounts the page track, so the manager

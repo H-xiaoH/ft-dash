@@ -42,6 +42,7 @@ const props = withDefaults(
   },
 )
 
+const emit = defineEmits<{ 'open-change': [open: boolean] }>()
 const model = defineModel<T>()
 const { t } = useI18n()
 const open = ref(false)
@@ -67,6 +68,7 @@ const current = computed(() => currentOption.value?.label ?? props.options[0]?.l
 const titleId = `filter-menu-title-${useId()}`
 
 function choose(value: T) {
+  if (!open.value) return
   model.value = value
   open.value = false
 }
@@ -88,6 +90,7 @@ async function toggle() {
   open.value = !open.value
   if (!open.value) return
   await nextTick()
+  if (!open.value) return
   place()
   follow()
 }
@@ -95,11 +98,12 @@ async function toggle() {
 // The search term is per-opening: a filter left over from last time would hide rows for no
 // visible reason, since the box is gone by then.
 watch(open, async (isOpen) => {
+  emit('open-change', isOpen)
   if (!isOpen) {
     unfollow()
-    query.value = ''
     return
   }
+  query.value = ''
   if (!props.searchable) return
   await nextTick()
   search.value?.focus()
@@ -119,18 +123,18 @@ function clearQuery() {
  */
 function place() {
   const rect = trigger.value?.getBoundingClientRect()
-  const size = list.value?.getBoundingClientRect()
+  const size = list.value
   if (!rect || !size || typeof window === 'undefined') return
   const margin = 8
   // Below the trigger when it fits, above it otherwise.
   const below = rect.bottom + 4
   const top =
-    below + size.height <= window.innerHeight - margin
+    below + size.offsetHeight <= window.innerHeight - margin
       ? below
-      : Math.max(margin, rect.top - size.height - 4)
+      : Math.max(margin, rect.top - size.offsetHeight - 4)
   // Aligned to the trigger's edge first, then pulled back inside the viewport.
-  const aligned = props.align === 'end' ? rect.right - size.width : rect.left
-  const maxLeft = Math.max(margin, window.innerWidth - size.width - margin)
+  const aligned = props.align === 'end' ? rect.right - size.offsetWidth : rect.left
+  const maxLeft = Math.max(margin, window.innerWidth - size.offsetWidth - margin)
   anchor.value = {
     top,
     left: Math.min(Math.max(aligned, margin), maxLeft),
@@ -180,9 +184,19 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
     </button>
 
     <Teleport to="body">
-      <template v-if="open">
-        <div class="filter-menu__backdrop" @click="open = false" />
-        <div ref="list" class="filter-menu__list" :style="listStyle">
+      <Transition
+        name="menu-backdrop"
+        @before-enter="(el) => el.removeAttribute('inert')"
+        @before-leave="(el) => el.setAttribute('inert', '')"
+      >
+        <div v-if="open" class="filter-menu__backdrop" @click="open = false" />
+      </Transition>
+      <Transition
+        name="menu-list"
+        @before-enter="(el) => el.removeAttribute('inert')"
+        @before-leave="(el) => el.setAttribute('inert', '')"
+      >
+        <div v-if="open" ref="list" class="filter-menu__list" :style="listStyle">
           <!-- The title sits outside the listbox: a listbox may only contain options. -->
           <span :id="titleId" class="filter-menu__title">{{ label || t('common.filter') }}</span>
           <!--
@@ -199,7 +213,7 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
               spellcheck="false"
               :placeholder="t('common.search')"
               :aria-label="t('common.search')"
-              @keydown.escape="open = false"
+              @keydown.escape="onKeydown"
             />
           </div>
           <div class="filter-menu__options" role="listbox" :aria-labelledby="titleId">
@@ -230,7 +244,7 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
             </button>
           </p>
         </div>
-      </template>
+      </Transition>
     </Teleport>
   </div>
 </template>
@@ -281,30 +295,46 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
   font-size: var(--fs-sm);
 }
 
+.menu-list-enter-active,
+.menu-list-leave-active {
+  transition:
+    opacity 160ms ease,
+    transform 160ms var(--ease-out-strong);
+}
+.menu-backdrop-enter-active,
+.menu-backdrop-leave-active {
+  transition: backdrop-filter 160ms ease;
+}
+.menu-list-enter-from,
+.menu-list-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
+}
+.filter-menu__backdrop.menu-backdrop-enter-from,
+.filter-menu__backdrop.menu-backdrop-leave-to {
+  -webkit-backdrop-filter: blur(0);
+  backdrop-filter: blur(0);
+}
+
 .filter-menu__backdrop {
   position: fixed;
   inset: 0;
   z-index: 30;
-  /* The same blur-in the dialogs use, lighter: a menu is a smaller interruption. */
-  animation: menu-blur 140ms ease-out both;
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
 }
 
-@keyframes menu-blur {
-  from {
-    backdrop-filter: blur(0);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
+  .filter-menu__list,
   .filter-menu__backdrop {
-    animation: none;
+    transition: none !important;
   }
 }
 
 .filter-menu__list {
   position: fixed;
   z-index: 31;
+  transform-origin: center;
   min-width: 150px;
   max-height: 320px;
   overflow-y: auto;
