@@ -280,14 +280,15 @@ describe('switching bots', () => {
 
   it('clears connection metadata before connecting a bot without a snapshot', async () => {
     const settings = addTestBots()
-    let releaseSecondPing: (value: Response) => void = () => {}
-    const secondPing = new Promise<Response>((resolve) => {
-      releaseSecondPing = resolve
+    let releaseSecondConfig: (value: Response) => void = () => {}
+    const secondConfig = new Promise<Response>((resolve) => {
+      releaseSecondConfig = resolve
     })
 
     vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.startsWith('https://second.example') && url.includes('/ping')) return secondPing
+      if (url.startsWith('https://second.example') && url.includes('/show_config'))
+        return secondConfig
       if (url.includes('/show_config'))
         return Promise.resolve(
           jsonResponse(
@@ -309,14 +310,14 @@ describe('switching bots', () => {
     expect(bot.latencyMs).toBeNull()
     expect(bot.lastFetchAt).toBeNull()
 
-    releaseSecondPing(jsonResponse({ status: 'pong' }))
+    releaseSecondConfig(jsonResponse(showConfig('SecondBot')))
     await switching
     bot.cleanup()
   })
 
   it('restores connection metadata from the selected bot snapshot', async () => {
     const settings = addTestBots()
-    let firstPingCalls = 0
+    let firstConfigCalls = 0
     let releaseFirstReconnect: (value: Response) => void = () => {}
     const firstReconnect = new Promise<Response>((resolve) => {
       releaseFirstReconnect = resolve
@@ -324,10 +325,10 @@ describe('switching bots', () => {
 
     vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.startsWith('https://first.example') && url.includes('/ping')) {
-        firstPingCalls += 1
-        return firstPingCalls === 1
-          ? Promise.resolve(jsonResponse({ status: 'pong' }))
+      if (url.startsWith('https://first.example') && url.includes('/show_config')) {
+        firstConfigCalls += 1
+        return firstConfigCalls === 1
+          ? Promise.resolve(jsonResponse(showConfig('FirstBot')))
           : firstReconnect
       }
       if (url.includes('/show_config'))
@@ -356,7 +357,7 @@ describe('switching bots', () => {
       expect(bot.latencyMs).toBe(101)
       expect(bot.lastFetchAt).toBe(1001)
     } finally {
-      releaseFirstReconnect(jsonResponse({ status: 'pong' }))
+      releaseFirstReconnect(jsonResponse(showConfig('FirstBot')))
       await switchingBack
       bot.cleanup()
     }
@@ -578,7 +579,7 @@ describe('switching bots', () => {
     const settings = addTestBots()
     vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.startsWith('https://second.example') && url.includes('/ping')) {
+      if (url.startsWith('https://second.example') && url.includes('/show_config')) {
         return Promise.reject(new Error('replacement is offline'))
       }
       if (url.includes('/show_config'))
@@ -609,14 +610,15 @@ describe('switching bots', () => {
       username: 'c',
       password: 'r',
     })
-    let releaseSecondPing: (error: Error) => void = () => {}
-    const secondPing = new Promise<Response>((_, reject) => {
-      releaseSecondPing = reject
+    let releaseSecondConfig: (error: Error) => void = () => {}
+    const secondConfig = new Promise<Response>((_, reject) => {
+      releaseSecondConfig = reject
     })
 
     vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.startsWith('https://second.example') && url.includes('/ping')) return secondPing
+      if (url.startsWith('https://second.example') && url.includes('/show_config'))
+        return secondConfig
       if (url.includes('/show_config')) {
         const name = url.startsWith('https://third.example') ? 'ThirdBot' : 'FirstBot'
         return Promise.resolve(jsonResponse(showConfig(name)))
@@ -630,7 +632,7 @@ describe('switching bots', () => {
     expect(settings.activeBotId).toBe(settings.bots[1].id)
 
     expect(await bot.switchBot(third.id)).toBe(true)
-    releaseSecondPing(new Error('replacement is offline'))
+    releaseSecondConfig(new Error('replacement is offline'))
 
     expect(await removing).toBe(false)
     expect(settings.activeBotId).toBe(third.id)
@@ -869,14 +871,14 @@ describe('switching bots', () => {
   it('does not let an old connect overwrite the selected bot', async () => {
     const settings = addTestBots()
 
-    let releaseFirstPing: (value: Response) => void = () => {}
-    const firstPing = new Promise<Response>((resolve) => {
-      releaseFirstPing = resolve
+    let releaseFirstConfig: (value: Response) => void = () => {}
+    const firstConfig = new Promise<Response>((resolve) => {
+      releaseFirstConfig = resolve
     })
     vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.startsWith('https://first.example')) {
-        if (url.includes('/ping')) return firstPing
+        if (url.includes('/show_config')) return firstConfig
         return Promise.resolve(
           jsonResponse(url.includes('/show_config') ? showConfig('FirstBot') : {}),
         )
@@ -891,7 +893,7 @@ describe('switching bots', () => {
     expect(await bot.switchBot(settings.bots[1].id)).toBe(true)
     expect(bot.showConfig?.bot_name).toBe('SecondBot')
 
-    releaseFirstPing(jsonResponse({ status: 'pong' }))
+    releaseFirstConfig(jsonResponse(showConfig('FirstBot')))
     expect(await oldConnect).toBe(false)
     expect(bot.showConfig?.bot_name).toBe('SecondBot')
     expect(bot.connection).toBe('online')
@@ -971,6 +973,50 @@ describe('switching bots', () => {
     releaseSecondPoll(jsonResponse([]))
     await vi.advanceTimersByTimeAsync(0)
     bot.cleanup()
+  })
+
+  it('starts polling and the stream before optional health and analytics finish', async () => {
+    vi.useFakeTimers()
+    const settings = addTestBots()
+    settings.websocket = true
+    FakeWebSocket.reset()
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+    let release!: () => void
+    const optional = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let statusCalls = 0
+    let healthCalls = 0
+    vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/token/login'))
+        return Promise.resolve(jsonResponse({ access_token: 'tok' }))
+      if (url.includes('/show_config')) return Promise.resolve(jsonResponse(showConfig('FirstBot')))
+      const path = new URL(url).pathname.replace(/^.*\/api\/v1/, '')
+      if (path === '/status') statusCalls++
+      if (path === '/health') healthCalls++
+      if (path === '/health' || path === '/daily')
+        return optional.then(() => jsonResponse(corePayloads[path] ?? {}))
+      if (path === '/trades')
+        return Promise.resolve(jsonResponse({ trades: [], trades_count: 0, total_trades: 0 }))
+      return Promise.resolve(jsonResponse(corePayloads[path] ?? {}))
+    })
+    const bot = useBotStore()
+    try {
+      await expect(bot.connect()).resolves.toBe(true)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(FakeWebSocket.instances).toHaveLength(1)
+      expect(statusCalls).toBe(1)
+      expect(healthCalls).toBe(1)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(statusCalls).toBe(2)
+      expect(healthCalls).toBe(1)
+    } finally {
+      release()
+      bot.cleanup()
+      await vi.advanceTimersByTimeAsync(0)
+      vi.useRealTimers()
+    }
   })
 
   it('revives the live stream after the bot was unreachable', async () => {

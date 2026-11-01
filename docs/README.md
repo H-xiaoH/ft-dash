@@ -29,6 +29,7 @@
 
 ### 数据、后端与运行可靠性
 
+- [refresh-readiness](specs/refresh-readiness.md) — 核心就绪、独立健康检查与按资源组去重，连接不等待可选数据
 - [independent-refresh](specs/independent-refresh.md) — 全量与轮询各组独立刷新，慢心跳不阻塞其他数据
 - [freqtrade-data-layer](specs/freqtrade-data-layer.md) — transport、client、session 分层与竞态控制
 - [audit-reliability-fixes](specs/audit-reliability-fixes.md) — 写入口门禁、后台告警、K 线刷新、表单恢复、未知统计与 Safari 15.5 基础样式
@@ -66,6 +67,7 @@
 
 ## archive
 
+- [refresh-readiness-verification](archive/refresh-readiness-verification.md) — 2026-11-02 必要数据就绪、慢健康检查与连接启动验收
 - [mobile-page-motion-verification](archive/mobile-page-motion-verification.md) — 2026-11-02 手机底栏正反向切页、可见性与接缝验收
 - [independent-refresh-verification](archive/independent-refresh-verification.md) — 2026-11-02 独立刷新、慢心跳与鉴权竞态验收
 - [page-frame-motion-verification](archive/page-frame-motion-verification.md) — 2026-11-02 页面接缝、滚动位置与动画清理验收

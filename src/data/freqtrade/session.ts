@@ -27,7 +27,8 @@ export const HEARTBEAT_STALE_MS = 30_000
 export const POLL_INTERVAL_SECONDS = 1
 const TRADES_PAGE_SIZE = 300
 
-export type ResourceName = 'core' | 'trades' | 'analytics' | 'market' | 'system' | 'candles'
+export type ResourceName =
+  'core' | 'trades' | 'analytics' | 'market' | 'system' | 'health' | 'candles'
 
 export type ErrorDescription = ReturnType<typeof describeError>
 
@@ -108,12 +109,6 @@ interface CallResult<T> {
   error?: ErrorDescription
 }
 
-interface RefreshRun {
-  token: number
-  epoch: number
-  promise: Promise<RefreshSummary>
-}
-
 interface GroupResult {
   generation: number
   results: CallResult<unknown>[]
@@ -147,6 +142,7 @@ const RESOURCE_NAMES: ResourceName[] = [
   'analytics',
   'market',
   'system',
+  'health',
   'candles',
 ]
 
@@ -244,7 +240,15 @@ export class BotSessionController {
   private readonly generations = new Map<string, number>()
   private readonly groupGenerations = new Map<ResourceName, number>()
   private readonly requests = new Map<string, RequestRun>()
-  private refreshRun: RefreshRun | null = null
+  private readonly groupRuns = new Map<
+    ResourceName,
+    {
+      epoch: number
+      client: FreqtradeApiClient
+      promise: Promise<GroupResult>
+    }
+  >()
+  private activeRefreshToken: number | null = null
   private nextRefreshToken = 0
   private nextActionToken = 0
   private actionLock: { token: number } | null = null
@@ -429,9 +433,7 @@ export class BotSessionController {
     const failure = preferredTransportError([
       ...results.filter((result) => !result.ok && !result.stale).map((result) => result.error),
       this.state.resourceErrors.core,
-      this.state.resourceErrors.trades?.key === 'errors.auth'
-        ? this.state.resourceErrors.trades
-        : null,
+      ...Object.values(this.state.resourceErrors).filter((error) => error?.key === 'errors.auth'),
     ])
     if (failure) {
       const key = failure.key
@@ -465,20 +467,34 @@ export class BotSessionController {
       ]
     >,
   ): Promise<GroupResult> {
+    const client = this.ensureClient()
+    const pending = this.groupRuns.get(resource)
+    if (pending?.epoch === epoch && pending.client === client) return pending.promise
     const generation = this.beginGroup(resource)
-    const results = await Promise.all(
+    const promise = Promise.all(
       calls.map(async ([key, task, apply]) => {
         const result = await this.call(key, task)
-        if (result.ok && !result.stale && this.isCurrentGroup(resource, generation, epoch)) {
-          apply(result.value)
+        if (!result.stale && this.isCurrentGroup(resource, generation, epoch)) {
+          if (result.ok) apply(result.value)
+          else if (result.error?.key === 'errors.auth') {
+            this.state.resourceErrors[resource] = result.error
+            this.updateConnectionFromResults([result], epoch)
+          }
         }
         return result
       }),
-    )
-    if (this.isCurrentGroup(resource, generation, epoch)) {
-      this.setGroupResult(resource, results, epoch)
+    ).then((results) => {
+      if (this.isCurrentGroup(resource, generation, epoch))
+        this.setGroupResult(resource, results, epoch)
+      return { generation, results }
+    })
+    const run = { epoch, client, promise }
+    this.groupRuns.set(resource, run)
+    try {
+      return await promise
+    } finally {
+      if (this.groupRuns.get(resource) === run) this.groupRuns.delete(resource)
     }
-    return { generation, results }
   }
 
   async refreshCore(): Promise<RefreshSummary> {
@@ -505,16 +521,6 @@ export class BotSessionController {
         (client, options) => client.profit(options),
         (value) => (this.state.data.profit = value as ProfitSummary),
       ],
-      [
-        'core.health',
-        (client, options) => client.health(options),
-        (value) => (this.state.data.health = value as HealthResponse),
-      ],
-      [
-        'core.sysinfo',
-        (client, options) => client.sysinfo(options),
-        (value) => (this.state.data.sysinfo = value as SysInfoResponse),
-      ],
     ])
     const { generation, results } = group
     const stale = !this.isCurrentGroup('core', generation, epoch)
@@ -523,7 +529,6 @@ export class BotSessionController {
       this.state.coreReady = results.every((result) => result.ok)
       if (this.state.coreReady && this.state.tradesReady) this.state.snapshotStale = false
       this.state.latencyMs = Math.round(performance.now() - started)
-      this.evaluateHeartbeat()
     }
     return {
       ...summary(epoch, { core: { ok: results.every((result) => result.ok), stale } }, stale),
@@ -635,6 +640,11 @@ export class BotSessionController {
         (value) => (this.state.data.showConfig = value as ShowConfigResponse),
       ],
       [
+        'system.sysinfo',
+        (client, options) => client.sysinfo(options),
+        (value) => (this.state.data.sysinfo = value as SysInfoResponse),
+      ],
+      [
         'system.logs',
         (client, options) => client.logs(150, options),
         (value) => (this.state.data.logs = value as LogsResponse),
@@ -650,35 +660,42 @@ export class BotSessionController {
   }
 
   async refreshAll(): Promise<RefreshSummary> {
-    if (this.refreshRun) return this.refreshRun.promise
     const token = ++this.nextRefreshToken
     const epoch = this.state.epoch
     this.state.refreshing = true
+    const required = Promise.all([this.refreshCore(), this.refreshTrades()])
+    const finishRequired = () => {
+      if (this.activeRefreshToken === token) {
+        this.activeRefreshToken = null
+        this.state.refreshing = false
+      }
+    }
+    // Slow optional resources must not keep the refresh button or other groups locked.
+    void required.then(finishRequired, finishRequired)
     const promise = (async (): Promise<RefreshSummary> => {
-      const results: Partial<Record<ResourceName, CallResult<unknown>>> = {}
-      const [core, trades, analytics, market, system] = await Promise.all([
-        this.refreshCore(),
-        this.refreshTrades(),
+      const [[core, trades], analytics, market, system, health] = await Promise.all([
+        required,
         this.refreshAnalytics(),
         this.refreshMarket(),
         this.refreshSystem(),
+        this.refreshHealth(),
       ])
-      if (epoch !== this.state.epoch) return summary(epoch, results, true)
-      results.core = { ok: core.ok, stale: core.stale }
-      results.trades = { ok: trades.ok, stale: trades.stale }
-      results.analytics = { ok: analytics.ok, stale: analytics.stale }
-      results.market = { ok: market.ok, stale: market.stale }
-      results.system = { ok: system.ok, stale: system.stale }
-      return summary(epoch, results, false)
+      if (epoch !== this.state.epoch) return summary(epoch, {}, true)
+      return summary(
+        epoch,
+        Object.fromEntries(
+          Object.entries({ core, trades, analytics, market, system, health }).map(
+            ([name, result]) => [name, { ok: result.ok, stale: result.stale }],
+          ),
+        ),
+        false,
+      )
     })()
-    this.refreshRun = { token, epoch, promise }
+    this.activeRefreshToken = token
     try {
       return await promise
     } finally {
-      if (this.refreshRun?.token === token) {
-        this.refreshRun = null
-        this.state.refreshing = false
-      }
+      finishRequired()
     }
   }
 
@@ -716,12 +733,15 @@ export class BotSessionController {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
       if (this.backgroundCheckEnabled() && now - this.lastBackgroundCheck >= 10_000) {
         this.lastBackgroundCheck = now
-        await this.pollResource('core', () => this.refreshHealth())
+        await this.pollResource('health', () => this.refreshHealth())
       }
       return
     }
     this.pollTickCount += 1
-    const pending = [this.pollResource('core', () => this.refreshCore())]
+    const pending = [
+      this.pollResource('core', () => this.refreshCore()),
+      this.pollResource('health', () => this.refreshHealth()),
+    ]
     if (this.pollTickCount % 4 === 0) {
       pending.push(
         this.pollResource('trades', () => this.refreshTrades()),
@@ -737,14 +757,18 @@ export class BotSessionController {
     await Promise.all(pending)
   }
 
-  private async refreshHealth(): Promise<void> {
+  async refreshHealth(): Promise<RefreshSummary> {
     const epoch = this.state.epoch
-    const result = await this.call('core.health', (client, options) => client.health(options))
-    if (epoch !== this.state.epoch || result.stale) return
-    if (result.ok) this.state.data.health = result.value as HealthResponse
-    else this.state.coreReady = false
-    this.updateConnectionFromResults([result], epoch)
-    this.evaluateHeartbeat()
+    const { generation, results } = await this.runGroup('health', epoch, [
+      [
+        'health.health',
+        (client, options) => client.health(options),
+        (value) => (this.state.data.health = value as HealthResponse),
+      ],
+    ])
+    const stale = !this.isCurrentGroup('health', generation, epoch)
+    if (!stale) this.evaluateHeartbeat()
+    return summary(epoch, { health: { ok: results.every((result) => result.ok), stale } }, stale)
   }
 
   startPolling(): void {
@@ -764,22 +788,23 @@ export class BotSessionController {
     const epoch = this.state.epoch
     this.state.connection = 'connecting'
     this.state.errorKey = null
+    this.state.resourceErrors = emptyResourceErrors()
     try {
       const client = this.ensureClient()
-      await client.ping()
-      if (epoch !== this.state.epoch || client !== this.client) return false
       const config = await client.showConfig()
       if (epoch !== this.state.epoch || client !== this.client) return false
       this.state.data.showConfig = config
       const started = performance.now()
-      const refreshed = await this.refreshAll()
+      void this.refreshAll()
+      const [core, trades] = await Promise.all([this.refreshCore(), this.refreshTrades()])
       if (epoch !== this.state.epoch || client !== this.client) return false
+      if (core.stale || trades.stale) return false
       this.state.latencyMs ??= Math.round(performance.now() - started)
-      const requiredError = preferredTransportError(
-        refreshed.failed
-          .filter((resource) => resource === 'core' || resource === 'trades')
-          .map((resource) => this.state.resourceErrors[resource]),
-      )
+      const requiredError = preferredTransportError([
+        this.state.resourceErrors.core,
+        this.state.resourceErrors.trades,
+        ...Object.values(this.state.resourceErrors).filter((error) => error?.key === 'errors.auth'),
+      ])
       if (requiredError) {
         this.state.errorKey = requiredError
         this.state.connection = requiredError.key === 'errors.auth' ? 'unauthorized' : 'unreachable'
@@ -865,8 +890,9 @@ export class BotSessionController {
     this.stopPolling()
     for (const request of this.requests.values()) request.controller.abort()
     this.requests.clear()
+    this.groupRuns.clear()
     this.actionLock = null
-    this.refreshRun = null
+    this.activeRefreshToken = null
     this.state.refreshing = false
     this.state.actionPending = null
     this.state.connection = 'idle'

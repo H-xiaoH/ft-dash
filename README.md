@@ -102,10 +102,11 @@ left rail walks pages — one notch is one page, a trackpad's stream keeps walki
 and the page behind the rail does not move. The wheel only takes over there.
 
 Data refreshes on a fixed 1-second cadence while the tab is visible (balance, positions,
-P&L, CPU/RAM), with heavier slices spread over longer intervals — trades and pair lists every
-4 seconds, analytics, logs and config every 12 seconds. Regular data polling pauses when the
-tab is hidden; low-frequency health checks continue if alerts are enabled. Overlapping rounds
-are skipped rather than queued.
+P&L, plus an independent health check), with heavier slices spread over longer intervals — trades
+and pair lists every 4 seconds, analytics, CPU/RAM, logs and config every 12 seconds. Regular data polling
+pauses when the tab is hidden; low-frequency health checks continue if alerts are enabled.
+Requests already in flight are shared per resource group; a slow health or analytics response
+does not block trading data, connection startup, or retrying completed groups.
 
 ## 🚀 Quick start
 

@@ -68,6 +68,97 @@ function candleResponse(): PairCandlesResponse {
 }
 
 describe('BotSessionController', () => {
+  it('connects with required data while health, sysinfo and analytics are pending', async () => {
+    const slow = deferred<never>()
+    const client = fakeClient({
+      ping: vi.fn().mockReturnValue(slow.promise),
+      health: vi.fn().mockReturnValue(slow.promise),
+      sysinfo: vi.fn().mockReturnValue(slow.promise),
+      daily: vi.fn().mockReturnValue(slow.promise),
+    })
+    const session = sessionFor(client)
+    const connected = vi.fn()
+    void session.connect().then(connected)
+    await vi.waitFor(() => expect(connected).toHaveBeenCalledWith(true))
+    expect(session.state.connection).toBe('online')
+    expect(session.state.coreReady).toBe(true)
+    expect(session.state.tradesReady).toBe(true)
+    expect(session.state.refreshing).toBe(false)
+    expect(client.health).toHaveBeenCalledOnce()
+    expect(client.sysinfo).toHaveBeenCalledOnce()
+    session.cleanup()
+  })
+
+  it('refreshes completed resources again while coalescing slow health and analytics', async () => {
+    const health = deferred<unknown>()
+    const daily = deferred<unknown>()
+    const client = fakeClient({
+      health: vi.fn().mockReturnValue(health.promise),
+      daily: vi.fn().mockReturnValue(daily.promise),
+    })
+    const session = sessionFor(client)
+    const first = session.refreshAll()
+    await vi.waitFor(() => expect(session.state.refreshing).toBe(false))
+    expect(session.state.coreReady).toBe(true)
+    const second = session.refreshAll()
+    await vi.waitFor(() => expect(client.status).toHaveBeenCalledTimes(2))
+    expect(client.health).toHaveBeenCalledOnce()
+    expect(client.daily).toHaveBeenCalledOnce()
+    health.resolve({})
+    daily.resolve({})
+    await Promise.all([first, second])
+    expect(session.state.refreshing).toBe(false)
+  })
+
+  it('retries fast optional resources even while required data is still pending', async () => {
+    const status = deferred<unknown>()
+    const client = fakeClient({ status: vi.fn().mockReturnValue(status.promise) })
+    const session = sessionFor(client)
+    const first = session.refreshAll()
+    await session.refreshMarket()
+    expect(client.whitelist).toHaveBeenCalledOnce()
+    const second = session.refreshAll()
+    await vi.waitFor(() => expect(client.whitelist).toHaveBeenCalledTimes(2))
+    expect(client.status).toHaveBeenCalledOnce()
+    expect(session.state.refreshing).toBe(true)
+    status.resolve([])
+    await Promise.all([first, second])
+  })
+
+  it('does not let an old optional completion clear a newer required refresh', async () => {
+    const health = deferred<unknown>()
+    const status = deferred<unknown>()
+    const client = fakeClient({
+      health: vi.fn().mockReturnValueOnce(health.promise).mockResolvedValue({}),
+    })
+    const session = sessionFor(client)
+    const first = session.refreshAll()
+    await vi.waitFor(() => expect(session.state.refreshing).toBe(false))
+    vi.mocked(client.status).mockReturnValueOnce(status.promise as never)
+    const second = session.refreshAll()
+    expect(session.state.refreshing).toBe(true)
+    health.resolve({})
+    await first
+    expect(session.state.refreshing).toBe(true)
+    status.resolve([])
+    await second
+    expect(session.state.refreshing).toBe(false)
+  })
+
+  it('keeps late health authentication failure after required data connected', async () => {
+    const health = deferred<unknown>()
+    const client = fakeClient({ health: vi.fn().mockReturnValue(health.promise) })
+    const session = sessionFor(client)
+    const connected = vi.fn()
+    void session.connect().then(connected)
+    await vi.waitFor(() => expect(connected).toHaveBeenCalledWith(true))
+    health.reject(new ApiError('auth', 'Unauthorized', { status: 401 }))
+    await vi.waitFor(() => expect(session.state.connection).toBe('unauthorized'))
+    await session.refreshCore()
+    expect(session.state.connection).toBe('unauthorized')
+    session.cleanup()
+  })
+
   it('publishes independent resources while health is pending and reports its failure', async () => {
     const health = deferred<unknown>()
     const client = fakeClient({ health: vi.fn().mockReturnValue(health.promise) })
@@ -79,12 +170,12 @@ describe('BotSessionController', () => {
     expect(client.logs).toHaveBeenCalledOnce()
     expect(session.state.data.daily).not.toBeNull()
     expect(session.state.data.whitelist).not.toBeNull()
-    expect(session.state.coreReady).toBe(false)
-    expect(session.state.refreshing).toBe(true)
+    expect(session.state.coreReady).toBe(true)
+    expect(session.state.refreshing).toBe(false)
     health.reject(new ApiError('cors', 'health unavailable'))
     const result = await pending
-    expect(result.failed).toEqual(['core'])
-    expect(result.succeeded).toEqual(['trades', 'analytics', 'market', 'system'])
+    expect(result.failed).toEqual(['health'])
+    expect(result.succeeded).toEqual(['core', 'trades', 'analytics', 'market', 'system'])
     expect(session.state.refreshing).toBe(false)
   })
 
@@ -127,6 +218,7 @@ describe('BotSessionController', () => {
       session.startPolling()
       await vi.advanceTimersByTimeAsync(12_000)
       expect(client.health).toHaveBeenCalledOnce()
+      expect(client.status).toHaveBeenCalledTimes(12)
       expect(client.trades).toHaveBeenCalledTimes(3)
       expect(client.whitelist).toHaveBeenCalledTimes(3)
       expect(client.tradeStats).toHaveBeenCalledOnce()
@@ -134,6 +226,29 @@ describe('BotSessionController', () => {
       health.resolve({})
       await vi.advanceTimersByTimeAsync(1_000)
       expect(client.health).toHaveBeenCalledTimes(2)
+    } finally {
+      session.cleanup()
+      vi.useRealTimers()
+    }
+  })
+
+  it('refreshes an old cached heartbeat before judging a resumed bot unhealthy', async () => {
+    vi.useFakeTimers()
+    const alert = vi.fn()
+    const session = new BotSessionController({
+      botId: 'first',
+      credentials,
+      clientFactory: () =>
+        fakeClient({
+          health: vi.fn().mockImplementation(async () => ({ last_process_ts: Date.now() })),
+        }),
+      onHeartbeatAlert: alert,
+    })
+    session.state.data.health = { last_process_ts: Date.now() - 60_000 } as never
+    try {
+      session.startPolling()
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(alert).not.toHaveBeenCalled()
     } finally {
       session.cleanup()
       vi.useRealTimers()
@@ -251,18 +366,19 @@ describe('BotSessionController', () => {
     expect(created.map((entry) => entry.password)).toEqual(['secret', 'rotated'])
   })
 
-  it('does not let an older resource refresh clear newer readiness', async () => {
+  it('coalesces a pending resource without marking it ready early', async () => {
     const firstStatus = deferred<unknown>()
     const status = vi.fn().mockReturnValueOnce(firstStatus.promise).mockResolvedValue([])
     const session = sessionFor(fakeClient({ status }))
-
-    const older = session.refreshCore()
-    const newer = session.refreshCore()
-    await newer
+    const first = session.refreshCore()
+    const second = session.refreshCore()
+    expect(status).toHaveBeenCalledOnce()
+    expect(session.state.coreReady).toBe(false)
     firstStatus.resolve([])
-    await older
-
+    await Promise.all([first, second])
     expect(session.state.coreReady).toBe(true)
+    await session.refreshCore()
+    expect(status).toHaveBeenCalledTimes(2)
   })
 
   it('serializes actions and old finally cannot clear the next action', async () => {
