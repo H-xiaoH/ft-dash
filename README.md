@@ -4,7 +4,7 @@
 
 # ft-dash
 
-<p><strong>A calm, mobile-first command center for Freqtrade.</strong><br />
+<p><strong>A mobile-first console for Freqtrade.</strong><br />
 An installable Vue PWA that talks to your bot directly.</p>
 
 <p>
@@ -25,8 +25,7 @@ An installable Vue PWA that talks to your bot directly.</p>
 > REST API. There is no backend to host and no service in the middle that needs your credentials.
 >
 > The hosted build lives at [h-xiaoh.github.io/ft-dash](https://h-xiaoh.github.io/ft-dash/). It
-> opens on the connect screen — without a bot of your own there is nothing to show, which is the
-> whole point of the design.
+> opens on the connect screen. Connect your own bot to see its data.
 
 ## 📸 Screenshots
 
@@ -50,7 +49,8 @@ An installable Vue PWA that talks to your bot directly.</p>
 - 📊 **Overview** — equity, open/closed/today's P&L, trade count and profit factor over a daily
   P&L chart, plus the open positions and recently closed trades.
 - 🔁 **Trades** — open, closed or all trades (all = positions merged with history) with side,
-  staked amount, prices, P&L and duration; sortable columns, a search that expands from the
+  staked amount, prices, P&L and duration; sortable columns on desktop and a sort menu with a
+  direction button on phones, a search that expands from the
   toolbar, an outcome filter (all / profitable / losing), per-trade detail (orders, fees,
   funding, leverage, stop loss, liquidation) and CSV export. On phones the same data is a
   card list instead of a wide table. The loaded history is paged locally — 20 rows by default,
@@ -63,7 +63,7 @@ An installable Vue PWA that talks to your bot directly.</p>
   OHLC/volume readout in the corner). The chart is marked up: the strategy's buy and sell
   signals ride under and over their candles, and the bot's own fills point in at the price
   they happened at. Then a pair picker, the bot's timeframe, whitelist, blacklist and active
-  pair locks.
+  pair locks. Whitelist amounts are cumulative closed P&L, excluding open positions.
 - 🪵 **Logs** — live bot log with a level filter, search that expands from the toolbar and a
   follow toggle.
 - 🖥️ **System** — CPU/RAM/load, heartbeat lag warning, process uptime, the effective config
@@ -71,10 +71,9 @@ An installable Vue PWA that talks to your bot directly.</p>
 - 🔔 **Alerts** — optional system notifications for fills, warnings, exceptions, a shutdown
   event and a heartbeat that has been silent for 30 seconds. They fire while the page or the
   installed app is open (background tabs included) — a background tab is checked on a slower
-  cadence (every 10 seconds) and the browser throttles it further once the tab has been
-  hidden for a few minutes, so a stall there is reported within about a minute rather than
-  30 seconds. A closed app cannot be reached at all without a push server, which this
-  front-end-only design does not have.
+  cadence (every 10 seconds), but browser throttling or suspension can delay it further,
+  so background notification timing is not guaranteed. A closed app cannot be reached without a
+  push server, which this front-end-only design does not have.
 - ⚡ **Live events** — a real-time tape fed by the Freqtrade websocket (entries, fills,
   cancellations, protection triggers, warnings, exceptions), shown on the System page.
 - 🎛️ **Bot controls** — pause/resume entries, stop, reload config, close a position, edit the
@@ -104,8 +103,9 @@ and the page behind the rail does not move. The wheel only takes over there.
 
 Data refreshes on a fixed 1-second cadence while the tab is visible (balance, positions,
 P&L, CPU/RAM), with heavier slices spread over longer intervals — trades and pair lists every
-4 seconds, analytics, logs and config every 12 seconds. Polling stops entirely when the tab is
-hidden, and overlapping rounds are skipped rather than queued.
+4 seconds, analytics, logs and config every 12 seconds. Regular data polling pauses when the
+tab is hidden; low-frequency health checks continue if alerts are enabled. Overlapping rounds
+are skipped rather than queued.
 
 ## 🚀 Quick start
 
@@ -127,6 +127,17 @@ answers every request from fixtures in `e2e/support/fixtures.ts`, so it runs off
 no credentials. First run needs `npx playwright install chromium webkit` to fetch the browsers
 (WebKit is Safari's engine; the `webkit` project runs the smoke and accessibility specs on it).
 
+Seven cases are skipped by default: six generate the bilingual README screenshots, and one
+WebKit route-wide console-error check is disabled because of intercepted cross-origin fixture
+responses. The same check runs on Chromium. To regenerate all six screenshots:
+
+```bash
+npm run build
+SCREENS=1 npx playwright test e2e/screenshots.spec.ts --project=chromium
+```
+
+The screenshots use fixture data and are written to `docs/images/en/` and `docs/images/zh/`.
+
 **Browser floor.** Off-screen pages and open dialogs are parked with the native `inert`
 attribute, with no polyfill behind it: iOS Safari before 15.5 (May 2022) is not covered, and
 there those pages stay in the tab order.
@@ -136,9 +147,9 @@ checked on a real device — worth two minutes in Safari with the PWA installed:
 
 1. **Installed mode**: launching from the home screen shows no address bar; the notch and rounded
    corners do not cover content; rotation and window resizing stay aligned.
-2. **Updates**: a deploy installs itself — the app asks for a new worker every minute and
-   whenever you return to the tab, then reloads onto the new build. Nothing to click, and no
-   cold start needed.
+2. **Updates**: the app checks at startup and after Service Worker registration, then every
+   minute and whenever you return to the foreground. A new worker taking over reloads the page
+   automatically, without confirmation or a restart.
 3. **Page gestures**: sideways swipes track the finger and do not flicker; the bottom-bar
    selection follows along; tapping a tab matches what a swipe does, and a sideways drag that
    starts on the bar leaves the pages alone. The tabs light up under the block as it passes. No
@@ -155,16 +166,16 @@ checked on a real device — worth two minutes in Safari with the PWA installed:
 
 Open the app, then enter your API base URL, username and password. The sign-in is checked
 against the bot first — only a bot that answers is saved and opened, so a typo leaves nothing
-behind. Credentials are stored in this browser only (localStorage, or sessionStorage if you
-turn "remember" off) and are used solely as an `Authorization` header toward the API you
-entered.
+behind. Credentials are stored in this browser only: sessionStorage by default, or
+localStorage with "remember on this device" enabled. They are sent only in an `Authorization`
+header to the API you entered.
 
 ### 🤖 Several bots
 
-One ft-dash can manage several bots: add, edit and delete them under
-**Settings → Bots**, and pick the one in use with "Switch". Exactly one bot is active — it is
-the only one polled and the only one with a live stream — so switching swaps the data source
-and resets page state such as search, filters, paging and open detail drawers.
+One ft-dash can manage several bots. Select the active connection in **Settings → Backends**,
+and choose "Manage backends" to add, edit or delete entries. Only one backend is polled and
+connected to a live stream at a time. Switching resets search, filters, paging and open detail
+drawers.
 
 - Bots live in this browser only. Passwords stay in the current tab (sessionStorage) unless
   "remember on this device" is on, which writes them to localStorage.
@@ -228,9 +239,9 @@ Two transports, two mechanisms — Freqtrade decides which one each accepts:
    reverse proxy, or when you do not want to expose credentials to the login endpoint.
 3. **Disable stream** — poll only. Everything except the live event tape keeps working.
 
-A 401 that survives the Basic retry is not transient — the credentials or the proxy's CORS
-list are wrong. Polling stops and the app returns to the sign-in form (bot list and fields
-intact) instead of leaving a dashboard that cannot fetch anything.
+If a request still returns 401 after the Basic retry, polling stops and the app returns to
+the sign-in form with the backend list and fields intact. Check the credentials; if the
+browser reports a cross-origin error, also check the proxy and CORS configuration.
 
 Failures are explicit rather than silent: a rejected handshake (Freqtrade answers `403` for a
 bad token; the browser cannot see a close code) surfaces as "handshake rejected — token
@@ -286,8 +297,8 @@ instance. It reads `/ping`, `/show_config`, `/health`, `/sysinfo`, `/balance`,
 `/pair_candles`, and posts to `/start`, `/stop`, `/stopentry`, `/reload_config`, `/forceexit`,
 `/blacklist` and `/locks/delete` when controls are enabled.
 
-The day, week and month reports are the bot's own, bucketed in UTC — the same days the bot and
-the exchange work in. **Settings → Region → Time zone** decides how *times* are shown: the
+Day, week and month reports use the bot's data, bucketed in UTC.
+**Settings → Region → Time zone** decides how *times* are shown: the
 browser's own zone by default, or any zone pinned by name (UTC for the exchanges' clock). A
 trade closed at 23:30 UTC reads as 07:30 the next morning in Shanghai. It does not move the
 report boundaries.
@@ -318,6 +329,13 @@ e2e/               end-to-end tests (playwright, every API call answered by fixt
 docs/              finished specs and history — see docs/README.md for what goes where
 public/            PWA icons, favicon, robots.txt
 ```
+
+The root keeps project documentation, the vocabulary, the license, and configuration or entry
+files for Vite, TypeScript, tests and code checks. Active plans and temporary evidence belong
+in the git-ignored `.scratch/<slug>/`; archive the conclusions and remove drafts when finished.
+`node_modules/`, `dist/`, `test-results/`, `playwright-report/` and `coverage/` are generated locally
+and stay out of version control. See [docs/README.md](docs/README.md) for directory responsibilities
+and the documentation index.
 
 ## 📚 Documentation
 

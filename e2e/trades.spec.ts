@@ -137,6 +137,9 @@ test('a phone sorts through the toolbar, the way the desktop headers do', async 
   // The button names the action, not the state it is already in.
   const direction = livePage(page).getByRole('button', { name: '改为升序' })
   await expect(direction).toBeVisible()
+  expect(await direction.evaluate((el) => getComputedStyle(el, '::before').content)).toBe('none')
+  await expect(sortMenu).toHaveCSS('border-right-width', '0px')
+  await expect(direction).toHaveCSS('border-left-width', '0px')
 
   // The toolbar carries five controls; it has to fit even a 360px phone.
   const head = livePage(page).locator('.panel__head').first()

@@ -256,3 +256,21 @@ test('the pair popup stays inside a phone-width viewport', async ({ page }) => {
   expect(list!.y).toBeGreaterThanOrEqual(0)
   expect(list!.y + list!.height).toBeLessThanOrEqual(viewport.height)
 })
+
+test('whitelist names the cumulative closed-profit scope on phone and desktop', async ({
+  page,
+}) => {
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: 844 })
+    const market = livePage(page)
+    await expect(market.locator('.market__profit-scope')).toBeVisible()
+    await expect(market.locator('.market__profit-scope')).toContainText('累计已平仓盈亏')
+    await expect(market.locator('.market__profit-scope')).toContainText('不含当前持仓')
+    if (width > 900)
+      await expect(market.getByRole('columnheader', { name: '累计已平仓盈亏' })).toBeVisible()
+  }
+  await livePage(page)
+    .getByRole('button', { name: /黑名单/ })
+    .click()
+  await expect(livePage(page).locator('.market__profit-scope')).toHaveCount(0)
+})

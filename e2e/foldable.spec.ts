@@ -63,6 +63,10 @@ test('touch cancellation and unfolding restore the track and do not switch pages
   await expect(page.locator('.page-enter-active, .page-leave-active')).toHaveCount(0)
   for (const interrupt of ['cancel', 'resize', 'commit-resize']) {
     await page.setViewportSize({ width: 540, height: 900 })
+    // Let the resize handler reset the track before starting the synthetic gesture.
+    await page.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+    )
     await touch(page, 'touchstart', 440)
     await touch(page, 'touchmove', 240)
     await expect.poll(() => trackX(page)).toBe(-200)

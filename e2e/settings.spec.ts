@@ -624,6 +624,7 @@ test('the language popup travels with its trigger while the page scrolls', async
   const list = page.locator('.filter-menu__list')
   await trigger.click()
   await list.waitFor()
+  await expect(list).not.toHaveClass(/menu-list-enter-active/)
 
   /** Distance from the trigger's box to the popup's — constant while it stays attached. */
   const offset = async () => {

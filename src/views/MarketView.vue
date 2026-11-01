@@ -376,6 +376,10 @@ watch(
         </div>
       </div>
 
+      <p v-if="tab === 'whitelist'" class="market__profit-scope panel__meta">
+        {{ t('market.closedProfitScope') }}
+      </p>
+
       <!-- Keyboard users need a focus stop to scroll this list (WCAG 2.1.1). -->
       <div
         v-if="tab === 'whitelist'"
@@ -391,7 +395,7 @@ watch(
               <tr>
                 <th scope="col">{{ t('market.pair') }}</th>
                 <th scope="col">{{ t('trades.open') }}</th>
-                <th scope="col" class="num">{{ t('stats.pairProfit') }}</th>
+                <th scope="col" class="num">{{ t('market.closedProfit') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -610,6 +614,12 @@ watch(
 
 .market-page {
   height: calc(100dvh - var(--topbar-h) - var(--shell-pad) - var(--shell-pad-bottom));
+}
+
+.market__profit-scope {
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--line);
+  text-align: right;
 }
 
 .market__pairs {

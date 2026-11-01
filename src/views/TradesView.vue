@@ -563,34 +563,21 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/*
- * Sort and direction are one control: two buttons in a single frame with a hairline between
- * them, so they read as "this field, this direction" rather than as two unrelated buttons.
- */
+/* Sort field and direction share one outer frame. */
 .sort-group {
   display: inline-flex;
 }
 
 .sort-group :deep(.filter-menu__button) {
+  border-right: 0;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
 
 .sort-group__dir {
-  position: relative;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
   border-left: 0;
-}
-
-.sort-group__dir::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 5px;
-  bottom: 5px;
-  width: 1px;
-  background: var(--line-strong);
 }
 
 /* The phone drops the export label; without this it is 4px shorter than its neighbours. */

@@ -203,6 +203,8 @@ export default {
     sent: 'Command sent',
   },
   market: {
+    closedProfit: 'Cumulative closed P&L',
+    closedProfitScope: 'Cumulative closed P&L (excludes open positions)',
     whitelist: 'Whitelist',
     blacklist: 'Blacklist',
     locks: 'Locks',

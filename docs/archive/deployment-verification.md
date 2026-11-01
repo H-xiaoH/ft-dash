@@ -2,7 +2,9 @@
 
 **验收日期：** 2026-10-24  
 **构建参考：** Freqtrade 2026.9 / API v2.5  
-**检查范围：** FT Dash 构建产物、本地静态预览、`bot.example.com` 只读 HTTP/WebSocket 行为和 `[private-address-redacted]` 可达性。
+**检查范围：** FT Dash 构建产物、本地静态预览、已脱敏服务的只读 HTTP/WebSocket 行为和内网主机可达性。
+
+服务域名和部署前缀已替换为通用示例，不代表可访问的真实环境。
 
 ## 依赖与构建产物
 
@@ -47,7 +49,7 @@
 - WebSocket Upgrade（无凭据、仅使用占位 token）返回 `403`，请求经 Caddy 到达 uvicorn；没有执行成功认证所需的 `101` 检查，因此 Upgrade 是否在已认证连接上完整工作标记为“环境无法验证”。
 - `https://bot.example.com/bot/`、其 manifest 和 `sw.js` 返回的页面标题是 `FreqUI`，不是本仓库 FT Dash 的构建产物。当前 URL 不能作为 FT Dash PWA 的生产验收地址，疑似站点/路径指向了另一套应用。
 
-内网主机 `[private-address-redacted]`：HTTP 端口可达并由 Caddy 返回 308 到 HTTPS；从当前环境访问 HTTPS 时收到 TLS internal error，无法继续验证主机上的 API、CDN 或 WebSocket 配置。
+内网主机（地址已移除）：HTTP 端口可达并由 Caddy 返回 308 到 HTTPS；从当前环境访问 HTTPS 时收到 TLS internal error，无法继续验证主机上的 API、CDN 或 WebSocket 配置。
 
 ## 部署建议
 
@@ -55,6 +57,3 @@
 2. 在 SPA fallback 之前匹配 `/bot/api/v1/*`，保持 API 的 401/404/5xx 原始状态和 JSON MIME。
 3. 为 API/鉴权响应设置 `Cache-Control: no-store`；hashed assets 可设置长期 immutable 缓存，HTML、manifest 和 service worker 保持可更新。
 4. 将实际 FT Dash 前端 origin 加入 CORS 白名单，并确认认证 WebSocket 连接获得 `101 Switching Protocols`。
-
-
-> 隐私说明：本文的服务域名、部署前缀及内网地址已脱敏，示例不代表真实环境。

@@ -1,51 +1,71 @@
-# docs
+# 项目目录与文档
 
-文档按「还活着 / 已结束」分开放。新增文件前先看这张表，别再往根目录堆。
+源码按职责分目录，规格和历史记录集中在 `docs/`。新增文件先按下表选择位置。
 
-| 位置 | 放什么 | 会不会再改 |
-| --- | --- | --- |
-| `.scratch/<slug>/` | 进行中的计划与验收标准（`spec.md`）。git 忽略，不进历史 | 会，随工作推进 |
-| `docs/specs/` | 已完成并合并的规格：为什么这么设计、边界在哪 | 不改，只追加 |
-| `docs/archive/` | 历史结论与验收记录：当时的输出、提交号、证据 | 不改 |
-| `docs/images/` | README 的截图（`en/`、`zh/`），由 e2e 固定数据渲染，不用真实账户 | 换了界面再重拍 |
+| 位置 | 内容 |
+| --- | --- |
+| `src/data/freqtrade/` | API 传输、客户端与会话管理 |
+| `src/views/` | 页面 |
+| `src/components/` | 共用组件与手写 SVG 图表 |
+| `src/composables/` | Vue 组合式函数 |
+| `src/stores/` | 设置、机器人数据和事件状态 |
+| `src/lib/` | 格式化、存储、图表计算等通用逻辑 |
+| `src/i18n/`、`src/styles/` | 中英文文案、样式与设计变量 |
+| `tests/`、`e2e/` | 单元/组件测试、端到端测试与固定数据 |
+| `public/` | PWA 图标和其他静态资源 |
+| `docs/specs/` | 已完成的规格，说明设计目的和边界；后续变化另写规格 |
+| `docs/archive/` | 历史结论、验收结果和证据，保留当时状态 |
+| `docs/images/en/`、`docs/images/zh/` | README 截图，由端到端固定数据生成 |
+| `.scratch/<slug>/` | 进行中的计划和临时证据，不入库；完成后清理 |
 
-一份工作的落点：写计划 → 做完 → 规格进 `specs/`，结论与证据进 `archive/`，`.scratch/` 里的草稿删掉。
+根目录保留 README、领域词表、项目约定、许可证，以及构建工具需要的配置和入口。
+`node_modules/`、`dist/`、`test-results/`、`playwright-report/` 和 `coverage/` 都是可重新生成的本地产物，不入库。
+本地环境配置也不入库；`.env.example` 是可提交的配置示例。
+
+完成一项工作后，规格放入 `specs/`，需要长期保留的结论放入 `archive/`，补上索引，再清理 `.scratch/` 草稿。
+归档记录只描述当时的验证状态，不代表当前版本已经重新验证。
 
 ## specs
 
-- [audit-reliability-fixes](specs/audit-reliability-fixes.md) — 写入口门禁、后台告警、K线刷新与成交区间、表单恢复、未知统计与Safari15.5基础样式
+### 数据、后端与运行可靠性
 
-- [trades-zero-all](specs/trades-zero-all.md) — 交易每页条数以0显示全部，占位符说明；正数分页保留
+- [freqtrade-data-layer](specs/freqtrade-data-layer.md) — transport、client、session 分层与竞态控制
+- [audit-reliability-fixes](specs/audit-reliability-fixes.md) — 写入口门禁、后台告警、K 线刷新、表单恢复、未知统计与 Safari 15.5 基础样式
+- [backend-picker](specs/backend-picker.md) — 后端下拉选择与管理入口
+- [ui-limits-and-auto-retry](specs/ui-limits-and-auto-retry.md) — 界面数量上限、登录探测、401 回连接页与自动重试
+- [remove-version-warnings](specs/remove-version-warnings.md) — 移除版本兼容性检测与软警告
 
-- [settings-display-copy](specs/settings-display-copy.md) — 界面设置合并标题和说明，保留简短字段标签
+### 导航、布局与动效
 
-- [status-labels](specs/status-labels.md) — 顶栏短状态文案，连接优先、未知不推断、交易模式明确展示
+- [app-navigation-split](specs/app-navigation-split.md) — 拆分桌面导航与手机底栏
+- [desktop-page-motion](specs/desktop-page-motion.md) — 桌面上下切页与共享页面边界
+- [foldable-layout](specs/foldable-layout.md) — 720 CSS px 导航切换、表格布局及手势中断复位
+- [dropdown-motion](specs/dropdown-motion.md) — 下拉菜单缩放、淡入淡出、背景虚化与关闭时禁用交互
+- [ui-motion-and-backend-probes](specs/ui-motion-and-backend-probes.md) — 展开收起、弹窗动画、响应延迟与后端探测
 
-- [remove-version-warnings](specs/remove-version-warnings.md) — 移除版本兼容性检测和提示，替代数据层旧规格中的版本软警告
+### 交易、统计与界面文案
 
-- [dropdown-motion](specs/dropdown-motion.md) — 共用下拉菜单中心缩放、淡入淡出与遮罩虚化，关闭禁用交互
+- [trade-ui-polish](specs/trade-ui-polish.md) — 手势、滚动边界与提示一致性
+- [trades-sort-on-phone](specs/trades-sort-on-phone.md) — 手机排序下拉与方向按钮
+- [trades-zero-all](specs/trades-zero-all.md) — 每页条数填 0 显示全部，正数保持分页
+- [sort-profit-labels](specs/sort-profit-labels.md) — 排序组合去除中间竖线，白名单明确累计已平仓盈亏口径
+- [ratio-guide](specs/ratio-guide.md) — 夏普、索提诺、SQN 与 Calmar 的指标说明弹窗
+- [ratio-guide-copy](specs/ratio-guide-copy.md) — 指标说明、分档与局限的中英文文案
+- [status-labels](specs/status-labels.md) — 顶栏状态、连接优先级与交易模式
+- [settings-display-copy](specs/settings-display-copy.md) — 界面设置合并标题和说明
 
-- [foldable-layout](specs/foldable-layout.md) — 主导航与切页以720 CSS px切换，表格独立判断；折叠和手势中断复位
+### 项目维护
 
-- [desktop-page-motion](specs/desktop-page-motion.md) — 桌面上下紧贴切页，按页面高度共享边界；手机横向不变
-
-- [ratio-guide-copy](specs/ratio-guide-copy.md) — 四项指标说明重写；界面分档与指标局限，中英文同步
-
-- [ui-motion-and-backend-probes](specs/ui-motion-and-backend-probes.md) — 交易与周期展开收起、弹窗进出与背景虚化、响应延迟卡片、下拉后端状态探测
-
-- [app-navigation-split](specs/app-navigation-split.md) — 把 rail / tabbar 从 `App.vue` 拆成 `AppNavigation.vue`
-- [freqtrade-data-layer](specs/freqtrade-data-layer.md) — 数据层重写：transport / client / session 的分层与竞态控制
-- [trade-ui-polish](specs/trade-ui-polish.md) — 交易与各页面的手势、滚动边界、提示一致性
-- [trades-sort-on-phone](specs/trades-sort-on-phone.md) — 交易页手机宽度的排序下拉 + 方向按钮，与桌面列头同一套规则
-- [backend-picker](specs/backend-picker.md) — 设置页「后端」改成一个下拉选后端，最后一项「管理后端」展开增删改
-- [ratio-guide](specs/ratio-guide.md) — 统计页两块风险磁贴共用的比值说明弹窗（夏普／索提诺／SQN／Calmar 的白话解释与分档）
-- [ui-limits-and-auto-retry](specs/ui-limits-and-auto-retry.md) — 设置页「界面」的数量上限、登录先探测、401 回登录页、全自动重试
+- [e2e-synchronization](specs/e2e-synchronization.md) — 折叠手势与下拉位置测试等待 resize 和入场动画完成
+- [privacy-cleanup](specs/privacy-cleanup.md) — 历史环境与交易明细脱敏，清理本地配置和临时备份
+- [readme-screenshots](specs/readme-screenshots.md) — 双语 README 与固定数据截图更新
+- [project-layout](specs/project-layout.md) — 目录职责、文档索引和临时产物清理
 
 ## archive
 
-- [audit-fixes-verification](archive/audit-fixes-verification.md) — 2026-11-01 审计修复、全量检查与OKX模拟开平仓闭环记录
-
+- [ui-and-readme-verification](archive/ui-and-readme-verification.md) — 2026-11-01 排序/盈亏口径修复与六张 README 截图验收
+- [audit-fixes-verification](archive/audit-fixes-verification.md) — 2026-11-01 审计修复、全量检查与 模拟开平仓记录
 - [completed-work](archive/completed-work.md) — 2026-10 三批工作的结论与提交区间
 - [deployment-verification](archive/deployment-verification.md) — 2026-10-24 构建、PWA 与生产环境验收记录
 
-约定细节（术语、验证顺序、提交格式）见仓库根的 `AGENTS.md`；领域词汇见 `CONTEXT.md`。
+项目约定见 [AGENTS.md](../AGENTS.md)，领域词汇见 [CONTEXT.md](../CONTEXT.md)，使用与开发说明见 [中文 README](../README.zh-CN.md) / [English README](../README.md)。

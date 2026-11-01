@@ -199,6 +199,8 @@ export default {
     sent: '指令已发送',
   },
   market: {
+    closedProfit: '累计已平仓盈亏',
+    closedProfitScope: '累计已平仓盈亏（不含当前持仓）',
     whitelist: '白名单',
     blacklist: '黑名单',
     locks: '交易锁',
