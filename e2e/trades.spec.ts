@@ -243,10 +243,11 @@ test('opening an overview trade animates the detail drawer', async ({ page }) =>
   await page.evaluate(() => {
     const frames: number[] = []
     ;(window as unknown as { __drawerTravel?: number[] }).__drawerTravel = frames
-    const started = performance.now()
+    let started = 0
     const tick = () => {
       const drawer = document.querySelector('.overlay--drawer .drawer')
       if (drawer) {
+        started ||= performance.now()
         const transform = getComputedStyle(drawer).transform
         const offset =
           transform === 'none'
@@ -257,7 +258,7 @@ test('opening an overview trade animates the detail drawer', async ({ page }) =>
               })()
         frames.push(offset)
       }
-      if (performance.now() - started < 900) requestAnimationFrame(tick)
+      if (!started || performance.now() - started < 500) requestAnimationFrame(tick)
     }
     requestAnimationFrame(tick)
   })

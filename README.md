@@ -125,7 +125,8 @@ npm run build        # type-check + production build in dist/
 The end-to-end suite never touches a real bot: it points the app at a fake API origin and
 answers every request from fixtures in `e2e/support/fixtures.ts`, so it runs offline and needs
 no credentials. First run needs `npx playwright install chromium webkit` to fetch the browsers
-(WebKit is Safari's engine; the `webkit` project runs the smoke and accessibility specs on it).
+(WebKit is Safari's engine; `webkit` runs smoke and accessibility specs, while
+`webkit-expanded` checks page transitions in expanded touch viewports).
 
 Seven cases are skipped by default: six generate the bilingual README screenshots, and one
 WebKit route-wide console-error check is disabled because of intercepted cross-origin fixture

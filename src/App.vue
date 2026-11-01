@@ -93,11 +93,18 @@ watch(navIndex, (next) => {
 })
 
 let viewportEpoch = 0
+const resizingPages = ref(false)
+let resizeTimer = 0
 let motionTimer = 0
-let leavingPageHeight = 0
+let pageFrameHeight = 0
+const framedPages = new Set<HTMLElement>()
 let motionFinished: Promise<void> | null = null
 let resolveMotion: (() => void) | null = null
 let motionHost: HTMLElement | null = null
+let leavingPage: HTMLElement | null = null
+let pageAnimation: Animation | null = null
+let enterDone: (() => void) | null = null
+let leaveDone: (() => void) | null = null
 const desktopMotion = isWideLayout
 const removeMotionGuard = router.beforeEach(async (to, from) => {
   if (to.path !== from.path && desktopMotion() && motionFinished) {
@@ -113,45 +120,103 @@ onBeforeUnmount(() => {
 
 function measureLeavingPage(element: Element) {
   if (!desktopMotion()) return
+  window.clearTimeout(resizeTimer)
+  resizingPages.value = false
   window.clearTimeout(motionTimer)
   motionTimer = window.setTimeout(finishPageMotion, 500)
-  leavingPageHeight = element.getBoundingClientRect().height
   motionHost = element.closest<HTMLElement>('.page-host')
-  motionHost?.style.setProperty('min-height', `${leavingPageHeight}px`)
+  if (!motionHost) return
+  // A resize guard belongs to the interrupted motion, not this new navigation.
+  motionHost.classList.remove('page-host--resizing')
+  const scrollTop = window.scrollY
+  const top = motionHost.getBoundingClientRect().top + window.scrollY
+  const shell = motionHost.closest('.shell')!
+  const bottom = parseFloat(getComputedStyle(shell).getPropertyValue('--shell-pad-bottom')) || 0
+  pageFrameHeight = Math.max(1, window.innerHeight - top - bottom)
+  // Set the offscreen start before the incoming page is inserted or painted.
+  motionHost.style.setProperty('--page-distance', `${pageFrameHeight}px`)
+  motionHost.style.setProperty('min-height', `${pageFrameHeight}px`)
+  framePage(element)
+  // Keep the outgoing viewport when the shorter frame and router reset document scroll.
+  if (scrollTop > 0) {
+    element.classList.add('page-motion-scrolled')
+    ;(element as HTMLElement).scrollTop = scrollTop
+  }
+  window.scrollTo(0, 0)
   motionFinished = new Promise((resolve) => {
     resolveMotion = resolve
   })
 }
 
-function beforePageEnter(element: Element) {
-  if (desktopMotion()) (element as HTMLElement).style.transition = 'none'
+function framePage(element: Element, offset = 0) {
+  const page = element as HTMLElement
+  page.style.setProperty('--page-frame-height', `${pageFrameHeight}px`)
+  page.style.transform = `translateY(${offset}px)`
+  page.classList.add('page-motion-frame')
+  framedPages.add(page)
 }
 
-function preparePageEnter(element: Element) {
-  if (!desktopMotion()) return
-  const host = element.closest<HTMLElement>('.page-host')
-  const height = element.getBoundingClientRect().height
-  // Both pages travel the same distance: the page above owns the shared edge.
-  const distance = pageDirection.value > 0 ? leavingPageHeight : height
-  host?.style.setProperty('--page-distance', `${distance}px`)
-  host?.style.setProperty('min-height', `${Math.max(leavingPageHeight, height)}px`)
-  // Establish the measured start before enabling the CSS transition.
-  void (element as HTMLElement).offsetHeight
-  ;(element as HTMLElement).style.transition = ''
+function beforePageEnter(element: Element) {
+  if (!desktopMotion() || !motionHost) return
+  framePage(element, pageDirection.value * pageFrameHeight)
+}
+
+function holdPageLeave(element: Element, done: () => void) {
+  if (!motionHost) return done()
+  leavingPage = element as HTMLElement
+  leaveDone = done
+}
+
+function preparePageEnter(element: Element, done: () => void) {
+  if (!motionHost || !leavingPage) return done()
+  enterDone = done
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    finishPageMotion()
+    return
+  }
+  const style = getComputedStyle(element)
+  const duration = style.getPropertyValue('--dur-slide').trim()
+  const timing: KeyframeAnimationOptions = {
+    duration: parseFloat(duration) * (duration.endsWith('ms') ? 1 : 1000),
+    easing: style.getPropertyValue('--ease-out-strong').trim(),
+    fill: 'forwards',
+  }
+  const distance = pageDirection.value * pageFrameHeight
+  // Move both pages on one layer so their shared edge cannot drift between animations.
+  pageAnimation = element.parentElement!.animate(
+    [{ transform: 'translateY(0)' }, { transform: `translateY(${-distance}px)` }],
+    timing,
+  )
+  void pageAnimation.finished.then(finishPageMotion, () => {})
 }
 
 function finishPageMotion() {
   window.clearTimeout(motionTimer)
+  const finishEnter = enterDone
+  const finishLeave = leaveDone
+  enterDone = null
+  leaveDone = null
+  pageAnimation?.cancel()
+  pageAnimation = null
+  for (const page of framedPages) {
+    page.classList.remove('page-motion-frame', 'page-motion-scrolled')
+    page.style.removeProperty('--page-frame-height')
+    page.style.removeProperty('transform')
+    page.scrollTop = 0
+  }
+  framedPages.clear()
+  pageFrameHeight = 0
   motionHost?.style.removeProperty('min-height')
   motionHost = null
+  leavingPage = null
   resolveMotion?.()
   resolveMotion = null
   motionFinished = null
+  finishEnter?.()
+  finishLeave?.()
   finishHandoff()
 }
 
-const resizingPages = ref(false)
-let resizeTimer = 0
 function resetPageMotion() {
   viewportEpoch += 1
   const host = document.querySelector('.page-host')
@@ -282,11 +347,13 @@ watch(
                   the render and re-enter the renderer.
                 -->
                 <Transition
+                  v-bind="
+                    desktopMotion() ? { onLeave: holdPageLeave, onEnter: preparePageEnter } : {}
+                  "
                   name="page"
                   :duration="handoff ? 0 : undefined"
                   @before-leave="measureLeavingPage"
                   @before-enter="beforePageEnter"
-                  @enter="preparePageEnter"
                   @after-enter="finishPageMotion"
                   @enter-cancelled="finishPageMotion"
                 >
@@ -454,6 +521,23 @@ watch(
 }
 
 /* Mobile pages travel horizontally; desktop pages share a vertical edge. */
+.page-motion-frame {
+  height: var(--page-frame-height);
+  min-height: var(--page-frame-height);
+  max-height: var(--page-frame-height);
+  overflow: hidden;
+  overflow: clip;
+  transition: none !important;
+}
+
+.page-motion-scrolled {
+  overflow: hidden;
+}
+
+.page-motion-frame > * {
+  flex-shrink: 0;
+}
+
 .page-enter-active,
 .page-leave-active {
   transition: transform var(--dur-slide) var(--ease-out-strong);
@@ -494,6 +578,12 @@ watch(
 }
 
 @media (min-width: 720px) {
+  /* The shared track owns wide-page motion, including its final frame. */
+  .page-enter-active,
+  .page-leave-active {
+    transition: none;
+  }
+
   .page-leave-active {
     opacity: 1;
   }

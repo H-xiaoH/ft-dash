@@ -39,6 +39,12 @@ export default defineConfig({
       testMatch: [/a11y\.spec\.ts$/, /smoke\.spec\.ts$/],
       use: { ...devices['iPhone 13'] },
     },
+    {
+      name: 'webkit-expanded',
+      testMatch: /foldable\.spec\.ts$/,
+      grep: /expanded touch page frames/,
+      use: { ...devices['iPhone 13'] },
+    },
   ],
   webServer: {
     command: devServer ? 'npm run dev' : 'npm run preview -- --port 4173',

@@ -37,6 +37,7 @@
 
 ### 导航、布局与动效
 
+- [page-frame-motion](specs/page-frame-motion.md) — 展开与桌面共用页面窗口，短页和长页同帧贴合切换
 - [app-navigation-split](specs/app-navigation-split.md) — 拆分桌面导航与手机底栏
 - [desktop-page-motion](specs/desktop-page-motion.md) — 桌面上下切页与共享页面边界
 - [foldable-layout](specs/foldable-layout.md) — 720 CSS px 导航切换、表格布局及手势中断复位
@@ -63,6 +64,7 @@
 
 ## archive
 
+- [page-frame-motion-verification](archive/page-frame-motion-verification.md) — 2026-11-02 页面接缝、滚动位置与动画清理验收
 - [ui-and-readme-verification](archive/ui-and-readme-verification.md) — 2026-11-01 排序/盈亏口径修复与六张 README 截图验收
 - [audit-fixes-verification](archive/audit-fixes-verification.md) — 2026-11-01 审计修复、全量检查与 模拟开平仓记录
 - [completed-work](archive/completed-work.md) — 2026-10 三批工作的结论与提交区间

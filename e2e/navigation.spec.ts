@@ -354,12 +354,11 @@ test('a page travels the way you navigated', async ({ page }) => {
         if (leaving && entering) {
           const oldRect = leaving.getBoundingClientRect()
           const newRect = entering.getBoundingClientRect()
-          const transform = getComputedStyle(entering).transform
-          const matrix = new DOMMatrixReadOnly(transform === 'none' ? undefined : transform)
+          const hostRect = document.querySelector('.page-host')!.getBoundingClientRect()
           frames.push({
             gap: direction === 1 ? newRect.top - oldRect.bottom : oldRect.top - newRect.bottom,
-            x: matrix.m41,
-            y: matrix.m42,
+            x: newRect.left - hostRect.left,
+            y: newRect.top - hostRect.top,
             opacity: Number(getComputedStyle(leaving).opacity),
           })
         }

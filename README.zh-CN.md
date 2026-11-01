@@ -105,7 +105,7 @@ npm run build        # 类型检查 + 生产构建（输出 dist/）
 端到端套件不会连接真实机器人：它把应用指向一个假的 API 域名，所有请求由
 `e2e/support/fixtures.ts` 中的固定数据应答，因此可完全离线运行、不需要任何凭据。首次运行需要
 `npx playwright install chromium webkit` 下载浏览器（WebKit 是 Safari 的引擎，套件里的
-`webkit` 项目用它跑冒烟与无障碍扫描）。
+`webkit` 项目用它跑冒烟与无障碍扫描，`webkit-expanded` 检查展开触摸视口的切页）。
 
 默认有 7 项跳过：6 项用于生成中英文 README 截图，另 1 项是 WebKit 的全路由控制台错误扫描，
 后者受跨域模拟响应的测试工具限制，同项扫描仍在 Chromium 上运行。更新六张截图时执行：
