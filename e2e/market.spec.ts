@@ -62,6 +62,18 @@ async function expectListScrolls(
 test(LISTS_SCROLL_TEST, async ({ page }) => {
   const market = livePage(page)
   await expectListScrolls(page, 40, 'tbody tr', 'whitelist')
+  const list = market.getByRole('region', { name: '白名单' })
+  const [header, scrollBox] = await Promise.all([
+    list.locator('th').first().boundingBox(),
+    list.boundingBox(),
+  ])
+  expect(Math.abs(header!.y - scrollBox!.y)).toBeLessThanOrEqual(2)
+  expect(
+    await list
+      .locator('th')
+      .first()
+      .evaluate((el) => getComputedStyle(el).position),
+  ).toBe('sticky')
 
   await market.locator('.seg__item', { hasText: '黑名单' }).click()
   await expectListScrolls(page, 40, '.blist__item', 'blacklist')

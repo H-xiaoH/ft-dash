@@ -39,6 +39,8 @@
 
 ### 导航、布局与动效
 
+- [market-trades-polish](specs/market-trades-polish.md) — 白名单表头固定、分段控件初次定位、排序分隔线与统计提示精简
+
 - [market-layout](specs/market-layout.md) — K 线加载、失败与切换时尺寸稳定，白名单共用三列表头
 
 - [mobile-page-motion](specs/mobile-page-motion.md) — 手机底栏点击时保留旧页，匹配手指滑动的跟随效果
@@ -50,6 +52,8 @@
 - [ui-motion-and-backend-probes](specs/ui-motion-and-backend-probes.md) — 展开收起、弹窗动画、响应延迟与后端探测
 
 ### 交易、统计与界面文案
+
+- [backend-controls](specs/backend-controls.md) — 后端长按排序、删除弹窗与标准操作按钮样式
 
 - [trade-ui-polish](specs/trade-ui-polish.md) — 手势、滚动边界与提示一致性
 - [trades-sort-on-phone](specs/trades-sort-on-phone.md) — 手机排序下拉与方向按钮
@@ -68,6 +72,8 @@
 - [project-layout](specs/project-layout.md) — 目录职责、文档索引和临时产物清理
 
 ## archive
+
+- [backend-controls-verification](archive/backend-controls-verification.md) — 2026-11-02 后端排序、删除弹窗、按钮尺寸与双轴复审验收
 
 - [market-layout-verification](archive/market-layout-verification.md) — 2026-11-02 K 线尺寸、失败占位与白名单三列表头验收
 

@@ -233,7 +233,10 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 7px 12px;
+  height: var(--button-h);
+  flex-shrink: 0;
+  padding: 0 12px;
+  line-height: 1;
   border-radius: var(--r-1);
   border: 1px solid var(--line-strong);
   background: var(--ink-750);
@@ -246,6 +249,10 @@
     color 120ms ease,
     transform 160ms ease-out;
   white-space: nowrap;
+}
+
+.btn > svg {
+  flex: none;
 }
 
 .btn:hover:not(:disabled) {
@@ -309,14 +316,13 @@
 }
 
 .btn--sm {
-  padding: 4px 9px;
+  padding: 0 9px;
   font-size: var(--fs-sm);
 }
 
 .btn--icon {
-  padding: 6px;
-  width: 30px;
-  height: 30px;
+  padding: 0;
+  width: var(--button-h);
 }
 
 /* --- segments ----------------------------------------------------------- */

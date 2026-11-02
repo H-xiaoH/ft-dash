@@ -167,6 +167,7 @@ async function submit() {
           class="btn btn--primary connect__submit"
           :disabled="!canSubmit || submitting"
         >
+          <AppIcon name="wifi" />
           {{ submitting ? t('connect.connecting') : t('connect.connect') }}
         </button>
       </form>

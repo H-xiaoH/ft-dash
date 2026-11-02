@@ -371,6 +371,18 @@ export const useSettingsStore = defineStore('settings', () => {
     persist()
   }
 
+  function reorderBots(ids: string[]) {
+    const byId = new Map(bots.value.map((bot) => [bot.id, bot]))
+    if (
+      ids.length !== bots.value.length ||
+      new Set(ids).size !== ids.length ||
+      ids.some((id) => !byId.has(id))
+    )
+      return
+    bots.value = ids.map((id) => byId.get(id)!)
+    persistBots()
+  }
+
   function removeBot(id: string) {
     const remaining = bots.value.filter((bot) => bot.id !== id)
     bots.value = remaining
@@ -445,5 +457,6 @@ export const useSettingsStore = defineStore('settings', () => {
     updateBot,
     setActiveBot,
     removeBot,
+    reorderBots,
   }
 })

@@ -89,6 +89,32 @@ describe('bots store', () => {
     setActivePinia(createPinia())
   })
 
+  it('persists a valid order without changing the active backend or credentials', () => {
+    const settings = useSettingsStore()
+    const first = settings.addBot({
+      name: 'First',
+      baseUrl: 'https://a.example',
+      username: 'a',
+      password: 'one',
+    })
+    const second = settings.addBot({
+      name: 'Second',
+      baseUrl: 'https://b.example',
+      username: 'b',
+      password: 'two',
+    })
+    settings.reorderBots([second.id, first.id])
+    expect(settings.bots.map((bot) => bot.id)).toEqual([second.id, first.id])
+    expect(settings.activeBotId).toBe(first.id)
+    expect(settings.password).toBe('one')
+    expect(JSON.parse(localStorage.getItem(BOTS_KEY)!)[0].id).toBe(second.id)
+    expect(localStorage.getItem(BOTS_KEY)).not.toContain('two')
+    expect(JSON.parse(sessionStorage.getItem(BOTS_SESSION_KEY)!)[0].password).toBe('two')
+    settings.reorderBots([first.id, first.id])
+    settings.reorderBots([first.id, 'missing'])
+    expect(settings.bots.map((bot) => bot.id)).toEqual([second.id, first.id])
+  })
+
   it('keeps the password out of localStorage until the operator asks for it', async () => {
     const settings = useSettingsStore()
     settings.addBot({

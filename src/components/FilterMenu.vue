@@ -257,7 +257,6 @@ const listStyle = computed(() => ({ top: `${anchor.value.top}px`, left: `${ancho
 
 .filter-menu__button {
   gap: 5px;
-  height: 30px;
 }
 
 .filter-menu__prefix {

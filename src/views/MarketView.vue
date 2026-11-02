@@ -630,6 +630,11 @@ watch(
   visibility: hidden;
 }
 
+/* Let sticky headers follow the outer list's vertical scroll. */
+.market__whitelist {
+  overflow: visible;
+}
+
 .market__whitelist td:first-child {
   font-family: var(--font-data);
 }

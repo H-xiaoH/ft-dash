@@ -439,15 +439,77 @@ test('the bot name follows username until the name is edited', async ({ page }) 
   await expect(name).toHaveValue('我的后端')
 })
 
-test('delete bot opens an inline confirmation instead of a dialog', async ({ page }) => {
+test('delete bot opens a named confirmation dialog and restores focus on cancel', async ({
+  page,
+}) => {
   const panelOf = botsPanel(page)
   await openBotManager(page)
-  await panelOf.locator('.bots__row').first().locator('button', { hasText: '删除' }).click()
+  const remove = panelOf
+    .locator('.bots__row')
+    .first()
+    .getByRole('button', { name: '删除', exact: true })
+  await remove.click()
+  const dialog = page.getByRole('dialog', { name: '删除', exact: true })
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('将从本机移除 tester，需要重新输入凭据才能再次添加。')
+  await expect(dialog).not.toContainText('立即作用于你的真实账户')
+  await expect(panelOf.locator('.inline-confirm')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(remove).toBeFocused()
+})
 
-  await expect(panelOf.locator('.inline-confirm')).toContainText(
-    '将从本机移除 tester，需要重新输入凭据才能再次添加。',
-  )
-  await expect(page.locator('[role="dialog"]')).toHaveCount(0)
+test('backend handles reorder and persist without switching, and action buttons align', async ({
+  page,
+}) => {
+  await mockApi(page, { secondBot: true })
+  await openBotManager(page)
+  await livePage(page).getByRole('button', { name: '添加后端', exact: true }).click()
+  const editor = livePage(page).locator('.bots__editor')
+  await editor.getByLabel('后端名称', { exact: true }).fill('second')
+  await editor.locator('input[inputmode="url"]').fill(SECOND_BASE)
+  await editor.locator('input[autocomplete="username"]').fill('second')
+  await editor.locator('input[autocomplete="current-password"]').fill('second-secret')
+  await editor.getByRole('button', { name: '保存', exact: true }).click()
+  const rows = livePage(page).locator('.bots__row')
+  await expect(rows).toHaveCount(2)
+  await rows.last().scrollIntoViewIfNeeded()
+  const handle = rows.first().locator('.bots__drag')
+  const start = (await handle.boundingBox())!
+  const end = (await rows.last().boundingBox())!
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2)
+  await page.mouse.down()
+  await expect(rows.first()).toHaveClass(/is-dragging/)
+  await page.mouse.move(end.x + end.width / 2, end.y + end.height / 2, { steps: 8 })
+  await expect(rows.first().locator('.bots__name')).toHaveText('second')
+  await page.mouse.up()
+  await expect(rows.last()).toHaveClass(/is-active/)
+  await page.reload()
+  await expect(livePage(page).locator('.settings__columns')).toBeVisible()
+  await openBotManager(page)
+  await expect(rows.first().locator('.bots__name')).toHaveText('second')
+  await expect(rows.last()).toHaveClass(/is-active/)
+  const keyboardHandle = rows.first().locator('.bots__drag')
+  await keyboardHandle.focus()
+  await keyboardHandle.press('ArrowDown')
+  await expect(rows.last().locator('.bots__name')).toHaveText('second')
+  await expect(rows.last().locator('.bots__drag')).toBeFocused()
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 1000 })
+    const dimensions = await livePage(page)
+      .locator('.btn:visible')
+      .evaluateAll((buttons) =>
+        buttons.map((button) => ({
+          height: button.getBoundingClientRect().height,
+          icon: Boolean(button.querySelector('svg')),
+        })),
+      )
+    expect(dimensions.length).toBeGreaterThan(5)
+    for (const button of dimensions) {
+      expect(button.height).toBe(32)
+      expect(button.icon).toBe(true)
+    }
+  }
 })
 
 test('the clear local data confirmation message stays centered', async ({ page }) => {

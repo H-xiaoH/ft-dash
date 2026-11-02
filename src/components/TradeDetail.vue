@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppIcon from '@/components/AppIcon.vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useFormat } from '@/composables/useFormat'
@@ -105,6 +106,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             </div>
             <div class="spacer" />
             <button type="button" class="btn btn--ghost" @click="emit('close')">
+              <AppIcon name="close" />
               {{ t('common.close') }}
             </button>
           </header>
@@ -210,6 +212,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
           <footer v-if="trade.is_open && bot.writesAllowed" class="drawer__foot">
             <button type="button" class="btn btn--danger" @click="emit('forceExit', trade)">
+              <AppIcon name="logout" />
               {{ t('actions.forceExit') }}
             </button>
           </footer>

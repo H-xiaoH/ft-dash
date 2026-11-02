@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import AppIcon from '@/components/AppIcon.vue'
+import type { IconName } from '@/components/icons'
 import { useModalFocus } from '@/composables/useModalFocus'
 
 const props = withDefaults(
@@ -11,6 +13,8 @@ const props = withDefaults(
     confirmLabel?: string
     cancelLabel?: string
     tone?: 'primary' | 'danger'
+    warning?: string
+    confirmIcon?: IconName
     /** When set, the operator must type this exact string to enable confirm. */
     requireText?: string
     requiredHint?: string
@@ -22,6 +26,7 @@ const props = withDefaults(
 const emit = defineEmits<{ confirm: []; cancel: [] }>()
 
 const { t } = useI18n()
+const titleId = useId()
 const typed = ref('')
 const panel = ref<HTMLElement | null>(null)
 
@@ -55,13 +60,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 <template>
   <Teleport to="body">
     <Transition name="popup" appear @before-leave="(el) => el.setAttribute('inert', '')">
-      <div v-if="open" class="overlay" role="dialog" aria-modal="true" @click.self="emit('cancel')">
+      <div
+        v-if="open"
+        class="overlay"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="titleId"
+        @click.self="emit('cancel')"
+      >
         <div ref="panel" class="dialog" tabindex="-1">
           <div class="dialog__head">
-            <span class="dialog__title">{{ title }}</span>
+            <span :id="titleId" class="dialog__title">{{ title }}</span>
             <div class="spacer" />
             <button type="button" class="btn btn--icon btn--ghost" @click="emit('cancel')">
-              <span aria-hidden="true">✕</span>
+              <AppIcon name="close" />
               <span class="sr-only">{{ t('common.close') }}</span>
             </button>
           </div>
@@ -70,7 +82,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             <slot name="body">
               <p v-if="body">{{ body }}</p>
             </slot>
-            <p v-if="tone === 'danger'" class="confirm-warning">{{ t('actions.confirmBody') }}</p>
+            <p v-if="tone === 'danger' && warning !== ''" class="confirm-warning">
+              {{ warning ?? t('actions.confirmBody') }}
+            </p>
             <label v-if="requireText" class="field">
               <span class="field__label">{{
                 requiredHint ?? t('actions.forceExitConfirm', { pair: requireText })
@@ -80,6 +94,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           </div>
           <div class="dialog__foot">
             <button type="button" class="btn" @click="emit('cancel')">
+              <AppIcon name="close" />
               {{ cancelLabel ?? t('common.cancel') }}
             </button>
             <button
@@ -89,6 +104,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
               :disabled="!canConfirm || pending"
               @click="open && canConfirm && !pending && emit('confirm')"
             >
+              <AppIcon
+                :name="
+                  pending ? 'refresh' : (confirmIcon ?? (tone === 'danger' ? 'alert' : 'check'))
+                "
+              />
               {{ pending ? t('actions.running') : (confirmLabel ?? t('actions.run')) }}
             </button>
           </div>

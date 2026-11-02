@@ -32,6 +32,8 @@
   --short: #ff5b5b;
   --short-dim: #401d1d;
 
+  --button-h: 32px;
+
   /* interaction */
   --accent: #e8eaed;
   --accent-dim: #262626;

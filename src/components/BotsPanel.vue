@@ -4,7 +4,8 @@ import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import ControlsPanel from '@/components/ControlsPanel.vue'
 import FilterMenu, { type FilterOption, type StatusLamp } from '@/components/FilterMenu.vue'
-import InlineConfirm from '@/components/InlineConfirm.vue'
+import BotList from '@/components/BotList.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { pushToast } from '@/composables/useToast'
 import { describeError, FreqtradeApiClient } from '@/data/freqtrade'
 import { defaultBotName, type Bot } from '@/lib/bots'
@@ -32,6 +33,7 @@ const testing = ref<string | null>(null)
 /** Last manual probe result, kept per bot so it survives the toast. */
 const testResult = ref<Record<string, 'ok'>>({})
 const removeTarget = ref<Bot | null>(null)
+const removing = ref(false)
 /** Set when switching to a bot whose password is not at hand. */
 const passwordTarget = ref<Bot | null>(null)
 const passwordDraft = ref('')
@@ -301,18 +303,26 @@ async function submitPassword() {
 
 async function confirmRemove() {
   const entry = removeTarget.value
-  removeTarget.value = null
-  if (!entry) return
+  if (!entry || removing.value) return
   if (bot.actionPending !== null) {
     pushToast(t('bots.busy'), 'bad')
     return
   }
-  const removed = await bot.removeBot(entry.id)
-  if (!removed) {
-    pushToast(t(bot.errorKey?.key ?? 'actions.failed'), 'bad')
-    return
+  removing.value = true
+  try {
+    const removed = await bot.removeBot(entry.id)
+    if (!removed) {
+      pushToast(t(bot.errorKey?.key ?? 'actions.failed'), 'bad')
+      return
+    }
+    removeTarget.value = null
+    pushToast(t('bots.removed', { name: entry.name }), 'good')
+  } catch (error) {
+    const described = describeError(error)
+    pushToast(t(described.key, described.params ?? {}), 'bad')
+  } finally {
+    removing.value = false
   }
-  pushToast(t('bots.removed', { name: entry.name }), 'good')
 }
 </script>
 
@@ -351,9 +361,11 @@ async function confirmRemove() {
         </label>
         <div class="row">
           <button type="submit" class="btn btn--sm btn--primary" :disabled="!passwordDraft">
+            <AppIcon name="wifi" />
             {{ t('bots.connect') }}
           </button>
           <button type="button" class="btn btn--sm" @click="passwordTarget = null">
+            <AppIcon name="close" />
             {{ t('common.cancel') }}
           </button>
         </div>
@@ -365,54 +377,33 @@ async function confirmRemove() {
           <span class="panel__title">{{ t('bots.manage') }}</span>
           <div class="spacer" />
           <button type="button" class="btn btn--sm btn--ghost" @click="closeManage">
+            <AppIcon name="close" />
             {{ t('common.close') }}
           </button>
         </div>
 
         <p v-if="!settings.bots.length" class="empty">{{ t('bots.empty') }}</p>
 
-        <ul v-else class="bots">
-          <li
-            v-for="entry in settings.bots"
-            :key="entry.id"
-            class="bots__row"
-            :class="{ 'is-active': entry.id === settings.activeBotId }"
-          >
-            <div class="row row--wrap">
-              <span class="bots__name">{{ entry.name }}</span>
-              <span v-if="entry.id === settings.activeBotId" class="chip chip--good">
-                {{ t('bots.current') }}
-              </span>
-              <span class="num small muted bots__url">{{ entry.baseUrl }}</span>
-            </div>
-            <div class="row row--wrap">
-              <button type="button" class="btn btn--sm" @click="startEdit(entry)">
-                {{ t('bots.edit') }}
-              </button>
-              <button
-                type="button"
-                class="btn btn--sm"
-                :class="{ 'bots__test--ok': testResult[entry.id] === 'ok' }"
-                :disabled="testing === entry.id"
-                @click="testConnection(entry)"
-              >
-                <AppIcon name="wifi" />
-                {{ testResult[entry.id] === 'ok' ? t('bots.testSucceeded') : t('bots.test') }}
-              </button>
-              <button type="button" class="btn btn--sm btn--danger" @click="removeTarget = entry">
-                <AppIcon name="trash" />
-                {{ t('bots.remove') }}
-              </button>
-            </div>
-          </li>
-        </ul>
-
-        <InlineConfirm
+        <BotList
+          v-else
+          :bots="settings.bots"
+          :active-bot-id="settings.activeBotId"
+          :testing="testing"
+          :test-result="testResult"
+          @edit="startEdit"
+          @test="testConnection"
+          @remove="removeTarget = $event"
+          @reorder="settings.reorderBots"
+        />
+        <ConfirmDialog
           :open="removeTarget !== null"
-          :message="t('bots.removeBody', { name: removeTarget?.name ?? '' })"
+          :title="t('bots.remove')"
+          tone="danger"
+          warning=""
+          :body="t('bots.removeBody', { name: removeTarget?.name ?? '' })"
           :confirm-label="t('bots.remove')"
-          :cancel-label="t('common.cancel')"
-          :pending="bot.actionPending !== null"
+          confirm-icon="trash"
+          :pending="removing || bot.actionPending !== null"
           @cancel="removeTarget = null"
           @confirm="confirmRemove"
         />
@@ -472,7 +463,10 @@ async function confirmRemove() {
               <AppIcon name="check" />
               {{ t('common.save') }}
             </button>
-            <button type="button" class="btn" @click="cancelEdit">{{ t('common.cancel') }}</button>
+            <button type="button" class="btn" @click="cancelEdit">
+              <AppIcon name="close" />
+              {{ t('common.cancel') }}
+            </button>
           </div>
         </form>
 
@@ -513,48 +507,6 @@ async function confirmRemove() {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-}
-
-.bots {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.bots__row {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  padding: var(--sp-3);
-  border: 1px solid var(--line);
-  border-radius: var(--r-2);
-  background: var(--ink-900);
-}
-
-.bots__row.is-active {
-  border-color: var(--line-strong);
-}
-
-.bots__name {
-  font-weight: 500;
-}
-
-.bots__url {
-  overflow-wrap: anywhere;
-}
-
-.bots__test--ok {
-  color: var(--long);
-  border-color: rgb(36 201 138 / 35%);
-}
-
-@supports (color: color-mix(in srgb, black, white)) {
-  .bots__test--ok {
-    border-color: color-mix(in srgb, var(--long) 35%, transparent);
-  }
 }
 
 .bots__prompt,

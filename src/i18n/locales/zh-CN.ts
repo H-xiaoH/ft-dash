@@ -68,6 +68,8 @@ export default {
     liveTrading: '实盘',
   },
   bots: {
+    reorder: '长按拖动调整 {name} 的顺序，或使用上下方向键',
+    reordered: '{name}：第 {position} 项，共 {total} 项',
     title: '后端',
     add: '添加后端',
     added: '已添加后端 {name}',
@@ -222,7 +224,6 @@ export default {
     showOnlyPositions: '仅看有持仓',
   },
   stats: {
-    loadedWindow: '胜率、持仓时长、手续费和成交额仅统计已加载交易',
     pairs: '交易对表现',
     name: '交易对',
     date: '日期',

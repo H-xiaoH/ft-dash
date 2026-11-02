@@ -79,7 +79,7 @@ function onKeydown(event: KeyboardEvent) {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 30px;
+  height: var(--button-h);
   padding: 0 6px 0 9px;
   border: 1px solid var(--line-strong);
   border-radius: var(--r-1);

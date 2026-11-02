@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppIcon from '@/components/AppIcon.vue'
 import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModalFocus } from '@/composables/useModalFocus'
@@ -46,7 +47,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             <span :id="titleId" class="dialog__title">{{ title }}</span>
             <div class="spacer" />
             <button type="button" class="btn btn--icon btn--ghost" @click="emit('close')">
-              <span aria-hidden="true">✕</span>
+              <AppIcon name="close" />
               <span class="sr-only">{{ t('common.close') }}</span>
             </button>
           </div>
@@ -59,6 +60,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           </div>
           <div class="dialog__foot">
             <button type="button" class="btn btn--primary" @click="emit('close')">
+              <AppIcon name="close" />
               {{ t('common.close') }}
             </button>
           </div>

@@ -577,14 +577,7 @@ onMounted(() => {
 .sort-group__dir {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
-  border-left: 0;
-}
-
-/* The phone drops the export label; without this it is 4px shorter than its neighbours. */
-@media (max-width: 720px) {
-  .trades-export {
-    height: 30px;
-  }
+  border-left: 1px solid var(--line);
 }
 
 /* The card list replaces the column headers below 901px, so the sort pair lives here. */

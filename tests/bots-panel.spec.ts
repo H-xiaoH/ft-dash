@@ -42,6 +42,67 @@ function answerProbe(ok = true) {
 }
 
 describe('BotsPanel', () => {
+  it('confirms removal in a modal and prevents repeat submission while pending', async () => {
+    const settings = useSettingsStore()
+    settings.addBot({ name: 'First', baseUrl: 'https://a.example', username: 'a', password: 'one' })
+    const removal = deferred<boolean>()
+    const remove = vi.spyOn(useBotStore(), 'removeBot').mockReturnValue(removal.promise)
+    const wrapper = mount(BotsPanel, { global: { plugins: [i18n] } })
+    try {
+      wrapper.findComponent(FilterMenu).vm.$emit('update:modelValue', '__manage')
+      await nextTick()
+      await wrapper.get('.bots__row .btn--danger').trigger('click')
+      await nextTick()
+      const dialog = document.querySelector('[role="dialog"]')
+      expect(dialog).not.toBeNull()
+      expect(dialog?.textContent).toContain('First')
+      const confirm = dialog!.querySelector<HTMLButtonElement>('.dialog__foot .btn--danger')!
+      confirm.click()
+      confirm.click()
+      await nextTick()
+      expect(remove).toHaveBeenCalledTimes(1)
+      expect(confirm.disabled).toBe(true)
+      removal.resolve(true)
+      await flushPromises()
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('keeps a failed deletion open and allows retry without an account warning', async () => {
+    useSettingsStore().addBot({
+      name: 'First',
+      baseUrl: 'https://a.example',
+      username: 'a',
+      password: 'one',
+    })
+    const remove = vi
+      .spyOn(useBotStore(), 'removeBot')
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(true)
+    const wrapper = mount(BotsPanel, { global: { plugins: [i18n] } })
+    try {
+      wrapper.findComponent(FilterMenu).vm.$emit('update:modelValue', '__manage')
+      await nextTick()
+      await wrapper.get('.bots__row .btn--danger').trigger('click')
+      await nextTick()
+      const dialog = document.querySelector('[role="dialog"]')!
+      expect(dialog.textContent).not.toContain(i18n.global.t('actions.confirmBody'))
+      const confirm = dialog.querySelector<HTMLButtonElement>('.dialog__foot .btn--danger')!
+      confirm.click()
+      await flushPromises()
+      expect(document.querySelector('[role="dialog"]')).toBe(dialog)
+      expect(confirm.disabled).toBe(false)
+      confirm.click()
+      await flushPromises()
+      expect(remove).toHaveBeenCalledTimes(2)
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   it('recovers the connect form after an invalid URL', async () => {
     answerProbe()
     const bot = useBotStore()

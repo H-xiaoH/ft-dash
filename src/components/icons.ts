@@ -8,6 +8,8 @@ export const ICON_PATHS = {
   system: 'M6 6h12v12H6zM10 10h4v4h-4zM9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3',
   settings: 'M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6',
   refresh: 'M20 11a8 8 0 1 0-2.6 7.1M20 5v6h-6',
+  edit: 'M16 3l5 5M4 20l4-1 13-13-4-4L4 15z',
+  grip: 'M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01',
   close: 'M18 6 6 18M6 6l12 12',
   chevronRight: 'M9 6l6 6-6 6',
   chevronDown: 'M6 9l6 6 6-6',

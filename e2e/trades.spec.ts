@@ -139,7 +139,7 @@ test('a phone sorts through the toolbar, the way the desktop headers do', async 
   await expect(direction).toBeVisible()
   expect(await direction.evaluate((el) => getComputedStyle(el, '::before').content)).toBe('none')
   await expect(sortMenu).toHaveCSS('border-right-width', '0px')
-  await expect(direction).toHaveCSS('border-left-width', '0px')
+  await expect(direction).toHaveCSS('border-left-width', '1px')
 
   // The toolbar carries five controls; it has to fit even a 360px phone.
   const head = livePage(page).locator('.panel__head').first()

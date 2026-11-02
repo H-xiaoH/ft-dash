@@ -14,15 +14,24 @@ export function useSegBlock(container: Ref<HTMLElement | null>, active: () => un
   /** False until the first measurement, so the block does not animate in from the corner. */
   const blockReady = ref(false)
   let observer: ResizeObserver | null = null
+  let readyFrame: number | null = null
 
   function sync() {
     const item = container.value?.querySelector<HTMLElement>('.seg__item[aria-pressed="true"]')
-    if (!item) return
+    if (!item || item.offsetWidth === 0) return
     blockStyle.value = {
       width: `${item.offsetWidth}px`,
       transform: `translateX(${item.offsetLeft}px)`,
     }
-    blockReady.value = true
+    // Paint the measured position once before enabling transitions on a newly mounted page.
+    if (!blockReady.value && readyFrame === null) {
+      readyFrame = requestAnimationFrame(() => {
+        readyFrame = requestAnimationFrame(() => {
+          readyFrame = null
+          blockReady.value = true
+        })
+      })
+    }
   }
 
   const schedule = () => void nextTick(sync)
@@ -36,6 +45,7 @@ export function useSegBlock(container: Ref<HTMLElement | null>, active: () => un
   })
 
   onBeforeUnmount(() => {
+    if (readyFrame !== null) cancelAnimationFrame(readyFrame)
     observer?.disconnect()
     observer = null
   })

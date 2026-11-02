@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppIcon from '@/components/AppIcon.vue'
 withDefaults(
   defineProps<{
     open: boolean
@@ -21,9 +22,11 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>()
     </div>
     <div class="banner__actions">
       <button type="button" class="btn btn--primary" :disabled="pending" @click="emit('confirm')">
+        <AppIcon name="check" />
         {{ confirmLabel }}
       </button>
       <button type="button" class="btn" @click="emit('cancel')">
+        <AppIcon name="close" />
         {{ cancelLabel }}
       </button>
     </div>

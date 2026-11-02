@@ -69,6 +69,8 @@ export default {
     liveTrading: 'Live',
   },
   bots: {
+    reorder: 'Hold to reorder {name}, or use the up and down arrow keys',
+    reordered: '{name}: position {position} of {total}',
     title: 'Backends',
     add: 'Add backend',
     added: 'Added backend {name}',
@@ -226,7 +228,6 @@ export default {
     showOnlyPositions: 'Positions only',
   },
   stats: {
-    loadedWindow: 'Win rate, duration, fees and volume use loaded trades only',
     pairs: 'Pair performance',
     name: 'Pair',
     date: 'Date',

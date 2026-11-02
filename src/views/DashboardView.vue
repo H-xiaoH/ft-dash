@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppIcon from '@/components/AppIcon.vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -154,6 +155,7 @@ async function confirmExit() {
           <span class="panel__title">{{ t('dashboard.dailyPnl') }}</span>
           <div class="panel__actions">
             <button type="button" class="btn btn--sm" @click="navigatePage(router, '/stats')">
+              <AppIcon name="chevronRight" />
               {{ t('dashboard.viewAll') }}
             </button>
           </div>
@@ -175,6 +177,7 @@ async function confirmExit() {
           <span class="chip">{{ bot.openTrades.length }}</span>
           <div class="panel__actions">
             <button type="button" class="btn btn--sm" @click="openTradesTab('open')">
+              <AppIcon name="chevronRight" />
               {{ t('dashboard.viewAll') }}
             </button>
           </div>
@@ -241,6 +244,7 @@ async function confirmExit() {
                       class="btn btn--sm btn--danger"
                       @click.stop="exitTarget = trade"
                     >
+                      <AppIcon name="logout" />
                       {{ t('actions.forceExit') }}
                     </button>
                   </td>
@@ -256,6 +260,7 @@ async function confirmExit() {
           <span class="panel__title">{{ t('dashboard.recentTrades') }}</span>
           <div class="panel__actions">
             <button type="button" class="btn btn--sm" @click="openTradesTab('closed')">
+              <AppIcon name="chevronRight" />
               {{ t('dashboard.viewAll') }}
             </button>
           </div>
