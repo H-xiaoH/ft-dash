@@ -39,6 +39,8 @@
 
 ### 导航、布局与动效
 
+- [market-layout](specs/market-layout.md) — K 线加载、失败与切换时尺寸稳定，白名单共用三列表头
+
 - [mobile-page-motion](specs/mobile-page-motion.md) — 手机底栏点击时保留旧页，匹配手指滑动的跟随效果
 - [page-frame-motion](specs/page-frame-motion.md) — 展开与桌面共用页面窗口，短页和长页同帧贴合切换
 - [app-navigation-split](specs/app-navigation-split.md) — 拆分桌面导航与手机底栏
@@ -66,6 +68,8 @@
 - [project-layout](specs/project-layout.md) — 目录职责、文档索引和临时产物清理
 
 ## archive
+
+- [market-layout-verification](archive/market-layout-verification.md) — 2026-11-02 K 线尺寸、失败占位与白名单三列表头验收
 
 - [refresh-readiness-verification](archive/refresh-readiness-verification.md) — 2026-11-02 必要数据就绪、慢健康检查与连接启动验收
 - [mobile-page-motion-verification](archive/mobile-page-motion-verification.md) — 2026-11-02 手机底栏正反向切页、可见性与接缝验收

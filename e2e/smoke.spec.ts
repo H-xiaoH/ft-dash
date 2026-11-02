@@ -216,7 +216,7 @@ test.describe('navigation', () => {
     await expect(openPanel.locator('.table__side').first()).toBeVisible()
   })
 
-  test('data tables become card lists on narrow screens', async ({ page }) => {
+  test('data lists fit narrow screens and market keeps its column headers', async ({ page }) => {
     await mockApi(page)
     await page.goto('/')
     await connect(page)
@@ -225,7 +225,20 @@ test.describe('navigation', () => {
 
     for (const route of ['#/trades', '#/stats', '#/market']) {
       await page.goto(`/${route}`)
-      await expect(livePage(page).locator('.card').first()).toBeVisible()
+      if (route === '#/market') {
+        const list = livePage(page).getByRole('region', { name: '白名单' })
+        await expect(list.getByRole('columnheader')).toHaveText([
+          '交易对',
+          '持仓中',
+          '累计已平仓盈亏',
+        ])
+        for (const header of await list.getByRole('columnheader').all())
+          await expect(header).toBeVisible()
+        await expect(list.locator('tbody tr')).toHaveCount(3)
+        await expect(list.locator('ul')).toHaveCount(0)
+      } else {
+        await expect(livePage(page).locator('.card').first()).toBeVisible()
+      }
       // A hash change slides the previous page out; wait for it to leave before judging
       // this page's layout.
       await expect(livePage(page)).toHaveCount(1)

@@ -238,7 +238,8 @@ describe('MarketView', () => {
     // The bot is restarting: the request fails, and there is no button to press.
     pending[0]?.resolve(null)
     await flushPromises()
-    expect(wrapper.find('.empty').exists()).toBe(true)
+    expect(wrapper.find('.skeleton').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('K 线加载失败')
     expect(wrapper.find('.empty button').exists()).toBe(false)
 
     await vi.advanceTimersByTimeAsync(9_000)
@@ -256,6 +257,32 @@ describe('MarketView', () => {
 
     wrapper.unmount()
     vi.useRealTimers()
+  })
+
+  it('keeps cached candles and metadata after a refresh fails, then retries', async () => {
+    vi.useFakeTimers()
+    const router = await makeRouter()
+    const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })
+    try {
+      await nextTick()
+      pending[0]?.resolve({ ...response('AAA/USDT'), buy_signals: 1, sell_signals: 2 })
+      await flushPromises()
+      const metadata = wrapper.find('.market__meta').text()
+      await vi.advanceTimersByTimeAsync(30_001)
+      expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
+      pending[1]?.resolve(null)
+      await flushPromises()
+      expect(wrapper.find('.candles').exists()).toBe(true)
+      expect(wrapper.find('.market__meta').text()).toBe(metadata)
+      expect(metadata).toContain('TestStrategy')
+      expect(wrapper.find('.skeleton').exists()).toBe(false)
+      await vi.advanceTimersByTimeAsync(10_001)
+      expect(bot.fetchCandles).toHaveBeenCalledTimes(3)
+      expect(wrapper.find('.candles').exists()).toBe(true)
+    } finally {
+      wrapper.unmount()
+      vi.useRealTimers()
+    }
   })
 
   it('reuses a fresh cache when the page is walked back to', async () => {

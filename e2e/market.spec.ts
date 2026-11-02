@@ -61,7 +61,7 @@ async function expectListScrolls(
 
 test(LISTS_SCROLL_TEST, async ({ page }) => {
   const market = livePage(page)
-  await expectListScrolls(page, 40, '.card--tappable', 'whitelist')
+  await expectListScrolls(page, 40, 'tbody tr', 'whitelist')
 
   await market.locator('.seg__item', { hasText: '黑名单' }).click()
   await expectListScrolls(page, 40, '.blist__item', 'blacklist')
@@ -257,20 +257,96 @@ test('the pair popup stays inside a phone-width viewport', async ({ page }) => {
   expect(list!.y + list!.height).toBeLessThanOrEqual(viewport.height)
 })
 
-test('whitelist names the cumulative closed-profit scope on phone and desktop', async ({
-  page,
-}) => {
-  for (const width of [390, 1280]) {
+test('whitelist has one three-column list on phone and desktop', async ({ page }) => {
+  for (const width of [360, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 844 })
     const market = livePage(page)
-    await expect(market.locator('.market__profit-scope')).toBeVisible()
-    await expect(market.locator('.market__profit-scope')).toContainText('累计已平仓盈亏')
-    await expect(market.locator('.market__profit-scope')).toContainText('不含当前持仓')
-    if (width > 900)
-      await expect(market.getByRole('columnheader', { name: '累计已平仓盈亏' })).toBeVisible()
+    const list = market.getByRole('region', { name: '白名单' })
+    await expect(list.locator('table')).toHaveCount(1)
+    await expect(list.locator('ul')).toHaveCount(0)
+    await expect(list.getByRole('columnheader')).toHaveText(['交易对', '持仓中', '累计已平仓盈亏'])
+    for (const header of await list.getByRole('columnheader').all())
+      await expect(header).toBeVisible()
+    await expect(list.getByRole('cell', { name: 'OPEN/USDT', exact: true })).toHaveCount(1)
+    await expect(market).not.toContainText('不含当前持仓')
+    await expect(market).not.toContainText('最后分析')
+    expect(await list.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1)
   }
-  await livePage(page)
-    .getByRole('button', { name: /黑名单/ })
-    .click()
-  await expect(livePage(page).locator('.market__profit-scope')).toHaveCount(0)
 })
+
+for (const width of [360, 768, 1280]) {
+  test(`switching pairs keeps the chart and list fixed at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 })
+    const market = livePage(page)
+    await expect(market.locator('.candles svg rect').first()).toBeVisible()
+    const geometry = () =>
+      market.evaluate((el) => {
+        const chart = el.querySelector('.panel')!.getBoundingClientRect()
+        const list = el.querySelector('.market__pairs')!.getBoundingClientRect()
+        return { x: chart.x, width: chart.width, height: chart.height, listY: list.y }
+      })
+    const before = await geometry()
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await page.route('**/api/v1/pair_candles**', async (route) => {
+      await gate
+      await route.fallback()
+    })
+    try {
+      await market.locator('.filter-menu__button').click()
+      await page.locator('.filter-menu__item', { hasText: 'BBB/USDT' }).click()
+      await expect(market.locator('.skeleton')).toBeVisible()
+      const pending = await geometry()
+      for (const key of ['x', 'width', 'height', 'listY'] as const) {
+        expect(Math.abs(pending[key] - before[key]), key).toBeLessThanOrEqual(1)
+      }
+      release()
+      await expect(market.locator('.skeleton')).toHaveCount(0)
+      await expect(market.locator('.candles svg rect').first()).toBeVisible()
+      const after = await geometry()
+      for (const key of ['x', 'width', 'height', 'listY'] as const) {
+        expect(Math.abs(after[key] - before[key]), key).toBeLessThanOrEqual(1)
+      }
+      await page.unroute('**/api/v1/pair_candles**')
+      await page.clock.install()
+      let failed = false
+      await page.route('**/api/v1/pair_candles**', async (route) => {
+        if (!failed) {
+          failed = true
+          await route.fulfill({
+            status: 503,
+            headers: { 'Access-Control-Allow-Origin': '*' },
+            json: {},
+          })
+        } else {
+          await route.fulfill({
+            headers: { 'Access-Control-Allow-Origin': '*' },
+            json: {
+              strategy: 'TestStrategy',
+              pair: 'AAA/USDT',
+              timeframe: '5m',
+              timeframe_ms: 300_000,
+              columns: ['date', 'open', 'high', 'low', 'close', 'volume'],
+              data: [],
+              length: 0,
+            },
+          })
+        }
+      })
+      await market.locator('.filter-menu__button').click()
+      await page.locator('.filter-menu__item', { hasText: 'AAA/USDT' }).click()
+      const plot = market.locator('.market__plot')
+      await expect(plot).toHaveAttribute('aria-busy', 'false')
+      await expect(plot.locator('.skeleton')).toBeVisible()
+      await expect(plot).toHaveText('')
+      expect(await geometry()).toEqual(before)
+      await page.clock.fastForward(10_001)
+      await expect(plot.locator('.empty')).toBeVisible()
+      expect(await geometry()).toEqual(before)
+    } finally {
+      release()
+    }
+  })
+}

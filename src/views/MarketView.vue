@@ -288,39 +288,40 @@ watch(
             :label="t('market.pair')"
             align="end"
           />
-          <span v-if="candleMeta?.last_analyzed_ts" class="panel__meta num">
-            {{ t('market.lastAnalyzed') }} {{ format.dateTime(candleMeta.last_analyzed_ts) }}
-          </span>
         </div>
       </div>
       <div class="panel__body">
-        <p v-if="!selectedPair" class="empty">{{ t('market.noCandles') }}</p>
         <div
-          v-else-if="loadingCandles && !candles.length"
-          class="skeleton"
-          :style="{ height: `${candleHeight}px`, width: '100%' }"
-        />
-        <p v-else-if="candleError" class="empty">{{ t('market.candlesFailed') }}</p>
-        <p v-else-if="!candles.length" class="empty">{{ t('market.noCandles') }}</p>
-        <CandleChart
-          v-else
-          :candles="candles"
-          :entry="chartEntry"
-          :marks="chartMarks"
-          :height="candleHeight"
-          :formatters="formatters"
-        />
-        <div v-if="candleMeta" class="row row--wrap small muted" style="margin-top: 8px">
-          <span>{{ candleMeta.strategy }}</span>
-          <span v-if="candleMeta.buy_signals !== undefined">
-            · {{ t('market.buySignals') }} {{ candleMeta.buy_signals }}
+          class="market__plot"
+          :style="{ height: `${candleHeight}px` }"
+          :aria-busy="loadingCandles"
+        >
+          <p v-if="!selectedPair" class="empty">{{ t('market.noCandles') }}</p>
+          <div v-else-if="(loadingCandles || candleError) && !candles.length" class="skeleton" />
+          <p v-else-if="!candles.length" class="empty">{{ t('market.noCandles') }}</p>
+          <CandleChart
+            v-else
+            :candles="candles"
+            :entry="chartEntry"
+            :marks="chartMarks"
+            :height="candleHeight"
+            :formatters="formatters"
+          />
+        </div>
+        <div class="market__meta small muted">
+          <span class="market__strategy">{{ candleMeta?.strategy }}</span>
+          <span v-if="candleMeta?.buy_signals !== undefined">
+            {{ t('market.buySignals') }} {{ candleMeta.buy_signals }}
           </span>
-          <span v-if="candleMeta.sell_signals !== undefined">
-            · {{ t('market.sellSignals') }} {{ candleMeta.sell_signals }}
+          <span v-if="candleMeta?.sell_signals !== undefined">
+            {{ t('market.sellSignals') }} {{ candleMeta.sell_signals }}
           </span>
         </div>
-        <!-- The legend only earns its line when there is something on the chart to read. -->
-        <div v-if="chartMarks.length" class="row row--wrap small muted" style="margin-top: 4px">
+        <div
+          class="market__legend row row--wrap small muted"
+          :class="{ 'market__legend--hidden': !chartMarks.length }"
+          :aria-hidden="!chartMarks.length"
+        >
           <span class="candles-legend candles-legend--buy">▲ {{ t('market.buySignals') }}</span>
           <span class="candles-legend candles-legend--sell">▼ {{ t('market.sellSignals') }}</span>
           <span class="candles-legend">▶ {{ t('market.fills') }}</span>
@@ -376,10 +377,6 @@ watch(
         </div>
       </div>
 
-      <p v-if="tab === 'whitelist'" class="market__profit-scope panel__meta">
-        {{ t('market.closedProfitScope') }}
-      </p>
-
       <!-- Keyboard users need a focus stop to scroll this list (WCAG 2.1.1). -->
       <div
         v-if="tab === 'whitelist'"
@@ -389,7 +386,7 @@ watch(
         :aria-label="t('market.whitelist')"
       >
         <div v-if="!whitelistRows.length" class="empty">{{ t('empty.table') }}</div>
-        <div v-else class="table-wrap u-desktop-only">
+        <div v-else class="table-wrap market__whitelist">
           <table class="table table--clickable">
             <thead>
               <tr>
@@ -419,26 +416,6 @@ watch(
             </tbody>
           </table>
         </div>
-
-        <ul v-if="whitelistRows.length" class="cards u-mobile-only">
-          <li
-            v-for="pair in whitelistRows"
-            :key="pair"
-            class="card card--tappable"
-            @click="selectedPair = pair"
-          >
-            <div class="card__row">
-              <span class="num card__pair">{{ pair }}</span>
-              <span v-if="openPairs.has(pair)" class="chip chip--accent">
-                {{ t('trades.open') }}
-              </span>
-              <span class="spacer" />
-              <span class="num" :class="format.toneClass(profitByPair.get(pair))">
-                {{ format.signedMoney(profitByPair.get(pair) ?? null, bot.stakeCurrency) }}
-              </span>
-            </div>
-          </li>
-        </ul>
       </div>
 
       <div
@@ -616,10 +593,45 @@ watch(
   height: calc(100dvh - var(--topbar-h) - var(--shell-pad) - var(--shell-pad-bottom));
 }
 
-.market__profit-scope {
-  padding: var(--sp-2) var(--sp-4);
-  border-bottom: 1px solid var(--line);
-  text-align: right;
+.market__plot {
+  flex: none;
+}
+
+.market__plot > .skeleton {
+  width: 100%;
+  height: 100%;
+}
+
+.market__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 1.5em;
+  margin-top: 8px;
+  white-space: nowrap;
+}
+
+.market__strategy {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.market__meta > span:not(.market__strategy) {
+  flex: none;
+}
+
+/* Keep the legend's line when a pair has no marks or is still loading. */
+.market__legend {
+  margin-top: 4px;
+}
+
+.market__legend--hidden {
+  visibility: hidden;
+}
+
+.market__whitelist td:first-child {
+  font-family: var(--font-data);
 }
 
 .market__pairs {
