@@ -98,6 +98,8 @@ export default {
     empty: 'No backends yet — add one.',
   },
   notices: {
+    updateAvailable: 'A new version is available',
+    applyUpdate: 'Update',
     title: 'System notices',
     heartbeatTitle: 'Heartbeat delay',
     autoRetry: 'Retrying automatically.',

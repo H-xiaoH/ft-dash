@@ -96,6 +96,8 @@ export default {
     empty: '还没有后端，先添加一个。',
   },
   notices: {
+    updateAvailable: '有新版本可用',
+    applyUpdate: '更新',
     title: '系统提示',
     heartbeatTitle: '心跳延迟',
     autoRetry: '正在自动重试。',

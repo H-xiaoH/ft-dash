@@ -10,6 +10,7 @@ import ConnectView from '@/views/ConnectView.vue'
 import { usePageDrag } from '@/composables/usePageDrag'
 import { useToasts } from '@/composables/useToast'
 import { isWideLayout } from '@/lib/layout'
+import { applyPwaUpdate, updateAvailable } from '@/pwa'
 import { NAV_ROUTES } from '@/router'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
@@ -397,6 +398,18 @@ watch(
     />
   </div>
 
+  <div v-if="updateAvailable" class="banner update-prompt">
+    <AppIcon name="refresh" />
+    <div class="banner__body" role="status">
+      <div class="banner__title">{{ t('notices.updateAvailable') }}</div>
+    </div>
+    <div class="banner__actions">
+      <button type="button" class="btn btn--sm" @click="applyPwaUpdate">
+        {{ t('notices.applyUpdate') }}
+      </button>
+    </div>
+  </div>
+
   <TransitionGroup name="toast" tag="div" class="toast-stack" aria-live="polite">
     <div
       v-for="toast in toasts"
@@ -421,6 +434,14 @@ watch(
 </template>
 
 <style scoped>
+.update-prompt {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + var(--sp-3));
+  inset-inline: var(--sp-4);
+  z-index: 61;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 45%);
+}
+
 /* Held for the few hundred milliseconds a stored sign-in takes. */
 .booting {
   min-height: 100vh;

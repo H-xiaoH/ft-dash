@@ -149,9 +149,8 @@ checked on a real device — worth two minutes in Safari with the PWA installed:
 
 1. **Installed mode**: launching from the home screen shows no address bar; the notch and rounded
    corners do not cover content; rotation and window resizing stay aligned.
-2. **Updates**: the app checks at startup and after Service Worker registration, then every
-   minute and whenever you return to the foreground. A new worker taking over reloads the page
-   automatically, without confirmation or a restart.
+2. **Updates**: the app checks once after Service Worker registration. When a new version is
+   ready, the notice at the top lets you apply it.
 3. **Page gestures**: sideways swipes track the finger and do not flicker; the bottom-bar
    selection follows along; tapping a tab matches what a swipe does, and a sideways drag that
    starts on the bar leaves the pages alone. The tabs light up under the block as it passes. No

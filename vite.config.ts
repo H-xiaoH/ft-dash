@@ -35,7 +35,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       vue(),
       VitePWA({
-        registerType: 'autoUpdate',
+        registerType: 'prompt',
         includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'robots.txt'],
         manifest: {
           // Display name shown by the OS; `short_name` is the launcher label.

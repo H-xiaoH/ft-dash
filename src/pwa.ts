@@ -1,16 +1,18 @@
 import { ref } from 'vue'
 import { registerSW } from 'virtual:pwa-register'
-import { checkForUpdate, startUpdateChecks, UPDATE_CHECK_MS } from '@/lib/update'
+import { checkForUpdate } from '@/lib/update'
 import { detectStandalone, isStandalone } from '@/lib/navigation'
 
 export { isStandalone } from '@/lib/navigation'
 
+export const updateAvailable = ref(false)
 export const offlineReady = ref(false)
 export const canInstall = ref(false)
 
 let installPrompt: BeforeInstallPromptEvent | null = null
-let serviceWorkerRegistration: ServiceWorkerRegistration | undefined
-let stopUpdateChecks: (() => void) | null = null
+let applyWorkerUpdate: (() => Promise<void>) | undefined
+let updateRequestedHere = false
+let updateAlreadyActive = false
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -18,22 +20,22 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function setupPwa() {
-  registerSW({
+  applyWorkerUpdate = registerSW({
     immediate: true,
     onRegisteredSW(_scriptUrl, registration) {
-      serviceWorkerRegistration = registration
-      // Ask immediately after registration. This avoids waiting for the first timer tick when
-      // a CDN has just published a new service-worker script.
       if (registration) void checkForUpdate(registration)
+    },
+    onNeedRefresh() {
+      updateAvailable.value = true
+    },
+    onNeedReload() {
+      updateAlreadyActive = true
+      if (updateRequestedHere) window.location.reload()
     },
     onOfflineReady() {
       offlineReady.value = true
     },
   })
-  // A new build reloads the page on its own; this is what notices it while the tab is open.
-  stopUpdateChecks?.()
-  stopUpdateChecks = startUpdateChecks(UPDATE_CHECK_MS, () => serviceWorkerRegistration)
-
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault()
     installPrompt = event as BeforeInstallPromptEvent
@@ -49,6 +51,15 @@ export function setupPwa() {
   if (isStandalone.value) {
     canInstall.value = false
   }
+}
+
+export function applyPwaUpdate() {
+  if (updateAlreadyActive) {
+    window.location.reload()
+    return
+  }
+  updateRequestedHere = true
+  return applyWorkerUpdate?.()
 }
 
 export async function promptInstall(): Promise<boolean> {
