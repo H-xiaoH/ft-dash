@@ -296,4 +296,27 @@ it('rescales prices by dragging the axis and restores autoscale on double click'
 
   await axis.trigger('dblclick')
   expect(wick(wrapper, 0)).toEqual(before)
+
+  await axis.trigger('keydown', { key: 'ArrowUp' })
+  expect(wick(wrapper, 0)).not.toEqual(before)
+  axis.element.dispatchEvent(new MouseEvent('click', { detail: 0 }))
+  await wrapper.vm.$nextTick()
+  expect(wick(wrapper, 0)).toEqual(before)
+})
+
+it('anchors historical candles across refreshes and follows updates at the right edge', async () => {
+  const series = candles().map((candle, index) => ({ ...candle, time: index + 1 }))
+  const wrapper = mountChart(null)
+  await wrapper.setProps({ candles: series })
+  await wrapper.get('svg').trigger('keydown', { key: '+' })
+  const slider = wrapper.get('input[type=range]')
+  await slider.setValue('4')
+  const refresh = (offset: number) =>
+    series.map((candle) => ({ ...candle, time: candle.time + offset }))
+  await wrapper.setProps({ candles: refresh(1) })
+  expect((slider.element as HTMLInputElement).value).toBe('3')
+
+  await slider.setValue(slider.attributes('max'))
+  await wrapper.setProps({ candles: refresh(2) })
+  expect((slider.element as HTMLInputElement).value).toBe(slider.attributes('max'))
 })

@@ -27,10 +27,19 @@ let observer: ResizeObserver | null = null
 const pointers = new Map<number, { x: number; y: number }>()
 let dragRemainder = 0
 
-const range = ref<{ start: number; count: number } | null>(null)
+const range = ref<{ start: number; count: number; anchor: Candle['time']; follow: boolean } | null>(
+  null,
+)
 const count = computed(() => Math.min(range.value?.count ?? Infinity, props.candles.length))
-const start = computed(() => Math.min(range.value?.start ?? 0, props.candles.length - count.value))
 const maxStart = computed(() => props.candles.length - count.value)
+const start = computed(() => {
+  const window = range.value
+  if (!window) return 0
+  if (window.follow) return maxStart.value
+  if (window.anchor == null) return Math.min(window.start, maxStart.value)
+  const index = props.candles.findIndex((candle) => candle.time === window.anchor)
+  return Math.min(Math.max(0, index), maxStart.value)
+})
 const thumbWidth = computed(() => `${(count.value / (props.candles.length || 1)) * 100}%`)
 const visible = computed(() => props.candles.slice(start.value, start.value + count.value))
 const visibleMarks = computed(() =>
@@ -88,6 +97,10 @@ const priceBounds = computed(() => {
 
 function scalePrice(value: number) {
   priceScale.value = Math.max(0.1, Math.min(10, value))
+}
+
+function resetPriceFromKeyboard(event: MouseEvent) {
+  if (event.detail === 0) priceScale.value = 1
 }
 
 function startPriceDrag(event: PointerEvent) {
@@ -263,7 +276,15 @@ function setRange(first: number, size: number) {
   const total = props.candles.length
   const bounded = Math.min(total - size, Math.max(0, Math.round(first)))
 
-  range.value = size === total ? null : { start: bounded, count: size }
+  range.value =
+    size === total
+      ? null
+      : {
+          start: bounded,
+          count: size,
+          anchor: props.candles[bounded]?.time ?? null,
+          follow: bounded === total - size,
+        }
   activeIndex.value = null
 }
 
@@ -502,6 +523,7 @@ function onKeydown(event: KeyboardEvent) {
       @pointercancel="endPriceDrag"
       @lostpointercapture="endPriceDrag"
       @dblclick="priceScale = 1"
+      @click="resetPriceFromKeyboard"
       @keydown.up.prevent="scalePrice(priceScale * 0.85)"
       @keydown.down.prevent="scalePrice(priceScale / 0.85)"
       @keydown.home.prevent="priceScale = 1"
@@ -565,7 +587,7 @@ function onKeydown(event: KeyboardEvent) {
 .candles svg {
   display: block;
   width: 100%;
-  touch-action: pan-y;
+  touch-action: none;
   cursor: crosshair;
   outline-offset: 2px;
 }

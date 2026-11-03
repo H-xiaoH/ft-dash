@@ -240,8 +240,8 @@ function drawdownPercent(value: number | null | undefined) {
                 <td class="col-extra-1">{{ row.count }}</td>
                 <td class="num" :class="winRateTone(row.winRate)">
                   {{ format.percent(row.winRate) }}
-                  <div class="small muted pair-count-inline">
-                    {{ t('stats.count') }} {{ row.count }}
+                  <div v-if="row.winRate !== null" class="small muted">
+                    {{ t('stats.winRateSample', { count: row.wins + row.losses }) }}
                   </div>
                   <div v-if="row.lastTrade !== null" class="small muted">
                     <span class="u-pos">{{ row.wins }}</span> /
@@ -314,19 +314,3 @@ function drawdownPercent(value: number | null | undefined) {
     <RatioGuide :ratio="guideFor" @close="guideFor = null" />
   </div>
 </template>
-
-<style scoped>
-@container progressive-columns (min-width: 470px) {
-  .pair-count-inline {
-    display: none;
-  }
-}
-
-@supports not (container-type: inline-size) {
-  @media (min-width: 594px) {
-    .pair-count-inline {
-      display: none;
-    }
-  }
-}
-</style>

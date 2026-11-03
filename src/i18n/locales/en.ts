@@ -211,7 +211,8 @@ export default {
     pair: 'Pair',
     candleChart: 'Candles',
     candleRange: 'Visible candle range',
-    priceScale: 'Price scale (drag to zoom, double-click to reset)',
+    priceScale:
+      'Price scale (drag or use arrow keys to zoom; double-click, Enter, Space or Home to reset)',
     noCandles: 'No candle data available (pair may be outside the whitelist or data is missing).',
     buySignals: 'Buy signals',
     sellSignals: 'Sell signals',
@@ -237,6 +238,7 @@ export default {
     losses: 'Losses',
     draws: 'Draws',
     count: 'Trades',
+    winRateSample: 'Sample: {count}',
     pairProfit: 'Pair P&L',
     winRate: 'Win rate',
     period: 'Period',
