@@ -277,6 +277,11 @@ async function clearData() {
   justify-content: space-between;
 }
 
+/* Full-width triggers need less horizontal scaling to match compact buttons. */
+.settings__filter :deep(.filter-menu__button:active:not(:disabled)) {
+  transform: scale(0.99, 0.97);
+}
+
 .settings__clear-confirm {
   justify-items: center;
 }

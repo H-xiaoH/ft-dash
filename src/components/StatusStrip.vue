@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watchPostEffect } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { WIDE_LAYOUT_QUERY } from '@/lib/layout'
 import { useFormat } from '@/composables/useFormat'
 import { HEARTBEAT_STALE_MS, useBotStore } from '@/stores/bot'
 import AppIcon from './AppIcon.vue'
@@ -9,6 +10,40 @@ const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
 const emit = defineEmits<{ refresh: [] }>()
+
+const metrics = ref<HTMLElement | null>(null)
+const equityMetric = ref<HTMLElement | null>(null)
+const latency = ref<HTMLElement | null>(null)
+const hideLatency = ref(false)
+
+watchPostEffect((onCleanup) => {
+  const area = metrics.value
+  const equity = equityMetric.value
+  const label = latency.value
+  const actions = label?.parentElement
+  if (!area || !equity || !label || !actions) return
+
+  const wide = window.matchMedia(WIDE_LAYOUT_QUERY)
+  const update = () => {
+    if (wide.matches) {
+      hideLatency.value = false
+      return
+    }
+    const gap = parseFloat(getComputedStyle(actions).columnGap) || 0
+    const latencyWidth = label.getBoundingClientRect().width + gap
+    const available = area.getBoundingClientRect().width + (hideLatency.value ? 0 : latencyWidth)
+    hideLatency.value = available < equity.getBoundingClientRect().width + latencyWidth
+  }
+
+  const observer = new ResizeObserver(update)
+  for (const element of [area, equity, label]) observer.observe(element)
+  wide.addEventListener('change', update)
+  update()
+  onCleanup(() => {
+    observer.disconnect()
+    wide.removeEventListener('change', update)
+  })
+})
 
 const status = computed(() => {
   // A cached backend state cannot override the current connection state.
@@ -39,6 +74,10 @@ const totalPnl = computed(() => bot.profit?.profit_all_coin ?? null)
 const totalPnlRatio = computed(() => bot.profit?.profit_all_ratio ?? null)
 const openCount = computed(() => bot.count?.current ?? bot.openTrades.length)
 const maxOpen = computed(() => bot.count?.max ?? bot.showConfig?.max_open_trades ?? 0)
+const heartbeatTimestamp = computed(
+  () => bot.health?.last_process_ts ?? bot.health?.last_process ?? null,
+)
+
 const heartbeat = computed(() => {
   const age = bot.heartbeatAgeMs
   if (age === null) return '—'
@@ -50,12 +89,8 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
 <template>
   <header class="strip">
     <div class="strip__state" :data-tone="status.tone">
-      <!--
-        Keyed on the state, not on every fetch: at a 1-second poll a beat per round is
-        constant motion, and this dot only has something to say when the state changes.
-      -->
       <span
-        :key="`${status.key}-${status.tone}-${bot.connection}`"
+        :key="`${status.key}-${status.tone}-${bot.connection}-${heartbeatTimestamp}`"
         class="strip__pulse"
         :data-tone="status.tone"
       />
@@ -66,8 +101,8 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
       }}</span>
     </div>
 
-    <div class="strip__metrics">
-      <div class="strip__metric">
+    <div ref="metrics" class="strip__metrics">
+      <div ref="equityMetric" class="strip__metric">
         <span class="strip__metric-label">{{ t('kpi.equity') }}</span>
         <span class="num strip__metric-value">
           {{ format.money(equity?.total ?? null, equity?.stake ?? bot.stakeCurrency) }}
@@ -96,7 +131,12 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
     </div>
 
     <div class="strip__actions">
-      <span v-if="bot.latencyMs !== null" class="strip__latency num muted small">
+      <span
+        v-if="bot.latencyMs !== null"
+        ref="latency"
+        class="strip__latency num muted small"
+        :class="{ 'strip__latency--hidden': hideLatency }"
+      >
         {{ bot.latencyMs }}ms
       </span>
       <button
@@ -229,6 +269,10 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
   margin-left: auto;
 }
 
+.strip__latency {
+  white-space: nowrap;
+}
+
 .is-spinning {
   animation: spin 900ms linear infinite;
 }
@@ -254,9 +298,9 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
     display: inline;
   }
 
-  .strip__stream-text,
-  .strip__latency {
-    display: none;
+  .strip__latency--hidden {
+    position: absolute;
+    visibility: hidden;
   }
 }
 </style>

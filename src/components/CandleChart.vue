@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CandleMark } from '@/lib/candles'
 import type { Candle, CandleEntry, CandleFormatters } from './charts'
@@ -24,7 +24,18 @@ const width = ref(600)
 /** null means "follow the newest candle". */
 const activeIndex = ref<number | null>(null)
 let observer: ResizeObserver | null = null
-let capturedPointer: number | null = null
+const pointers = new Map<number, { x: number; y: number }>()
+let dragRemainder = 0
+
+const range = ref<{ start: number; count: number } | null>(null)
+const count = computed(() => Math.min(range.value?.count ?? Infinity, props.candles.length))
+const start = computed(() => Math.min(range.value?.start ?? 0, props.candles.length - count.value))
+const maxStart = computed(() => props.candles.length - count.value)
+const thumbWidth = computed(() => `${(count.value / (props.candles.length || 1)) * 100}%`)
+const visible = computed(() => props.candles.slice(start.value, start.value + count.value))
+const visibleMarks = computed(() =>
+  props.marks.filter((mark) => mark.index >= start.value && mark.index < start.value + count.value),
+)
 
 onMounted(() => {
   if (!host.value) return
@@ -44,17 +55,21 @@ onBeforeUnmount(() => {
 /* Top and bottom leave room for the signal triangles that hang off the outermost candle. */
 const padding = { top: 18, right: 58, bottom: 16, left: 4 }
 
-const priceBounds = computed(() => {
+const priceClipId = useId()
+const priceScale = ref(1)
+let axisDrag: { id: number; y: number; scale: number } | null = null
+
+const autoPriceBounds = computed(() => {
   /*
    * Entry prices join the range: a position whose price has moved away is exactly when the
    * line matters, and it would otherwise sit off-screen.
    */
   const values = [
-    ...props.candles.map((candle) => candle.high),
-    ...props.candles.map((candle) => candle.low),
+    ...visible.value.map((candle) => candle.high),
+    ...visible.value.map((candle) => candle.low),
     ...(validEntry.value ? [validEntry.value.price] : []),
     // A fill sits at the price it traded at, which can be away from the candles around it.
-    ...props.marks
+    ...visibleMarks.value
       .filter((mark) => mark.kind === 'fill' && Number.isFinite(mark.price))
       .map((mark) => Number(mark.price)),
   ]
@@ -63,6 +78,32 @@ const priceBounds = computed(() => {
   const pad = (max - min) * 0.06 || Math.abs(max) * 0.01 || 1
   return { min: min - pad, max: max + pad }
 })
+
+const priceBounds = computed(() => {
+  const { min, max } = autoPriceBounds.value
+  const center = min + (max - min) / 2
+  const radius = ((max - min) * priceScale.value) / 2
+  return priceScale.value === 1 ? { min, max } : { min: center - radius, max: center + radius }
+})
+
+function scalePrice(value: number) {
+  priceScale.value = Math.max(0.1, Math.min(10, value))
+}
+
+function startPriceDrag(event: PointerEvent) {
+  if (event.button !== 0 || axisDrag) return
+  axisDrag = { id: event.pointerId, y: event.clientY, scale: priceScale.value }
+  ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
+}
+
+function movePriceDrag(event: PointerEvent) {
+  if (axisDrag?.id !== event.pointerId) return
+  scalePrice(axisDrag.scale * Math.exp((event.clientY - axisDrag.y) / plotHeight.value))
+}
+
+function endPriceDrag(event: PointerEvent) {
+  if (axisDrag?.id === event.pointerId) axisDrag = null
+}
 
 const validEntry = computed(() => {
   const entry = props.entry
@@ -78,17 +119,17 @@ function scaleY(value: number): number {
   return padding.top + (1 - (value - min) / span) * plotHeight.value
 }
 
-const step = computed(() => (props.candles.length ? plotWidth.value / props.candles.length : 0))
-const bodyWidth = computed(() => Math.max(1, Math.min(10, step.value * 0.62)))
+const step = computed(() => (count.value ? plotWidth.value / count.value : 0))
+const bodyWidth = computed(() => Math.max(1, Math.min(range.value ? 28 : 10, step.value * 0.62)))
 
 const rendered = computed(() =>
-  props.candles.map((candle, index) => {
+  visible.value.map((candle, index) => {
     const centerX = padding.left + step.value * (index + 0.5)
     const up = candle.close >= candle.open
     const top = scaleY(Math.max(candle.open, candle.close))
     const bottom = scaleY(Math.min(candle.open, candle.close))
     return {
-      key: index,
+      key: start.value + index,
       x: centerX,
       wickTop: scaleY(candle.high),
       wickBottom: scaleY(candle.low),
@@ -115,14 +156,24 @@ const gridLines = computed(() => {
 })
 
 const activeCandle = computed(() => {
-  const list = props.candles
+  const list = visible.value
   if (!list.length) return null
   const index = activeIndex.value
   return index === null ? list[list.length - 1] : (list[index] ?? list[list.length - 1])
 })
-const isFollowingLatest = computed(() => activeIndex.value === null)
+const isFollowingLatest = computed(
+  () => activeIndex.value === null && start.value + count.value === props.candles.length,
+)
 
-const markerY = computed(() => (activeCandle.value ? scaleY(activeCandle.value.close) : null))
+function visiblePriceY(value: number): number | null {
+  const y = scaleY(value)
+  if (priceScale.value === 1) return y
+  return y >= padding.top && y <= props.height - padding.bottom ? y : null
+}
+
+const markerY = computed(() =>
+  activeCandle.value ? visiblePriceY(activeCandle.value.close) : null,
+)
 const markerX = computed(() => {
   const index = activeIndex.value
   if (index === null) return null
@@ -138,7 +189,9 @@ function toneColor(tone: CandleEntry['tone']): string {
 
 const entryLine = computed(() => {
   const entry = validEntry.value
-  return entry ? { y: scaleY(entry.price), ...entry, color: toneColor(entry.tone) } : null
+  if (!entry) return null
+  const y = visiblePriceY(entry.price)
+  return y === null ? null : { y, ...entry, color: toneColor(entry.tone) }
 })
 
 /**
@@ -149,8 +202,8 @@ const entryLine = computed(() => {
  */
 const markShapes = computed(() => {
   const size = Math.max(2.5, Math.min(5, step.value * 0.5))
-  return props.marks.flatMap((mark, at) => {
-    const candle = rendered.value[mark.index]
+  return visibleMarks.value.flatMap((mark, at) => {
+    const candle = rendered.value[mark.index - start.value]
     if (!candle) return []
     const colour = mark.side === 'buy' ? 'var(--long)' : 'var(--short)'
     let points: string
@@ -185,7 +238,7 @@ function markLabel(mark: CandleMark): string {
 
 /** Change against the previous close, the way an exchange readout shows it. */
 const activeChange = computed(() => {
-  const index = activeIndex.value ?? props.candles.length - 1
+  const index = start.value + (activeIndex.value ?? count.value - 1)
   const candle = props.candles[index]
   const previous = props.candles[index - 1]
   if (!candle) return null
@@ -194,73 +247,106 @@ const activeChange = computed(() => {
   return (candle.close - base) / base
 })
 
-function candleIndexAt(clientX: number): number | null {
-  if (!host.value || props.candles.length === 0) return null
-  const rect = host.value.getBoundingClientRect()
-  const left = rect.left + padding.left
-  const usable = rect.width - padding.left - padding.right
-  if (usable <= 0) return null
-  const ratio = (clientX - left) / usable
-  if (ratio < -0.02 || ratio > 1.02) return null
-  const index = Math.floor(ratio * props.candles.length)
-  return Math.min(props.candles.length - 1, Math.max(0, index))
+function plotRatio(clientX: number): number {
+  const rect = host.value?.getBoundingClientRect()
+  if (!rect || rect.width <= padding.left + padding.right) return 0.5
+  return (clientX - rect.left - padding.left) / (rect.width - padding.left - padding.right)
 }
 
-function capturePointer(event: PointerEvent) {
-  const element = event.currentTarget as HTMLElement | null
-  if (!element || typeof element.setPointerCapture !== 'function') return
-  try {
-    element.setPointerCapture(event.pointerId)
-    capturedPointer = event.pointerId
-  } catch {
-    /* capture is an optimisation */
-  }
+function scrub(clientX: number) {
+  const ratio = plotRatio(clientX)
+  if (ratio < 0 || ratio > 1 || !count.value) return
+  activeIndex.value = Math.min(count.value - 1, Math.floor(ratio * count.value))
 }
 
-function releasePointer(event: PointerEvent) {
-  const element = event.currentTarget as HTMLElement | null
-  if (capturedPointer !== event.pointerId) return
-  capturedPointer = null
-  if (element && typeof element.releasePointerCapture === 'function') {
-    try {
-      element.releasePointerCapture(event.pointerId)
-    } catch {
-      /* already released */
-    }
-  }
-}
+function setRange(first: number, size: number) {
+  const total = props.candles.length
+  const bounded = Math.min(total - size, Math.max(0, Math.round(first)))
 
-function onPointerDown(event: PointerEvent) {
-  const index = candleIndexAt(event.clientX)
-  if (index === null) {
-    activeIndex.value = null
-    return
-  }
-  activeIndex.value = index
-  capturePointer(event)
-}
-
-function onPointerMove(event: PointerEvent) {
-  if (event.pointerType !== 'mouse' && capturedPointer !== event.pointerId) return
-  const index = candleIndexAt(event.clientX)
-  if (index !== null) activeIndex.value = index
-}
-
-function onPointerUp(event: PointerEvent) {
-  releasePointer(event)
-}
-
-function onPointerCancel(event: PointerEvent) {
-  releasePointer(event)
+  range.value = size === total ? null : { start: bounded, count: size }
   activeIndex.value = null
 }
 
+function zoom(factor: number, from: number, to = from) {
+  const total = props.candles.length
+  if (!total) return
+  const size = Math.min(total, Math.max(Math.min(8, total), Math.round(count.value * factor)))
+  setRange(start.value + from * count.value - to * size, size)
+}
+
+function onWheel(event: WheelEvent) {
+  const ratio = plotRatio(event.clientX)
+  if (ratio < 0 || ratio > 1 || event.deltaY === 0 || event.ctrlKey) return
+  event.preventDefault()
+  zoom(event.deltaY < 0 ? 0.85 : 1 / 0.85, ratio)
+}
+
+function onRangeInput(event: Event) {
+  setRange((event.target as HTMLInputElement).valueAsNumber, count.value)
+}
+
+function resetZoom() {
+  setRange(0, props.candles.length)
+}
+
+function onPointerDown(event: PointerEvent) {
+  if (event.button !== 0 || pointers.size >= 2) return
+  const ratio = plotRatio(event.clientX)
+  if (ratio < 0 || ratio > 1) return
+  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+  dragRemainder = 0
+  ;(event.currentTarget as SVGElement).setPointerCapture?.(event.pointerId)
+  if (pointers.size === 1) scrub(event.clientX)
+}
+
+function onPointerMove(event: PointerEvent) {
+  const previous = pointers.get(event.pointerId)
+  if (!previous) {
+    if (event.pointerType === 'mouse') scrub(event.clientX)
+    return
+  }
+  const x = event.clientX
+  const y = event.clientY
+  if (pointers.size === 2) {
+    const other = [...pointers].find(([id]) => id !== event.pointerId)?.[1]
+    if (!other) return
+    const before = Math.hypot(previous.x - other.x, previous.y - other.y)
+    const after = Math.hypot(x - other.x, y - other.y)
+    if (before < 4 || after < 4) return
+    // Keep the last applied positions so small pinch movements can accumulate.
+    const nextCount = Math.round(count.value * (before / after))
+    if (nextCount === count.value) return
+    zoom(before / after, plotRatio((previous.x + other.x) / 2), plotRatio((x + other.x) / 2))
+  } else if (range.value) {
+    dragRemainder += (plotRatio(previous.x) - plotRatio(x)) * count.value
+    const shift = Math.trunc(dragRemainder)
+    if (shift) {
+      setRange(start.value + shift, count.value)
+      dragRemainder -= shift
+    }
+  } else {
+    scrub(x)
+  }
+  pointers.set(event.pointerId, { x, y })
+}
+
+function onPointerEnd(event: PointerEvent) {
+  pointers.delete(event.pointerId)
+  if (event.type === 'pointercancel') activeIndex.value = null
+}
+
 function onPointerLeave(event: PointerEvent) {
-  if (event.pointerType === 'mouse') activeIndex.value = null
+  if (event.pointerType === 'mouse' && !pointers.has(event.pointerId)) activeIndex.value = null
 }
 
 function onKeydown(event: KeyboardEvent) {
-  const last = props.candles.length - 1
+  if (event.key === 'Home' || event.key === '+' || event.key === '=' || event.key === '-') {
+    event.preventDefault()
+    if (event.key === 'Home') resetZoom()
+    else zoom(event.key === '-' ? 1 / 0.85 : 0.85, 0.5)
+    return
+  }
+  const last = count.value - 1
   if (last < 0) return
   if (event.key === 'Escape') {
     activeIndex.value = null
@@ -285,8 +371,11 @@ function onKeydown(event: KeyboardEvent) {
       :aria-label="t('market.candleChart')"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
-      @pointerup="onPointerUp"
-      @pointercancel="onPointerCancel"
+      @pointerup="onPointerEnd"
+      @pointercancel="onPointerEnd"
+      @lostpointercapture="onPointerEnd"
+      @wheel="onWheel"
+      @dblclick="resetZoom"
       @pointerleave="onPointerLeave"
       @keydown="onKeydown"
     >
@@ -312,36 +401,38 @@ function onKeydown(event: KeyboardEvent) {
         </text>
       </g>
 
-      <g v-for="candle in rendered" :key="candle.key" class="candles__candle">
-        <line
-          :x1="candle.x"
-          :x2="candle.x"
-          :y1="candle.wickTop"
-          :y2="candle.wickBottom"
-          :stroke="candle.up ? 'var(--long)' : 'var(--short)'"
-          stroke-width="1"
-        />
-        <rect
-          :x="candle.x - bodyWidth / 2"
-          :y="candle.bodyY"
-          :width="bodyWidth"
-          :height="candle.bodyH"
-          :fill="candle.up ? 'var(--long)' : 'var(--short)'"
-          opacity="0.9"
-        />
-      </g>
+      <g :clip-path="priceScale === 1 ? undefined : `url(#${priceClipId})`">
+        <g v-for="candle in rendered" :key="candle.key" class="candles__candle">
+          <line
+            :x1="candle.x"
+            :x2="candle.x"
+            :y1="candle.wickTop"
+            :y2="candle.wickBottom"
+            :stroke="candle.up ? 'var(--long)' : 'var(--short)'"
+            stroke-width="1"
+          />
+          <rect
+            :x="candle.x - bodyWidth / 2"
+            :y="candle.bodyY"
+            :width="bodyWidth"
+            :height="candle.bodyH"
+            :fill="candle.up ? 'var(--long)' : 'var(--short)'"
+            opacity="0.9"
+          />
+        </g>
 
-      <g class="candles__marks">
-        <polygon
-          v-for="shape in markShapes"
-          :key="shape.key"
-          :points="shape.points"
-          :fill="shape.colour"
-          :data-kind="shape.kind"
-          :data-side="shape.side"
-        >
-          <title>{{ shape.label }}</title>
-        </polygon>
+        <g class="candles__marks">
+          <polygon
+            v-for="shape in markShapes"
+            :key="shape.key"
+            :points="shape.points"
+            :fill="shape.colour"
+            :data-kind="shape.kind"
+            :data-side="shape.side"
+          >
+            <title>{{ shape.label }}</title>
+          </polygon>
+        </g>
       </g>
 
       <g v-if="markerY !== null">
@@ -393,7 +484,39 @@ function onKeydown(event: KeyboardEvent) {
           {{ entryLine.label }}
         </text>
       </g>
+      <defs>
+        <clipPath :id="priceClipId">
+          <rect :x="padding.left" :y="padding.top" :width="plotWidth" :height="plotHeight" />
+        </clipPath>
+      </defs>
     </svg>
+    <button
+      type="button"
+      class="candles__price-axis"
+      :style="{ height: `${height}px` }"
+      :aria-label="t('market.priceScale')"
+      :title="t('market.priceScale')"
+      @pointerdown="startPriceDrag"
+      @pointermove="movePriceDrag"
+      @pointerup="endPriceDrag"
+      @pointercancel="endPriceDrag"
+      @lostpointercapture="endPriceDrag"
+      @dblclick="priceScale = 1"
+      @keydown.up.prevent="scalePrice(priceScale * 0.85)"
+      @keydown.down.prevent="scalePrice(priceScale / 0.85)"
+      @keydown.home.prevent="priceScale = 1"
+    />
+    <input
+      class="candles__range"
+      type="range"
+      min="0"
+      :max="maxStart"
+      :value="start"
+      :disabled="maxStart === 0"
+      :aria-label="t('market.candleRange')"
+      :style="{ '--thumb-width': thumbWidth }"
+      @input="onRangeInput"
+    />
 
     <div v-if="activeCandle" class="candles__readout">
       <span class="candles__time num">
@@ -445,6 +568,60 @@ function onKeydown(event: KeyboardEvent) {
   touch-action: pan-y;
   cursor: crosshair;
   outline-offset: 2px;
+}
+
+.candles__price-axis {
+  position: absolute;
+  inset: 0 0 auto auto;
+  width: 58px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.candles__range {
+  appearance: none;
+  display: block;
+  width: calc(100% - 62px);
+  height: 20px;
+  margin: 0 58px 0 4px;
+  background: transparent;
+  cursor: ew-resize;
+}
+
+.candles__range:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.candles__range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+}
+
+.candles__range::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+}
+
+.candles__range::-webkit-slider-thumb {
+  appearance: none;
+  width: clamp(16px, var(--thumb-width), 100%);
+  height: 6px;
+  border-radius: 3px;
+  background: var(--text-3);
+}
+
+.candles__range::-moz-range-thumb {
+  width: clamp(16px, var(--thumb-width), 100%);
+  height: 6px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--text-3);
 }
 
 .candles svg:focus-visible {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CollapseTransition from '@/components/CollapseTransition.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -12,11 +13,14 @@ import Sparkline from '@/components/Sparkline.vue'
 import { useFormat } from '@/composables/useFormat'
 import { pushToast } from '@/composables/useToast'
 import { useChartHeight } from '@/composables/useChartHeight'
+import { useSegBlock } from '@/composables/useSegBlock'
 import { isStandalone, navigatePage } from '@/lib/navigation'
 import { hideFreqtradeSentinel, toIsoDate } from '@/lib/format'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
+
+type Period = 'daily' | 'weekly' | 'monthly'
 
 const { t } = useI18n()
 const format = useFormat()
@@ -44,7 +48,19 @@ async function openOverviewTrade(trade: Trade, filter: 'open' | 'closed'): Promi
   await navigatePage(router, { path: '/trades', query: { filter } })
   await router.push(detail)
 }
-const pnlChartHeight = useChartHeight(150, 0.2, 230)
+const period = ref<Period>('daily')
+/** The block behind the period tabs, which slides to whichever one is active. */
+const periodSeg = ref<HTMLElement | null>(null)
+const { blockStyle: periodBlockStyle, blockReady: periodBlockReady } = useSegBlock(
+  periodSeg,
+  () => period.value,
+)
+const periodChartHeight = useChartHeight(140, 0.19, 220)
+/** The period tables list exactly as many rows as the chart draws bars. */
+const PERIOD_ROWS = 30
+/** The date rows are the detail behind the chart: they start folded away. */
+const periodRowsOpen = ref(false)
+
 /** The overview stays a summary; how long is up to the operator (Settings → Interface). */
 const openRows = computed(() => bot.openTrades.slice(0, settings.overviewOpenLimit))
 const closedRows = computed(() => bot.closedByRecency.slice(0, settings.overviewClosedLimit))
@@ -71,14 +87,23 @@ const cumulative = computed(() => {
   })
 })
 
-const bars = computed<BarItem[]>(() =>
-  dailySeries.value.slice(-30).map((entry) => ({
-    label: entry.date.slice(5),
-    tooltip: format.day(entry.date),
-    value: entry.abs_profit,
-    display: format.signedMoney(entry.abs_profit, stake.value),
-    sub: `${entry.trade_count} ${t('stats.tradeCount')}`,
-  })),
+const periodData = computed(() => {
+  const source =
+    period.value === 'daily' ? bot.daily : period.value === 'weekly' ? bot.weekly : bot.monthly
+  return source?.data ?? []
+})
+
+const periodBars = computed<BarItem[]>(() =>
+  [...periodData.value]
+    .reverse()
+    .slice(-30)
+    .map((entry) => ({
+      label: entry.date.slice(5),
+      tooltip: format.day(entry.date),
+      value: entry.abs_profit,
+      display: format.signedMoney(entry.abs_profit, stake.value),
+      sub: `${entry.trade_count} ${t('stats.tradeCount')}`,
+    })),
 )
 
 function durationOf(trade: Trade): number | null {
@@ -152,23 +177,112 @@ async function confirmExit() {
     <div class="stack">
       <section class="panel">
         <div class="panel__head">
-          <span class="panel__title">{{ t('dashboard.dailyPnl') }}</span>
+          <span class="panel__title">{{ t('stats.period') }}</span>
+          <div ref="periodSeg" class="seg">
+            <button
+              type="button"
+              class="seg__item"
+              :aria-pressed="period === 'daily'"
+              @click="period = 'daily'"
+            >
+              {{ t('stats.daily') }}
+            </button>
+            <button
+              type="button"
+              class="seg__item"
+              :aria-pressed="period === 'weekly'"
+              @click="period = 'weekly'"
+            >
+              {{ t('stats.weekly') }}
+            </button>
+            <button
+              type="button"
+              class="seg__item"
+              :aria-pressed="period === 'monthly'"
+              @click="period = 'monthly'"
+            >
+              {{ t('stats.monthly') }}
+            </button>
+            <span
+              class="seg__block"
+              :class="{ 'is-ready': periodBlockReady }"
+              :style="periodBlockStyle"
+            />
+          </div>
           <div class="panel__actions">
-            <button type="button" class="btn btn--sm" @click="navigatePage(router, '/stats')">
-              <AppIcon name="chevronRight" />
-              {{ t('dashboard.viewAll') }}
+            <button
+              type="button"
+              class="btn btn--sm"
+              :aria-expanded="periodRowsOpen"
+              :aria-label="t(periodRowsOpen ? 'stats.hidePeriods' : 'stats.showPeriods')"
+              :title="t(periodRowsOpen ? 'stats.hidePeriods' : 'stats.showPeriods')"
+              @click="periodRowsOpen = !periodRowsOpen"
+            >
+              <AppIcon :name="periodRowsOpen ? 'chevronUp' : 'chevronDown'" />
+              {{ t(periodRowsOpen ? 'stats.hidePeriods' : 'stats.showPeriods') }}
             </button>
           </div>
         </div>
         <div class="panel__body">
           <BarChart
-            v-if="bars.length"
-            :items="bars"
-            :height="pnlChartHeight"
+            v-if="periodBars.length"
+            :items="periodBars"
+            :height="periodChartHeight"
             :axis-format="(value: number) => format.money(value, '', 2)"
           />
           <p v-else class="empty">{{ t('stats.noData') }}</p>
         </div>
+        <CollapseTransition>
+          <div
+            v-if="periodRowsOpen"
+            class="panel__body panel__body--flush responsive-table responsive-table--short"
+          >
+            <div class="table-wrap u-desktop-only">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th scope="col">{{ t('stats.date') }}</th>
+                    <th scope="col" class="num">{{ t('stats.profitAbs') }}</th>
+                    <th scope="col" class="num">{{ t('stats.relProfit') }}</th>
+                    <th scope="col" class="num">{{ t('stats.tradeCount') }}</th>
+                    <th scope="col" class="num">{{ t('stats.startingBalance') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="entry in periodData.slice(0, PERIOD_ROWS)" :key="entry.date">
+                    <td>{{ format.day(entry.date) }}</td>
+                    <td class="num" :class="format.toneClass(entry.abs_profit)">
+                      {{ format.signedMoney(entry.abs_profit, stake) }}
+                    </td>
+                    <td class="num" :class="format.toneClass(entry.rel_profit)">
+                      {{ format.ratio(entry.rel_profit) }}
+                    </td>
+                    <td class="num">{{ entry.trade_count }}</td>
+                    <td class="num">{{ format.money(entry.starting_balance, stake) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <ul class="cards u-mobile-only">
+              <li v-for="entry in periodData.slice(0, PERIOD_ROWS)" :key="entry.date" class="card">
+                <div class="card__row">
+                  <span class="num">{{ format.day(entry.date) }}</span>
+                  <span class="spacer" />
+                  <span class="num" :class="format.toneClass(entry.abs_profit)">
+                    {{ format.signedMoney(entry.abs_profit, stake) }}
+                  </span>
+                </div>
+                <div class="card__row small muted">
+                  <span>{{ format.ratio(entry.rel_profit) }}</span>
+                  <span>{{ t('stats.tradeCount') }} {{ entry.trade_count }}</span>
+                  <span class="spacer" />
+                  <span>{{ format.money(entry.starting_balance, stake) }}</span>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </CollapseTransition>
       </section>
 
       <section class="panel">
@@ -412,7 +526,7 @@ async function confirmExit() {
  * badge. Scoped rather than `u-hide-sm`: that helper switches to `table-cell`, which is right
  * for a column and wrong for a chip.
  */
-@media (max-width: 720px) {
+@media not all and (min-width: 720px) {
   .overview__leverage {
     display: none;
   }

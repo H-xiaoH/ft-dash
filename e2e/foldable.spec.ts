@@ -34,7 +34,7 @@ const trackX = (page: Page) =>
 test('folded and expanded windows switch navigation at 720px, independently of tables', async ({
   page,
 }) => {
-  for (const width of [360, 540, 719, 720, 721, 768, 820, 900, 901, 1024]) {
+  for (const width of [360, 540, 719, 720, 721, 768, 800, 820, 900, 901, 1024]) {
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/#/trades')
     await expect(page.locator('.page-enter-active, .page-leave-active')).toHaveCount(0)
@@ -45,8 +45,16 @@ test('folded and expanded windows switch navigation at 720px, independently of t
       await expect(page.locator('.rail')).toBeVisible()
       await expect(page.locator('.tabbar')).toBeHidden()
     }
-    if (width <= 900) await expect(livePage(page).locator('.cards')).toBeVisible()
-    else await expect(livePage(page).locator('.cards')).toBeHidden()
+    const panel = livePage(page).locator('.responsive-table')
+    const contentWidth = await panel.evaluate((element) => element.clientWidth)
+    const columns =
+      2 +
+      Number(contentWidth >= 470) +
+      Number(contentWidth >= 590) +
+      3 * Number(contentWidth >= 740) +
+      Number(contentWidth >= 870)
+    await expect(panel.getByRole('columnheader')).toHaveCount(columns)
+    await expect(panel.getByRole('button', { name: /排序/ })).toBeVisible()
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -178,7 +186,7 @@ test.describe('expanded touch page frames', () => {
   }) => {
     await page.setViewportSize({ width: 820, height: 900 })
     await page.goto('/#/trades')
-    await expect(livePage(page).locator('.card')).toHaveCount(5)
+    await expect(livePage(page).locator('.progressive-table tbody tr')).toHaveCount(5)
     await expect(page.locator('.page-enter-active,.page-leave-active')).toHaveCount(0)
 
     for (const [index, name, direction] of [
@@ -265,7 +273,7 @@ test.describe('expanded touch page frames', () => {
     await mockApi(page, { tradeCount: 40 })
     await page.goto('/#/trades?filter=open')
     await page.reload()
-    await expect(livePage(page).locator('.card')).toHaveCount(1)
+    await expect(livePage(page).locator('.progressive-table tbody tr')).toHaveCount(1)
     await page.evaluate(() => {
       const state = window as unknown as { __frameStart: number | null }
       state.__frameStart = null
@@ -369,7 +377,7 @@ test.describe('expanded touch page frames', () => {
         await page.locator('.page-track').evaluate((element) => element.getAnimations().length),
       ).toBe(0)
     }
-    await expect(livePage(page).locator('.card')).toHaveCount(20)
+    await expect(livePage(page).locator('.progressive-table tbody tr')).toHaveCount(20)
     expect(
       await livePage(page).evaluate((el) => el.getBoundingClientRect().height),
     ).toBeGreaterThan(900)

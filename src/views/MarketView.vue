@@ -16,6 +16,7 @@ import { pushToast } from '@/composables/useToast'
 import type { Lock } from '@/lib/types'
 import { buildEntryMarker } from '@/lib/positions'
 import { useBotStore } from '@/stores/bot'
+import { useSettingsStore } from '@/stores/settings'
 
 type Tab = 'whitelist' | 'blacklist' | 'locks'
 
@@ -23,6 +24,7 @@ const { t } = useI18n()
 const format = useFormat()
 const route = useRoute()
 const bot = useBotStore()
+const settings = useSettingsStore()
 
 const tab = ref<Tab>('whitelist')
 /** The block behind the pair-list tabs, which slides to whichever one is active. */
@@ -293,7 +295,7 @@ watch(
       <div class="panel__body">
         <div
           class="market__plot"
-          :style="{ height: `${candleHeight}px` }"
+          :style="{ height: `${candleHeight + 20}px` }"
           :aria-busy="loadingCandles"
         >
           <p v-if="!selectedPair" class="empty">{{ t('market.noCandles') }}</p>
@@ -301,6 +303,7 @@ watch(
           <p v-else-if="!candles.length" class="empty">{{ t('market.noCandles') }}</p>
           <CandleChart
             v-else
+            :key="`${settings.activeBotId}|${selectedPair}|${timeframe}`"
             :candles="candles"
             :entry="chartEntry"
             :marks="chartMarks"
@@ -317,11 +320,7 @@ watch(
             {{ t('market.sellSignals') }} {{ candleMeta.sell_signals }}
           </span>
         </div>
-        <div
-          class="market__legend row row--wrap small muted"
-          :class="{ 'market__legend--hidden': !chartMarks.length }"
-          :aria-hidden="!chartMarks.length"
-        >
+        <div v-if="chartMarks.length" class="market__legend row row--wrap small muted">
           <span class="candles-legend candles-legend--buy">▲ {{ t('market.buySignals') }}</span>
           <span class="candles-legend candles-legend--sell">▼ {{ t('market.sellSignals') }}</span>
           <span class="candles-legend">▶ {{ t('market.fills') }}</span>
@@ -474,7 +473,7 @@ watch(
       <!-- Keyboard users need a focus stop to scroll this list (WCAG 2.1.1). -->
       <div
         v-else
-        class="panel__body panel__body--flush market__scroll"
+        class="panel__body panel__body--flush market__scroll responsive-table responsive-table--short"
         tabindex="0"
         role="region"
         :aria-label="t('market.locks')"
@@ -621,13 +620,8 @@ watch(
   flex: none;
 }
 
-/* Keep the legend's line when a pair has no marks or is still loading. */
 .market__legend {
   margin-top: 4px;
-}
-
-.market__legend--hidden {
-  visibility: hidden;
 }
 
 /* Let sticky headers follow the outer list's vertical scroll. */

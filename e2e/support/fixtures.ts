@@ -600,7 +600,7 @@ export async function enableWriteAccess(page: Page) {
  * held on the track, so this is what tells which one is actually up.
  */
 export const ROUTES: { path: string; marker: string }[] = [
-  { path: '#/', marker: '每日盈亏' },
+  { path: '#/', marker: '周期' },
   { path: '#/trades', marker: '交易对' },
   { path: '#/stats', marker: '盈利 / 亏损' },
   { path: '#/market', marker: 'K 线' },

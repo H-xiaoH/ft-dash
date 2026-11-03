@@ -287,15 +287,14 @@ test('whitelist has one three-column list on phone and desktop', async ({ page }
 })
 
 for (const width of [360, 768, 1280]) {
-  test(`switching pairs keeps the chart and list fixed at ${width}px`, async ({ page }) => {
+  test(`switching pairs keeps the plot fixed at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 })
     const market = livePage(page)
     await expect(market.locator('.candles svg rect').first()).toBeVisible()
     const geometry = () =>
       market.evaluate((el) => {
-        const chart = el.querySelector('.panel')!.getBoundingClientRect()
-        const list = el.querySelector('.market__pairs')!.getBoundingClientRect()
-        return { x: chart.x, width: chart.width, height: chart.height, listY: list.y }
+        const plot = el.querySelector('.market__plot')!.getBoundingClientRect()
+        return { x: plot.x, y: plot.y, width: plot.width, height: plot.height }
       })
     const before = await geometry()
     let release!: () => void
@@ -310,15 +309,16 @@ for (const width of [360, 768, 1280]) {
       await market.locator('.filter-menu__button').click()
       await page.locator('.filter-menu__item', { hasText: 'BBB/USDT' }).click()
       await expect(market.locator('.skeleton')).toBeVisible()
+      await expect(market.locator('.market__legend')).toHaveCount(0)
       const pending = await geometry()
-      for (const key of ['x', 'width', 'height', 'listY'] as const) {
+      for (const key of ['x', 'y', 'width', 'height'] as const) {
         expect(Math.abs(pending[key] - before[key]), key).toBeLessThanOrEqual(1)
       }
       release()
       await expect(market.locator('.skeleton')).toHaveCount(0)
       await expect(market.locator('.candles svg rect').first()).toBeVisible()
       const after = await geometry()
-      for (const key of ['x', 'width', 'height', 'listY'] as const) {
+      for (const key of ['x', 'y', 'width', 'height'] as const) {
         expect(Math.abs(after[key] - before[key]), key).toBeLessThanOrEqual(1)
       }
       await page.unroute('**/api/v1/pair_candles**')
@@ -362,3 +362,16 @@ for (const width of [360, 768, 1280]) {
     }
   })
 }
+
+test('the chart zooms with the wheel and resets with a double click', async ({ page }) => {
+  const chart = livePage(page).locator('.candles svg')
+  const candles = chart.locator('.candles__candle')
+  await expect(candles.first()).toBeVisible()
+  const initial = await candles.count()
+  const position = { x: 100, y: 100 }
+  await chart.hover({ position })
+  await page.mouse.wheel(0, -100)
+  await expect.poll(() => candles.count()).toBeLessThan(initial)
+  await chart.dblclick({ position })
+  await expect(candles).toHaveCount(initial)
+})

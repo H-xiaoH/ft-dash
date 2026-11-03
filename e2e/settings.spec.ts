@@ -27,6 +27,7 @@ const openBotManager = async (page: Page) => {
   await botsPanel(page).locator('.filter-menu__button').click()
   await page.locator('.filter-menu__item', { hasText: '管理后端' }).last().click()
   await expect(botsPanel(page).locator('.bots__manage')).toBeVisible()
+  await expect(botsPanel(page).locator('.collapse-enter-active')).toHaveCount(0)
 }
 
 /** Picking a bot in the picker is what switches to it. */

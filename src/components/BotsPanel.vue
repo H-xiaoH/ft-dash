@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
+import CollapseTransition from '@/components/CollapseTransition.vue'
 import ControlsPanel from '@/components/ControlsPanel.vue'
 import FilterMenu, { type FilterOption, type StatusLamp } from '@/components/FilterMenu.vue'
 import BotList from '@/components/BotList.vue'
@@ -372,109 +373,125 @@ async function confirmRemove() {
       </form>
 
       <!-- 管理后端: add, edit, test and remove the saved backends. -->
-      <section v-if="manageOpen" class="inset bots__manage">
-        <div class="inset__head">
-          <span class="panel__title">{{ t('bots.manage') }}</span>
-          <div class="spacer" />
-          <button type="button" class="btn btn--sm btn--ghost" @click="closeManage">
-            <AppIcon name="close" />
-            {{ t('common.close') }}
-          </button>
+      <CollapseTransition>
+        <div v-if="manageOpen">
+          <section class="inset bots__manage">
+            <div class="inset__head">
+              <span class="panel__title">{{ t('bots.manage') }}</span>
+              <div class="spacer" />
+              <button type="button" class="btn btn--sm btn--ghost" @click="closeManage">
+                <AppIcon name="close" />
+                {{ t('common.close') }}
+              </button>
+            </div>
+
+            <p v-if="!settings.bots.length" class="empty">{{ t('bots.empty') }}</p>
+
+            <BotList
+              v-else
+              :bots="settings.bots"
+              :active-bot-id="settings.activeBotId"
+              :testing="testing"
+              :test-result="testResult"
+              @edit="startEdit"
+              @test="testConnection"
+              @remove="removeTarget = $event"
+              @reorder="settings.reorderBots"
+            />
+            <ConfirmDialog
+              :open="removeTarget !== null"
+              :title="t('bots.remove')"
+              tone="danger"
+              warning=""
+              :body="t('bots.removeBody', { name: removeTarget?.name ?? '' })"
+              :confirm-label="t('bots.remove')"
+              confirm-icon="trash"
+              :pending="removing || bot.actionPending !== null"
+              @cancel="removeTarget = null"
+              @confirm="confirmRemove"
+            />
+
+            <CollapseTransition>
+              <div v-if="form" key="editor">
+                <form class="bots__editor" @submit.prevent="submit">
+                  <div class="bots__grid">
+                    <label class="field">
+                      <span class="field__label">{{ t('bots.name') }}</span>
+                      <input
+                        v-model="form.name"
+                        class="input"
+                        type="text"
+                        :placeholder="t('bots.nameOptional')"
+                        @input="nameTouched = true"
+                      />
+                      <span v-if="duplicateName" class="field__hint">{{
+                        t('bots.duplicateName')
+                      }}</span>
+                    </label>
+                    <label class="field">
+                      <span class="field__label">{{ t('connect.baseUrl') }}</span>
+                      <input
+                        v-model="form.baseUrl"
+                        class="input num"
+                        type="text"
+                        inputmode="url"
+                        spellcheck="false"
+                      />
+                    </label>
+                    <label class="field">
+                      <span class="field__label">{{ t('connect.username') }}</span>
+                      <input
+                        v-model="form.username"
+                        class="input"
+                        type="text"
+                        autocomplete="username"
+                      />
+                    </label>
+                    <label class="field">
+                      <span class="field__label">{{ t('connect.password') }}</span>
+                      <input
+                        v-model="form.password"
+                        class="input"
+                        type="password"
+                        autocomplete="current-password"
+                        :placeholder="form.id ? t('settings.passwordKept') : ''"
+                      />
+                    </label>
+                    <label class="field">
+                      <span class="field__label">{{ t('settings.wsToken') }}</span>
+                      <input
+                        v-model="form.wsToken"
+                        class="input num"
+                        type="password"
+                        autocomplete="off"
+                        spellcheck="false"
+                        :placeholder="t('settings.wsTokenPlaceholder')"
+                      />
+                    </label>
+                  </div>
+                  <p class="small muted">{{ t('bots.probeHint') }}</p>
+                  <div class="row row--wrap">
+                    <button type="submit" class="btn btn--primary" :disabled="!canSave || saving">
+                      <AppIcon name="check" />
+                      {{ t('common.save') }}
+                    </button>
+                    <button type="button" class="btn" @click="cancelEdit">
+                      <AppIcon name="close" />
+                      {{ t('common.cancel') }}
+                    </button>
+                  </div>
+                </form>
+              </div>
+              <div v-else key="add">
+                <button type="button" class="btn btn--sm bots__add" @click="startAdd">
+                  <AppIcon name="plus" />
+                  {{ t('bots.add') }}
+                </button>
+              </div>
+            </CollapseTransition>
+          </section>
         </div>
-
-        <p v-if="!settings.bots.length" class="empty">{{ t('bots.empty') }}</p>
-
-        <BotList
-          v-else
-          :bots="settings.bots"
-          :active-bot-id="settings.activeBotId"
-          :testing="testing"
-          :test-result="testResult"
-          @edit="startEdit"
-          @test="testConnection"
-          @remove="removeTarget = $event"
-          @reorder="settings.reorderBots"
-        />
-        <ConfirmDialog
-          :open="removeTarget !== null"
-          :title="t('bots.remove')"
-          tone="danger"
-          warning=""
-          :body="t('bots.removeBody', { name: removeTarget?.name ?? '' })"
-          :confirm-label="t('bots.remove')"
-          confirm-icon="trash"
-          :pending="removing || bot.actionPending !== null"
-          @cancel="removeTarget = null"
-          @confirm="confirmRemove"
-        />
-
-        <form v-if="form" class="bots__editor" @submit.prevent="submit">
-          <div class="bots__grid">
-            <label class="field">
-              <span class="field__label">{{ t('bots.name') }}</span>
-              <input
-                v-model="form.name"
-                class="input"
-                type="text"
-                :placeholder="t('bots.nameOptional')"
-                @input="nameTouched = true"
-              />
-              <span v-if="duplicateName" class="field__hint">{{ t('bots.duplicateName') }}</span>
-            </label>
-            <label class="field">
-              <span class="field__label">{{ t('connect.baseUrl') }}</span>
-              <input
-                v-model="form.baseUrl"
-                class="input num"
-                type="text"
-                inputmode="url"
-                spellcheck="false"
-              />
-            </label>
-            <label class="field">
-              <span class="field__label">{{ t('connect.username') }}</span>
-              <input v-model="form.username" class="input" type="text" autocomplete="username" />
-            </label>
-            <label class="field">
-              <span class="field__label">{{ t('connect.password') }}</span>
-              <input
-                v-model="form.password"
-                class="input"
-                type="password"
-                autocomplete="current-password"
-                :placeholder="form.id ? t('settings.passwordKept') : ''"
-              />
-            </label>
-            <label class="field">
-              <span class="field__label">{{ t('settings.wsToken') }}</span>
-              <input
-                v-model="form.wsToken"
-                class="input num"
-                type="password"
-                autocomplete="off"
-                spellcheck="false"
-                :placeholder="t('settings.wsTokenPlaceholder')"
-              />
-            </label>
-          </div>
-          <p class="small muted">{{ t('bots.probeHint') }}</p>
-          <div class="row row--wrap">
-            <button type="submit" class="btn btn--primary" :disabled="!canSave || saving">
-              <AppIcon name="check" />
-              {{ t('common.save') }}
-            </button>
-            <button type="button" class="btn" @click="cancelEdit">
-              <AppIcon name="close" />
-              {{ t('common.cancel') }}
-            </button>
-          </div>
-        </form>
-
-        <button v-else type="button" class="btn btn--sm bots__add" @click="startAdd">
-          <AppIcon name="plus" />
-          {{ t('bots.add') }}
-        </button>
-      </section>
+      </CollapseTransition>
       <ControlsPanel />
 
       <label class="switch">

@@ -175,7 +175,11 @@ function levelClass(level: string): string {
   white-space: pre-wrap;
 }
 
-@media (max-width: 900px) {
+.logs-page {
+  container: log-layout / inline-size;
+}
+
+@container log-layout (max-width: 699.98px) {
   .logs__line {
     grid-template-columns: auto 1fr;
   }
@@ -183,6 +187,19 @@ function levelClass(level: string): string {
   .logs__source,
   .logs__message {
     grid-column: 2;
+  }
+}
+
+@supports not (container-type: inline-size) {
+  @media (max-width: 900px) {
+    .logs__line {
+      grid-template-columns: auto 1fr;
+    }
+
+    .logs__source,
+    .logs__message {
+      grid-column: 2;
+    }
   }
 }
 </style>

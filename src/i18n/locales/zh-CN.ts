@@ -127,7 +127,6 @@ export default {
   dashboard: {
     noPositions: '当前没有持仓。',
     recentTrades: '最近平仓',
-    dailyPnl: '每日盈亏',
     viewAll: '查看全部',
     heartbeat: '心跳',
   },
@@ -207,6 +206,8 @@ export default {
     locks: '交易锁',
     pair: '交易对',
     candleChart: 'K 线',
+    candleRange: 'K 线可见时间范围',
+    priceScale: '价格刻度（拖动缩放，双击复位）',
     noCandles: '没有可用的 K 线数据（该交易对可能不在白名单中，或数据未下载）。',
     buySignals: '买入信号',
     sellSignals: '卖出信号',

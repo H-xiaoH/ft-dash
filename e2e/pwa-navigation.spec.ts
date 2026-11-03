@@ -93,7 +93,7 @@ test('standalone trade detail keeps one list entry for back', async ({ page }) =
   await page.locator('.tabbar__item').nth(1).click()
   await expect(page).toHaveURL(/#\/trades(?:\?|$)/)
 
-  const row = livePage(page).locator('.card--tappable').first()
+  const row = livePage(page).locator('.progressive-table tbody tr').first()
   await expect(row).toBeVisible()
   await page.waitForTimeout(300)
   await row.click()

@@ -22,16 +22,23 @@ test('the pair table shows ten pairs a page', async ({ page }) => {
   await expect(rows).toHaveCount(10)
   await expect(pager).toContainText('显示 10 / 12')
   await expect(pager).toContainText('第 1 / 2 页')
-  // The narrow-screen card list is the same page of pairs.
-  await expect(table.locator('.card')).toHaveCount(10)
 
   await pager.locator('button', { hasText: '下一页' }).click()
   await expect(rows).toHaveCount(2)
   await expect(pager).toContainText('第 2 / 2 页')
   await expect(pager.locator('button', { hasText: '下一页' })).toBeDisabled()
 
+  // Resizing changes the presentation while keeping the same page of results.
+  await page.setViewportSize({ width: 800, height: 900 })
+  await expect(rows.first()).toBeVisible()
+  await expect(pager).toContainText('第 2 / 2 页')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await expect(rows.first()).toBeVisible()
+  await expect(pager).toContainText('第 2 / 2 页')
+
   // Sorting is the operator's own move, so it starts the table over at page one.
-  await table.locator('thead th', { hasText: '笔数' }).locator('button').click()
+  await table.locator('.filter-menu__button', { hasText: '排序' }).click()
+  await page.locator('.filter-menu__item', { hasText: /^笔数$/ }).click()
   await expect(pager).toContainText('第 1 / 2 页')
   await expect(rows).toHaveCount(10)
 })
@@ -113,6 +120,7 @@ test('each risk tile opens the explanation for that ratio alone', async ({ page 
 })
 
 test('the period block slides to the period you pick', async ({ page }) => {
+  await page.goto('/#/')
   const seg = livePage(page).locator('.seg')
   await expect.poll(() => segBlockMatches(seg)).toBe(true)
 
@@ -145,9 +153,9 @@ test('pair table derives win rate, fees, volume and last close from the trades',
   await expect(firstRow).toContainText('0.0200 USDT')
 })
 
-test('period tables, durations panel and KPI tiles render', async ({ page }) => {
+test('durations panel and KPI tiles render', async ({ page }) => {
   const stats = livePage(page)
-  await expect(stats.locator('.panel__title')).toHaveText(['交易对表现', '周期', '持仓时长'])
+  await expect(stats.locator('.panel__title')).toHaveText(['交易对表现', '持仓时长'])
   // The tile band is framed on all four sides: the grid draws the top and left hairlines,
   // the tiles draw right and bottom.
   const grid = stats.locator('.metric-grid').first()
@@ -167,6 +175,10 @@ test('period tables, durations panel and KPI tiles render', async ({ page }) => 
   await expect(stats.locator('.metric__label', { hasText: '最佳交易对' })).toHaveCount(0)
   // The account-level tiles stay removed; the pair column is a different thing.
   await expect(stats.locator('.metric__label', { hasText: '总盈亏' })).toHaveCount(0)
+})
+
+test('the overview period chart and details render', async ({ page }) => {
+  await page.goto('/#/')
   await expect(livePage(page).locator('.chart__tick').first()).toBeVisible()
   // The period detail is folded away until asked for; it opens from the panel head.
   const period = livePage(page).locator('.panel', {
@@ -185,18 +197,24 @@ test('period tables, durations panel and KPI tiles render', async ({ page }) => 
   await expect(period.locator('tbody td').first()).toHaveCSS('text-align', 'left')
 })
 
-test('column headers sort in both directions', async ({ page }) => {
-  const table = livePage(page)
-    .locator('.panel', { has: page.locator('.panel__title', { hasText: '交易对' }) })
-    .first()
-  const total = table.locator('thead th', { hasText: '本对盈亏' }).locator('button')
-
-  // Per-pair P&L is the default sort (descending), so the first click flips to ascending.
-  await total.click()
+test('pair performance sorts through the toolbar on desktop and mobile', async ({ page }) => {
+  const table = livePage(page).locator('.panel', {
+    has: page.locator('.panel__title', { hasText: '交易对表现' }),
+  })
+  const menu = table.locator('.filter-menu__button', { hasText: '排序' })
+  const ascending = table.getByRole('button', { name: '改为升序' })
+  await expect(table.locator('thead button')).toHaveCount(0)
+  await expect(menu).toHaveCSS('border-right-width', '0px')
+  await expect(ascending).toHaveCSS('border-left-width', '1px')
+  await ascending.click()
   await expect(table.locator('tbody tr').first()).toContainText('CCC/USDT')
 
-  await total.click()
+  await page.setViewportSize({ width: 360, height: 844 })
+  await menu.click()
+  await page.locator('.filter-menu__item', { hasText: /^交易对$/ }).click()
   await expect(table.locator('tbody tr').first()).toContainText('AAA/USDT')
+  await table.getByRole('button', { name: '改为降序' }).click()
+  await expect(table.locator('tbody tr').first()).toContainText('CCC/USDT')
 })
 
 /** Scopes a colour assertion to the tile carrying a given label. */

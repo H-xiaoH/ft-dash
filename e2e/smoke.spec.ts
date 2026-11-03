@@ -237,7 +237,7 @@ test.describe('navigation', () => {
         await expect(list.locator('tbody tr')).toHaveCount(3)
         await expect(list.locator('ul')).toHaveCount(0)
       } else {
-        await expect(livePage(page).locator('.card').first()).toBeVisible()
+        await expect(livePage(page).locator('.progressive-table tbody tr').first()).toBeVisible()
       }
       // A hash change slides the previous page out; wait for it to leave before judging
       // this page's layout.

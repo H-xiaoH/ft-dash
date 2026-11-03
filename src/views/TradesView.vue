@@ -6,6 +6,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
+import SortMenu from '@/components/SortMenu.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
 import SideBadge from '@/components/SideBadge.vue'
 import TradeDetail from '@/components/TradeDetail.vue'
@@ -153,7 +154,6 @@ watch(totalPages, (max) => {
   if (page.value > max) page.value = max
 })
 
-/** The column headers sort the desktop table; on a phone this menu does the same job. */
 const sortOptions = computed<FilterOption<SortKey>[]>(() => [
   { value: 'open_timestamp', label: t('trades.openDate') },
   { value: 'pair', label: t('trades.pair') },
@@ -161,27 +161,12 @@ const sortOptions = computed<FilterOption<SortKey>[]>(() => [
   { value: 'profit_abs', label: t('trades.profit') },
   { value: 'duration', label: t('trades.duration') },
 ])
-/** Picking a field reuses `toggleSort`, so the direction rule matches the headers. */
 const sortField = computed<SortKey>({
   get: () => sortKey.value,
-  set: (key) => toggleSort(key),
+  set: selectSort,
 })
-/** A toggle button names what pressing it does, not the state it is already in. */
-const sortToggleLabel = computed(() =>
-  t('trades.sortTo', {
-    dir: t(sortDir.value === 'asc' ? 'trades.sortDesc' : 'trades.sortAsc'),
-  }),
-)
-
-function flipSort(): void {
-  sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
-}
-
-function toggleSort(key: SortKey) {
-  if (sortKey.value === key) {
-    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
-    return
-  }
+function selectSort(key: SortKey) {
+  if (sortKey.value === key) return
   sortKey.value = key
   sortDir.value = key === 'pair' ? 'asc' : 'desc'
 }
@@ -289,7 +274,7 @@ onMounted(() => {
 
 <template>
   <div class="stack">
-    <section class="panel">
+    <section class="panel responsive-table">
       <div class="panel__head">
         <div ref="filterSeg" class="seg">
           <button
@@ -333,24 +318,7 @@ onMounted(() => {
             :prefix="t('trades.profit')"
             :label="t('trades.profit')"
           />
-          <div class="sort-group trades-sort">
-            <FilterMenu
-              v-model="sortField"
-              class="sort-group__field"
-              :options="sortOptions"
-              :prefix="t('trades.sort')"
-              :label="t('trades.sort')"
-            />
-            <button
-              type="button"
-              class="btn btn--sm btn--icon sort-group__dir"
-              :aria-label="sortToggleLabel"
-              :title="sortToggleLabel"
-              @click="flipSort"
-            >
-              <AppIcon :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'" />
-            </button>
-          </div>
+          <SortMenu v-model="sortField" v-model:direction="sortDir" :options="sortOptions" />
           <!-- On a phone this row also carries the sort pair, so the label gives way. -->
           <button
             type="button"
@@ -372,63 +340,18 @@ onMounted(() => {
         <CollapseTransition>
           <div :key="filter" class="trade-filter-content" data-filter-content>
             <div v-if="!rows.length" class="empty">{{ t('empty.table') }}</div>
-            <div v-else class="table-wrap u-desktop-only">
+            <div v-else class="table-wrap progressive-table">
               <table class="table table--clickable">
                 <thead>
                   <tr>
-                    <th scope="col">
-                      <button type="button" class="sort" @click="toggleSort('pair')">
-                        {{ t('trades.pair') }}
-                        <AppIcon
-                          v-if="sortKey === 'pair'"
-                          :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
-                          :size="12"
-                        />
-                      </button>
-                    </th>
-                    <th scope="col" class="u-hide-sm side-col">{{ t('trades.side') }}</th>
-                    <th scope="col" class="num">
-                      <button type="button" class="sort" @click="toggleSort('stake_amount')">
-                        {{ t('trades.stake') }}
-                        <AppIcon
-                          v-if="sortKey === 'stake_amount'"
-                          :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
-                          :size="12"
-                        />
-                      </button>
-                    </th>
-                    <th scope="col" class="num">{{ t('trades.entryPrice') }}</th>
-                    <th scope="col" class="num">{{ t('trades.currentPrice') }}</th>
-                    <th scope="col" class="num">
-                      <button type="button" class="sort" @click="toggleSort('profit_abs')">
-                        {{ t('trades.profit') }}
-                        <AppIcon
-                          v-if="sortKey === 'profit_abs'"
-                          :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
-                          :size="12"
-                        />
-                      </button>
-                    </th>
-                    <th scope="col" class="num">
-                      <button type="button" class="sort" @click="toggleSort('duration')">
-                        {{ t('trades.duration') }}
-                        <AppIcon
-                          v-if="sortKey === 'duration'"
-                          :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
-                          :size="12"
-                        />
-                      </button>
-                    </th>
-                    <th scope="col" class="num">
-                      <button type="button" class="sort" @click="toggleSort('open_timestamp')">
-                        {{ t('trades.openDate') }}
-                        <AppIcon
-                          v-if="sortKey === 'open_timestamp'"
-                          :name="sortDir === 'asc' ? 'chevronUp' : 'chevronDown'"
-                          :size="12"
-                        />
-                      </button>
-                    </th>
+                    <th scope="col">{{ t('trades.pair') }}</th>
+                    <th scope="col" class="side-col col-extra-4">{{ t('trades.side') }}</th>
+                    <th scope="col" class="num col-extra-2">{{ t('trades.stake') }}</th>
+                    <th scope="col" class="num col-extra-3">{{ t('trades.entryPrice') }}</th>
+                    <th scope="col" class="num col-extra-3">{{ t('trades.currentPrice') }}</th>
+                    <th scope="col" class="num">{{ t('trades.profit') }}</th>
+                    <th scope="col" class="num col-extra-1">{{ t('trades.duration') }}</th>
+                    <th scope="col" class="num col-extra-3">{{ t('trades.openDate') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -440,16 +363,16 @@ onMounted(() => {
                           :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
                         />
                         <span class="num">{{ trade.pair }}</span>
-                        <SideBadge class="u-inline-sm" :is-short="trade.is_short" />
+                        <SideBadge class="progressive-side" :is-short="trade.is_short" icon-only />
                         <span v-if="trade.is_open" class="chip chip--accent">{{
                           t('trades.open')
                         }}</span>
                       </div>
                     </td>
-                    <td class="u-hide-sm side-col"><SideBadge :is-short="trade.is_short" /></td>
-                    <td class="num">{{ format.money(trade.stake_amount, stake) }}</td>
-                    <td class="num">{{ format.price(trade.open_rate) }}</td>
-                    <td class="num">
+                    <td class="side-col col-extra-4"><SideBadge :is-short="trade.is_short" /></td>
+                    <td class="num col-extra-2">{{ format.money(trade.stake_amount, stake) }}</td>
+                    <td class="num col-extra-3">{{ format.price(trade.open_rate) }}</td>
+                    <td class="num col-extra-3">
                       {{ format.price(trade.current_rate ?? trade.close_rate ?? null) }}
                     </td>
                     <td
@@ -466,55 +389,12 @@ onMounted(() => {
                         {{ format.ratio(trade.profit_ratio ?? trade.close_profit) }}
                       </div>
                     </td>
-                    <td class="num">{{ format.duration(durationOf(trade)) }}</td>
-                    <td class="num">{{ format.dateTime(trade.open_timestamp) }}</td>
+                    <td class="num col-extra-1">{{ format.duration(durationOf(trade)) }}</td>
+                    <td class="num col-extra-3">{{ format.dateTime(trade.open_timestamp) }}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-
-            <!-- Mobile: a card list beats a horizontally scrolling table. -->
-            <ul v-if="rows.length" class="cards u-mobile-only">
-              <li
-                v-for="trade in pagedRows"
-                :key="trade.trade_id"
-                class="card card--tappable"
-                @click="openTrade(trade)"
-              >
-                <div class="card__row">
-                  <!-- Same wrapper as the desktop table: it centres the bar on the pair text. -->
-                  <div class="table__pair">
-                    <span
-                      class="table__side"
-                      :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
-                    />
-                    <span class="num card__pair">{{ trade.pair }}</span>
-                    <span v-if="trade.is_open" class="chip chip--accent">{{
-                      t('trades.open')
-                    }}</span>
-                  </div>
-                  <span class="spacer" />
-                  <span
-                    class="num card__pnl"
-                    :class="format.toneClass(trade.profit_ratio ?? trade.close_profit)"
-                  >
-                    {{
-                      format.signedMoney(trade.profit_abs ?? trade.close_profit_abs ?? null, stake)
-                    }}
-                    <small>{{ format.ratio(trade.profit_ratio ?? trade.close_profit) }}</small>
-                  </span>
-                </div>
-                <div class="card__row small muted">
-                  <SideBadge :is-short="trade.is_short" />
-                  <span class="num">
-                    {{ format.price(trade.open_rate) }} →
-                    {{ format.price(trade.current_rate ?? trade.close_rate ?? null) }}
-                  </span>
-                  <span class="spacer" />
-                  <span class="num">{{ format.duration(durationOf(trade)) }}</span>
-                </div>
-              </li>
-            </ul>
           </div>
         </CollapseTransition>
       </div>
@@ -563,67 +443,37 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Sort field and direction share one outer frame. */
-.sort-group {
-  display: inline-flex;
-}
-
-.sort-group :deep(.filter-menu__button) {
-  border-right: 0;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.sort-group__dir {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-  border-left: 1px solid var(--line);
-}
-
-/* The card list replaces the column headers below 901px, so the sort pair lives here. */
-@media (min-width: 901px) {
-  .trades-sort {
-    display: none !important;
-  }
-}
-
 /* Five controls share the phone toolbar: it wraps rather than pushes the row off-screen. */
 .panel__actions {
+  min-width: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 /* A phone has to fit that pair on one line, so the gaps give way first. */
-@media (max-width: 720px) {
+@media not all and (min-width: 720px) {
   .panel__actions {
     gap: var(--sp-1);
   }
-}
-
-.sort {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: none;
-  border: 0;
-  padding: 0;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
 }
 
 .trade-filter-content {
   min-width: 0;
 }
 
-@media (max-width: 900px) {
-  .panel__head {
-    flex-wrap: wrap;
-  }
-
+@container table-layout (max-width: 799.98px) {
   .panel__actions {
     width: 100%;
     margin-left: 0;
+  }
+}
+
+@supports not (container-type: inline-size) {
+  @media (max-width: 900px) {
+    .panel__actions {
+      width: 100%;
+      margin-left: 0;
+    }
   }
 }
 </style>

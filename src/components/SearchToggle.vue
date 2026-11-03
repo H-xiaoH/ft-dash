@@ -162,7 +162,7 @@ function onKeydown(event: KeyboardEvent) {
   background: var(--ink-700);
 }
 
-@media (max-width: 720px) {
+@media not all and (min-width: 720px) {
   .search-toggle__input {
     width: 108px;
   }

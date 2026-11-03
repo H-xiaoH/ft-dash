@@ -84,7 +84,7 @@ test('a horizontal swipe on trade results stays a page navigation', async ({ pag
   await page.goto('/#/trades?filter=closed')
 
   const tabs = livePage(page).locator('.seg__item')
-  const cardSelector = '.page-track > :not(.page-neighbor) .card--tappable'
+  const cardSelector = '.page-track > :not(.page-neighbor) tbody tr'
   await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator(cardSelector).first()).toBeVisible()
 
@@ -124,13 +124,13 @@ test('outcome filter narrows the list to profitable or losing trades', async ({ 
   await expect(rows).toHaveCount(4)
 })
 
-test('a phone sorts through the toolbar, the way the desktop headers do', async ({ page }) => {
+test('trade sorting uses the same toolbar on phone and desktop', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  const cards = livePage(page).locator('.card')
-  const firstPair = () => cards.first().locator('.card__pair').textContent()
+  const rows = livePage(page).locator('tbody tr')
+  const firstPair = () => rows.first().locator('.table__pair > .num').textContent()
 
   // Default order is newest first, so the still-open position leads.
-  await expect(cards).toHaveCount(5)
+  await expect(rows).toHaveCount(5)
   expect(await firstPair()).toBe('OPEN/USDT')
 
   const sortMenu = livePage(page).locator('.filter-menu__button', { hasText: '排序' })
@@ -149,29 +149,32 @@ test('a phone sorts through the toolbar, the way the desktop headers do', async 
   expect(await overflow()).toBeLessThanOrEqual(1)
   await page.setViewportSize({ width: 390, height: 844 })
 
-  // Same rule as the headers: a new field starts at its own natural direction.
+  // A new field starts at its own natural direction.
   await sortMenu.click()
   await page.locator('.filter-menu__item', { hasText: '盈亏' }).click()
   expect(await firstPair()).toBe('AAA/USDT')
-  await expect(cards.first()).toContainText('0.8000')
-  await expect(cards.last()).toContainText('-0.2000')
+  await expect(rows.first()).toContainText('0.8000')
+  await expect(rows.last()).toContainText('-0.2000')
 
   // The arrow flips the order without reopening the menu.
   await livePage(page).getByRole('button', { name: '改为升序' }).click()
   await expect(livePage(page).getByRole('button', { name: '改为降序' })).toBeVisible()
-  await expect(cards.first()).toContainText('-0.2000')
+  await expect(rows.first()).toContainText('-0.2000')
   expect(await firstPair()).toBe('AAA/USDT')
 
-  // Wherever the card list replaces the headers (901px and below) the toolbar pair is there…
+  // The foldable-width layout shows the compact table and keeps the same ordering.
   await page.setViewportSize({ width: 800, height: 844 })
   await expect(sortMenu).toBeVisible()
-  await expect(livePage(page).locator('.card').first()).toBeVisible()
+  await expect(livePage(page).locator('tbody tr').first()).toBeVisible()
 
-  // …and it steps aside only where the column headers take over again.
+  // The desktop table uses the same toolbar and plain headers.
   await page.setViewportSize({ width: 1280, height: 900 })
-  await expect(livePage(page).locator('table tbody tr').first()).toBeVisible()
-  await expect(sortMenu).toBeHidden()
-  await expect(livePage(page).getByRole('button', { name: '改为降序' })).toBeHidden()
+  const firstRow = livePage(page).locator('table tbody tr').first()
+  await expect(firstRow).toBeVisible()
+  await expect(firstRow).toContainText('-0.2000')
+  await expect(sortMenu).toBeVisible()
+  await expect(livePage(page).getByRole('button', { name: '改为降序' })).toBeVisible()
+  await expect(livePage(page).locator('thead button')).toHaveCount(0)
 })
 
 test('search expands on demand and clears when collapsed', async ({ page }) => {

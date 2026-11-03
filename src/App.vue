@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterView, useRoute, useRouter } from 'vue-router'
+import AppIcon from '@/components/AppIcon.vue'
 import AppNavigation from '@/components/AppNavigation.vue'
 import GlobalNotices from '@/components/GlobalNotices.vue'
 import StatusStrip from '@/components/StatusStrip.vue'
@@ -404,7 +405,11 @@ watch(
       :class="`toast--${toast.tone}`"
       @click="dismissToast(toast.id)"
     >
-      {{ toast.message }}
+      <AppIcon
+        class="toast__icon"
+        :name="toast.tone === 'good' ? 'check' : toast.tone === 'bad' ? 'alert' : 'info'"
+      />
+      <span>{{ toast.message }}</span>
       <!-- The countdown itself: same length as the dismissal that is already scheduled. -->
       <span
         class="toast__timer"

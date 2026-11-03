@@ -831,6 +831,9 @@
 
 .toast {
   position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
   /* Keeps the countdown bar inside the rounded corners. */
   overflow: hidden;
   background: var(--ink-800);
@@ -842,6 +845,20 @@
   overflow-wrap: anywhere;
   font-size: var(--fs-base);
   box-shadow: 0 12px 30px rgb(0 0 0 / 45%);
+}
+
+.toast__icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-3);
+}
+
+.toast--good .toast__icon {
+  color: var(--long);
+}
+
+.toast--bad .toast__icon {
+  color: var(--short);
 }
 
 /*
@@ -956,7 +973,7 @@
   gap: var(--sp-4);
 }
 
-@media (max-width: 720px) {
+@media not all and (min-width: 720px) {
   .table th,
   .table td {
     padding: 6px var(--sp-2);
@@ -1052,7 +1069,15 @@
   display: none !important;
 }
 
-@media (max-width: 900px) {
+.responsive-table {
+  container: table-layout / inline-size;
+}
+
+.responsive-table--short {
+  container-name: short-table-layout;
+}
+
+@container table-layout (max-width: 799.98px) {
   .u-mobile-only {
     display: block;
   }
@@ -1062,12 +1087,111 @@
   }
 }
 
-@media (max-width: 720px) {
+@container short-table-layout (max-width: 619.98px) {
+  .u-mobile-only {
+    display: block;
+  }
+
+  .u-desktop-only {
+    display: none !important;
+  }
+}
+
+/* iOS Safari 15.5 predates container queries. */
+@supports not (container-type: inline-size) {
+  @media (max-width: 900px) {
+    .u-mobile-only {
+      display: block;
+    }
+
+    .u-desktop-only {
+      display: none !important;
+    }
+  }
+}
+
+@media not all and (min-width: 720px) {
   .u-hide-sm {
     display: none !important;
   }
 
   .u-inline-sm {
     display: inline-flex !important;
+  }
+}
+
+/* Trade lists add columns in priority order as the table container widens. */
+.progressive-table {
+  container: progressive-columns / inline-size;
+}
+
+.progressive-table :is(th, td) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.progressive-table .table__pair {
+  flex-wrap: wrap;
+}
+
+.progressive-table :is(.col-extra-1, .col-extra-2, .col-extra-3, .col-extra-4) {
+  display: none;
+}
+
+@container progressive-columns (min-width: 470px) {
+  .progressive-table .col-extra-1 {
+    display: table-cell;
+  }
+}
+
+@container progressive-columns (min-width: 590px) {
+  .progressive-table .col-extra-2 {
+    display: table-cell;
+  }
+}
+
+@container progressive-columns (min-width: 740px) {
+  .progressive-table .col-extra-3 {
+    display: table-cell;
+  }
+}
+
+@container progressive-columns (min-width: 870px) {
+  .progressive-table .col-extra-4 {
+    display: table-cell;
+  }
+
+  .progressive-table .progressive-side {
+    display: none;
+  }
+}
+
+@supports not (container-type: inline-size) {
+  @media (min-width: 594px) {
+    .progressive-table .col-extra-1 {
+      display: table-cell;
+    }
+  }
+
+  @media (min-width: 714px) {
+    .progressive-table .col-extra-2 {
+      display: table-cell;
+    }
+  }
+
+  @media (min-width: 864px) {
+    .progressive-table .col-extra-3 {
+      display: table-cell;
+    }
+  }
+
+  @media (min-width: 994px) {
+    .progressive-table .col-extra-4 {
+      display: table-cell;
+    }
+
+    .progressive-table .progressive-side {
+      display: none;
+    }
   }
 }

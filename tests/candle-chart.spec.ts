@@ -214,3 +214,86 @@ describe('candle chart marks', () => {
     expect(triangles(wrapper)).toEqual([])
   })
 })
+
+it('zooms around the pointer, keeps marks aligned and resets to the full range', async () => {
+  const wrapper = mountWithMarks([
+    { index: 0, side: 'buy', kind: 'signal' },
+    { index: 38, side: 'sell', kind: 'signal' },
+  ])
+  vi.spyOn(wrapper.get('.candles').element, 'getBoundingClientRect').mockReturnValue({
+    left: 0,
+    width: 600,
+  } as DOMRect)
+  const plot = wrapper.get('svg')
+  plot.element.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, clientX: 530 }))
+  await wrapper.vm.$nextTick()
+  const count = wrapper.findAll('.candles__candle').length
+  expect(count).toBeLessThan(40)
+  const [sell] = triangles(wrapper)
+  expect(sell.side).toBe('sell')
+  expect(sell.apex[0]).toBeCloseTo(wick(wrapper, count - 2).x, 1)
+
+  const range = wrapper.get('input[type=range]')
+  await range.setValue('0')
+  expect(wrapper.findAll('.candles__candle')).toHaveLength(count)
+  expect(triangles(wrapper).map((mark) => mark.side)).toEqual(['buy'])
+
+  await plot.trigger('dblclick')
+  expect(range.attributes('disabled')).toBeDefined()
+  expect(wrapper.findAll('.candles__candle')).toHaveLength(40)
+  expect(triangles(wrapper)).toHaveLength(2)
+})
+
+it('pinches around two fingers and pans across the loaded candles', async () => {
+  const wrapper = mountWithMarks([{ index: 5, side: 'buy', kind: 'signal' }])
+  vi.spyOn(wrapper.get('.candles').element, 'getBoundingClientRect').mockReturnValue({
+    left: 0,
+    width: 600,
+  } as DOMRect)
+  const svg = wrapper.get('svg').element
+  function pointer(type: string, pointerId: number, clientX: number) {
+    const event = new MouseEvent(type, { clientX })
+    Object.defineProperties(event, {
+      pointerId: { value: pointerId },
+      pointerType: { value: 'touch' },
+    })
+    svg.dispatchEvent(event)
+  }
+
+  pointer('pointerdown', 1, 200)
+  pointer('pointerdown', 2, 350)
+  pointer('pointermove', 2, 500)
+  pointer('pointerup', 2, 500)
+  await wrapper.vm.$nextTick()
+  expect(wrapper.findAll('.candles__candle')).toHaveLength(20)
+  expect(triangles(wrapper)).toHaveLength(0)
+
+  pointer('pointermove', 1, 470)
+  pointer('pointerup', 1, 470)
+  await wrapper.vm.$nextTick()
+  expect(wrapper.findAll('.candles__candle')).toHaveLength(20)
+  expect(triangles(wrapper)).toHaveLength(1)
+})
+
+it('rescales prices by dragging the axis and restores autoscale on double click', async () => {
+  const wrapper = mountChart(null)
+  const axis = wrapper.get('.candles__price-axis')
+  await wrapper.vm.$nextTick()
+
+  const before = wick(wrapper, 0)
+  function pointer(type: string, clientY: number) {
+    const event = new MouseEvent(type, { clientY })
+    Object.defineProperty(event, 'pointerId', { value: 1 })
+    axis.element.dispatchEvent(event)
+  }
+  pointer('pointerdown', 150)
+  pointer('pointermove', 95)
+  pointer('pointerup', 95)
+  await wrapper.vm.$nextTick()
+  const after = wick(wrapper, 0)
+  expect(after.bottom - after.top).toBeGreaterThan(before.bottom - before.top)
+  expect(after.x).toBe(before.x)
+
+  await axis.trigger('dblclick')
+  expect(wick(wrapper, 0)).toEqual(before)
+})

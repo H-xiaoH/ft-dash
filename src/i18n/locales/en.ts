@@ -129,7 +129,6 @@ export default {
   dashboard: {
     noPositions: 'No open positions.',
     recentTrades: 'Recently closed',
-    dailyPnl: 'Daily P&L',
     viewAll: 'View all',
     heartbeat: 'Heartbeat',
   },
@@ -211,6 +210,8 @@ export default {
     locks: 'Locks',
     pair: 'Pair',
     candleChart: 'Candles',
+    candleRange: 'Visible candle range',
+    priceScale: 'Price scale (drag to zoom, double-click to reset)',
     noCandles: 'No candle data available (pair may be outside the whitelist or data is missing).',
     buySignals: 'Buy signals',
     sellSignals: 'Sell signals',

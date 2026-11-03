@@ -400,7 +400,7 @@ for (const [target, direction] of [
 
     if (direction === -1) {
       await page.goto('/#/trades')
-      await expect(livePage(page).locator('.seg')).toBeVisible()
+      await expect(livePage(page).locator('.seg', { hasText: '全部交易' })).toBeVisible()
       await expect(page.locator('.page-enter-active,.page-leave-active')).toHaveCount(0)
     }
 

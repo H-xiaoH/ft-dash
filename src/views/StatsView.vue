@@ -1,16 +1,12 @@
 <script setup lang="ts">
-import CollapseTransition from '@/components/CollapseTransition.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
-import BarChart from '@/components/BarChart.vue'
 import MetricTile from '@/components/MetricTile.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
-import SortHeader from '@/components/SortHeader.vue'
-import type { BarItem } from '@/components/charts'
+import SortMenu from '@/components/SortMenu.vue'
+import type { FilterOption } from '@/components/FilterMenu.vue'
 import { useFormat } from '@/composables/useFormat'
-import { useChartHeight } from '@/composables/useChartHeight'
-import { useSegBlock } from '@/composables/useSegBlock'
 import { hideFreqtradeSentinel, toNumber, type Numberish } from '@/lib/format'
 import { RATIO_BANDS, ratioTone, type RatioKey } from '@/lib/ratios'
 import { buildPairStats, type PairStats } from '@/lib/stats'
@@ -18,7 +14,6 @@ import RatioGuide from '@/components/RatioGuide.vue'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
 
-type Period = 'daily' | 'weekly' | 'monthly'
 type SortKey =
   'name' | 'count' | 'winRate' | 'profitAbs' | 'avgDuration' | 'fees' | 'volume' | 'lastTrade'
 
@@ -27,21 +22,9 @@ const format = useFormat()
 const bot = useBotStore()
 const settings = useSettingsStore()
 
-const period = ref<Period>('daily')
 const search = ref('')
-/** The block behind the period tabs, which slides to whichever one is active. */
-const periodSeg = ref<HTMLElement | null>(null)
-const { blockStyle: periodBlockStyle, blockReady: periodBlockReady } = useSegBlock(
-  periodSeg,
-  () => period.value,
-)
 const sortKey = ref<SortKey>('profitAbs')
 const sortDir = ref<'asc' | 'desc'>('desc')
-const periodChartHeight = useChartHeight(140, 0.19, 220)
-/** The period tables list exactly as many rows as the chart draws bars. */
-const PERIOD_ROWS = 30
-/** The date rows are the detail behind the chart: they start folded away. */
-const periodRowsOpen = ref(false)
 /** Paged in the browser like the trade list; the size is a setting (default 10). */
 const pageSize = computed(() => settings.pairTablePageSize)
 
@@ -115,33 +98,24 @@ watch(pairTotalPages, (max) => {
   if (pairPage.value > max) pairPage.value = max
 })
 
-function toggleSort(key: SortKey) {
-  if (sortKey.value === key) {
-    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
-    return
-  }
-  sortKey.value = key
-  sortDir.value = key === 'name' ? 'asc' : 'desc'
-}
-
-const periodData = computed(() => {
-  const source =
-    period.value === 'daily' ? bot.daily : period.value === 'weekly' ? bot.weekly : bot.monthly
-  return source?.data ?? []
+const sortOptions = computed<FilterOption<SortKey>[]>(() => [
+  { value: 'name', label: t('stats.name') },
+  { value: 'count', label: t('stats.count') },
+  { value: 'winRate', label: t('stats.winRate') },
+  { value: 'profitAbs', label: t('stats.pairProfit') },
+  { value: 'avgDuration', label: t('kpi.avgDuration') },
+  { value: 'fees', label: t('trades.fees') },
+  { value: 'volume', label: t('kpi.tradingVolume') },
+  { value: 'lastTrade', label: t('stats.lastTrade') },
+])
+const sortField = computed<SortKey>({
+  get: () => sortKey.value,
+  set(key) {
+    if (key === sortKey.value) return
+    sortKey.value = key
+    sortDir.value = key === 'name' ? 'asc' : 'desc'
+  },
 })
-
-const periodBars = computed<BarItem[]>(() =>
-  [...periodData.value]
-    .reverse()
-    .slice(-30)
-    .map((entry) => ({
-      label: entry.date.slice(5),
-      tooltip: format.day(entry.date),
-      value: entry.abs_profit,
-      display: format.signedMoney(entry.abs_profit, stake.value),
-      sub: `${entry.trade_count} ${t('stats.tradeCount')}`,
-    })),
-)
 
 const summary = computed(() => bot.profit)
 const openCount = computed(() => bot.count?.current ?? bot.openTrades.length)
@@ -240,87 +214,35 @@ function drawdownPercent(value: number | null | undefined) {
       <div class="panel__head">
         <span class="panel__title">{{ t('stats.pairs') }}</span>
         <div class="panel__actions row">
+          <SortMenu v-model="sortField" v-model:direction="sortDir" :options="sortOptions" />
           <SearchToggle v-model="search" :placeholder="t('market.searchPairs')" />
         </div>
       </div>
       <div class="panel__body panel__body--flush">
         <div v-if="!rows.length" class="empty">{{ t('stats.noData') }}</div>
-        <div v-else class="table-wrap u-desktop-only">
+        <div v-else class="table-wrap progressive-table">
           <table class="table">
             <thead>
               <tr>
-                <th scope="col">
-                  <SortHeader
-                    :label="t('stats.name')"
-                    :active="sortKey === 'name'"
-                    :dir="sortDir"
-                    @toggle="toggleSort('name')"
-                  />
-                </th>
-                <th scope="col">
-                  <SortHeader
-                    :label="t('stats.count')"
-                    :active="sortKey === 'count'"
-                    :dir="sortDir"
-                    @toggle="toggleSort('count')"
-                  />
-                </th>
-                <th scope="col" class="num">
-                  <SortHeader
-                    :label="t('stats.winRate')"
-                    :active="sortKey === 'winRate'"
-                    :dir="sortDir"
-                    @toggle="toggleSort('winRate')"
-                  />
-                </th>
-                <th scope="col" class="num">
-                  <SortHeader
-                    :label="t('stats.pairProfit')"
-                    :active="sortKey === 'profitAbs'"
-                    :dir="sortDir"
-                    @toggle="toggleSort('profitAbs')"
-                  />
-                </th>
-                <th scope="col" class="num">
-                  <SortHeader
-                    :label="t('kpi.avgDuration')"
-                    :active="sortKey === 'avgDuration'"
-                    :dir="sortDir"
-                    @toggle="toggleSort('avgDuration')"
-                  />
-                </th>
-                <th scope="col" class="num">
-                  <SortHeader
-                    :label="t('trades.fees')"
-                    :active="sortKey === 'fees'"
-                    :dir="sortDir"
-                    @toggle="toggleSort('fees')"
-                  />
-                </th>
-                <th scope="col" class="num">
-                  <SortHeader
-                    :label="t('kpi.tradingVolume')"
-                    :active="sortKey === 'volume'"
-                    :dir="sortDir"
-                    @toggle="toggleSort('volume')"
-                  />
-                </th>
-                <th scope="col" class="num">
-                  <SortHeader
-                    :label="t('stats.lastTrade')"
-                    :active="sortKey === 'lastTrade'"
-                    :dir="sortDir"
-                    @toggle="toggleSort('lastTrade')"
-                  />
-                </th>
+                <th scope="col">{{ t('stats.name') }}</th>
+                <th scope="col" class="col-extra-1">{{ t('stats.count') }}</th>
+                <th scope="col" class="num">{{ t('stats.winRate') }}</th>
+                <th scope="col" class="num">{{ t('stats.pairProfit') }}</th>
+                <th scope="col" class="num col-extra-2">{{ t('kpi.avgDuration') }}</th>
+                <th scope="col" class="num col-extra-3">{{ t('trades.fees') }}</th>
+                <th scope="col" class="num col-extra-3">{{ t('kpi.tradingVolume') }}</th>
+                <th scope="col" class="num col-extra-4">{{ t('stats.lastTrade') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="row in pagedPairs" :key="row.pair">
                 <td>{{ row.pair }}</td>
-                <td>{{ row.count }}</td>
+                <td class="col-extra-1">{{ row.count }}</td>
                 <td class="num" :class="winRateTone(row.winRate)">
                   {{ format.percent(row.winRate) }}
+                  <div class="small muted pair-count-inline">
+                    {{ t('stats.count') }} {{ row.count }}
+                  </div>
                   <div v-if="row.lastTrade !== null" class="small muted">
                     <span class="u-pos">{{ row.wins }}</span> /
                     <span class="u-neg">{{ row.losses }}</span>
@@ -329,39 +251,14 @@ function drawdownPercent(value: number | null | undefined) {
                 <td class="num" :class="format.toneClass(row.profitAbs)">
                   {{ format.signedMoney(row.profitAbs, stake) }}
                 </td>
-                <td class="num">{{ format.duration(row.avgDuration) }}</td>
-                <td class="num">{{ format.money(row.fees, stake, 4) }}</td>
-                <td class="num">{{ format.money(row.volume, stake) }}</td>
-                <td class="num">{{ format.day(row.lastTrade) }}</td>
+                <td class="num col-extra-2">{{ format.duration(row.avgDuration) }}</td>
+                <td class="num col-extra-3">{{ format.money(row.fees, stake, 4) }}</td>
+                <td class="num col-extra-3">{{ format.money(row.volume, stake) }}</td>
+                <td class="num col-extra-4">{{ format.day(row.lastTrade) }}</td>
               </tr>
             </tbody>
           </table>
         </div>
-
-        <!-- Narrow screens get cards instead of a horizontally scrolling table. -->
-        <ul v-if="pagedPairs.length" class="cards u-mobile-only">
-          <li v-for="row in pagedPairs" :key="row.pair" class="card">
-            <div class="card__row">
-              <span class="num card__pair">{{ row.pair }}</span>
-              <span class="spacer" />
-              <span class="num card__pnl" :class="format.toneClass(row.profitAbs)">
-                {{ format.signedMoney(row.profitAbs, stake) }}
-              </span>
-            </div>
-            <div class="card__row small muted">
-              <span>{{ t('stats.count') }} {{ row.count }}</span>
-              <span>{{ t('stats.winRate') }} {{ format.percent(row.winRate) }}</span>
-              <span class="spacer" />
-              <span>{{ format.duration(row.avgDuration) }}</span>
-            </div>
-            <div class="card__row small muted">
-              <span>{{ t('trades.fees') }} {{ format.money(row.fees, stake, 4) }}</span>
-              <span>{{ t('kpi.tradingVolume') }} {{ format.money(row.volume, stake) }}</span>
-              <span class="spacer" />
-              <span>{{ format.day(row.lastTrade) }}</span>
-            </div>
-          </li>
-        </ul>
       </div>
 
       <div class="panel__head panel__pager">
@@ -396,113 +293,6 @@ function drawdownPercent(value: number | null | undefined) {
 
     <section class="panel">
       <div class="panel__head">
-        <span class="panel__title">{{ t('stats.period') }}</span>
-        <div ref="periodSeg" class="seg">
-          <button
-            type="button"
-            class="seg__item"
-            :aria-pressed="period === 'daily'"
-            @click="period = 'daily'"
-          >
-            {{ t('stats.daily') }}
-          </button>
-          <button
-            type="button"
-            class="seg__item"
-            :aria-pressed="period === 'weekly'"
-            @click="period = 'weekly'"
-          >
-            {{ t('stats.weekly') }}
-          </button>
-          <button
-            type="button"
-            class="seg__item"
-            :aria-pressed="period === 'monthly'"
-            @click="period = 'monthly'"
-          >
-            {{ t('stats.monthly') }}
-          </button>
-          <span
-            class="seg__block"
-            :class="{ 'is-ready': periodBlockReady }"
-            :style="periodBlockStyle"
-          />
-        </div>
-        <div class="panel__actions">
-          <button
-            type="button"
-            class="btn btn--sm"
-            :aria-expanded="periodRowsOpen"
-            :aria-label="t(periodRowsOpen ? 'stats.hidePeriods' : 'stats.showPeriods')"
-            :title="t(periodRowsOpen ? 'stats.hidePeriods' : 'stats.showPeriods')"
-            @click="periodRowsOpen = !periodRowsOpen"
-          >
-            <AppIcon :name="periodRowsOpen ? 'chevronUp' : 'chevronDown'" />
-            {{ t(periodRowsOpen ? 'stats.hidePeriods' : 'stats.showPeriods') }}
-          </button>
-        </div>
-      </div>
-      <div class="panel__body">
-        <BarChart
-          v-if="periodBars.length"
-          :items="periodBars"
-          :height="periodChartHeight"
-          :axis-format="(value: number) => format.money(value, '', 2)"
-        />
-        <p v-else class="empty">{{ t('stats.noData') }}</p>
-      </div>
-      <CollapseTransition>
-        <div v-if="periodRowsOpen" class="panel__body panel__body--flush">
-          <div class="table-wrap u-desktop-only">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th scope="col">{{ t('stats.date') }}</th>
-                  <th scope="col" class="num">{{ t('stats.profitAbs') }}</th>
-                  <th scope="col" class="num">{{ t('stats.relProfit') }}</th>
-                  <th scope="col" class="num">{{ t('stats.tradeCount') }}</th>
-                  <th scope="col" class="num">{{ t('stats.startingBalance') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="entry in periodData.slice(0, PERIOD_ROWS)" :key="entry.date">
-                  <td>{{ format.day(entry.date) }}</td>
-                  <td class="num" :class="format.toneClass(entry.abs_profit)">
-                    {{ format.signedMoney(entry.abs_profit, stake) }}
-                  </td>
-                  <td class="num" :class="format.toneClass(entry.rel_profit)">
-                    {{ format.ratio(entry.rel_profit) }}
-                  </td>
-                  <td class="num">{{ entry.trade_count }}</td>
-                  <td class="num">{{ format.money(entry.starting_balance, stake) }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <ul class="cards u-mobile-only">
-            <li v-for="entry in periodData.slice(0, PERIOD_ROWS)" :key="entry.date" class="card">
-              <div class="card__row">
-                <span class="num">{{ format.day(entry.date) }}</span>
-                <span class="spacer" />
-                <span class="num" :class="format.toneClass(entry.abs_profit)">
-                  {{ format.signedMoney(entry.abs_profit, stake) }}
-                </span>
-              </div>
-              <div class="card__row small muted">
-                <span>{{ format.ratio(entry.rel_profit) }}</span>
-                <span>{{ t('stats.tradeCount') }} {{ entry.trade_count }}</span>
-                <span class="spacer" />
-                <span>{{ format.money(entry.starting_balance, stake) }}</span>
-              </div>
-            </li>
-          </ul>
-        </div>
-      </CollapseTransition>
-    </section>
-
-    <section class="panel">
-      <div class="panel__head">
         <span class="panel__title">{{ t('stats.durations') }}</span>
       </div>
       <div class="panel__body">
@@ -525,4 +315,18 @@ function drawdownPercent(value: number | null | undefined) {
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+@container progressive-columns (min-width: 470px) {
+  .pair-count-inline {
+    display: none;
+  }
+}
+
+@supports not (container-type: inline-size) {
+  @media (min-width: 594px) {
+    .pair-count-inline {
+      display: none;
+    }
+  }
+}
+</style>
