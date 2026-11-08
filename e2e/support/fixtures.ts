@@ -53,8 +53,10 @@ function trade(id: number, pair: string, overrides: Record<string, unknown> = {}
     timeframe: '5m',
     fee_open: 0.0005,
     fee_open_cost: 0.005,
+    fee_open_currency: 'USDT',
     fee_close: 0.0005,
     fee_close_cost: 0.005,
+    fee_close_currency: 'USDT',
     open_date: new Date(open).toISOString(),
     open_timestamp: open,
     open_rate: 1,
@@ -317,7 +319,17 @@ export const RESPONSES: Record<string, unknown> = {
     exit_reasons: {
       exit_signal: { wins: 3, losses: 1, draws: 0 },
     },
-    durations: { wins: 3_600_000, losses: 1_800_000, draws: null },
+    durations: { wins: 3600, losses: 1800, draws: null },
+  },
+  historic_balance: {
+    columns: ['date', '__date_ts', 'total_quote'],
+    data: Array.from({ length: 20 }, (_, index) => [
+      new Date(NOW - index * DAY).toISOString(),
+      NOW - index * DAY,
+      100 - index,
+    ]),
+    length: 20,
+    capture_start_ts: NOW - 19 * DAY,
   },
   daily: { data: periodRows(20, 1), fiat_display_currency: 'USD', stake_currency: 'USDT' },
   weekly: { data: periodRows(8, 7), fiat_display_currency: 'USD', stake_currency: 'USDT' },
@@ -366,6 +378,7 @@ function bodyFor(url: URL, method: string): unknown | undefined {
 export async function mockApi(
   page: Page,
   options: {
+    apiPrefix?: string
     rejectAuth?: boolean
     tradeCount?: number
     pairCount?: number
@@ -463,6 +476,9 @@ export async function mockApi(
     async (route: Route) => {
       const request = route.request()
       const url = new URL(request.url())
+      if (options.apiPrefix && url.pathname.startsWith(`${options.apiPrefix}/api/v1/`)) {
+        url.pathname = url.pathname.slice(options.apiPrefix.length)
+      }
       const path = url.pathname.replace('/api/v1/', '')
       calls.push(path)
 
@@ -547,7 +563,7 @@ export async function mockApi(
  * be scoped to the one on screen, not to the whole document.
  */
 export function livePage(page: Page) {
-  return page.locator('.page-track > :not(.page-neighbor)')
+  return page.locator('.page-scroll:not([inert])')
 }
 
 /**
@@ -555,26 +571,28 @@ export function livePage(page: Page) {
  * asserted through a class: the whole point of the block is that it lands on the widest
  * label as squarely as on the narrowest.
  */
-export async function segBlockMatches(seg: Locator) {
-  return seg.evaluate((element) => {
-    const block = element.querySelector('.seg__block') as HTMLElement | null
-    const active = element.querySelector('.seg__item[aria-pressed="true"]') as HTMLElement | null
-    if (!block || !active) return false
-    // Painted boxes, not offsets: the block is moved by a transform, which `offsetLeft` ignores.
-    const drawn = block.getBoundingClientRect()
-    const wanted = active.getBoundingClientRect()
-    return Math.abs(drawn.left - wanted.left) <= 1 && Math.abs(drawn.width - wanted.width) <= 1
-  })
+export async function selectionMatches(seg: Locator) {
+  const buttons = seg.locator('.v-btn')
+  return (
+    (await buttons.count()) > 0 &&
+    (await seg.locator('.v-btn--active[aria-pressed="true"]').count()) === 1
+  )
 }
 
-/** The page held on the track at a slot: 1 is the page just to the right of this one. */
+/** Adjacent real Swiper slide, including its viewport and inert page content. */
 export function heldSlot(page: Page, slot: number) {
-  return page.locator(`.page-neighbor[data-slot="${slot}"]`)
+  return page.locator(
+    slot > 0
+      ? '.swiper-slide-active + .swiper-slide'
+      : slot < 0
+        ? '.swiper-slide:has(+ .swiper-slide-active)'
+        : '.swiper-slide-active',
+  )
 }
 
 /** Types the fake credentials into the connect screen and waits for the shell. */
-export async function connect(page: Page) {
-  await page.locator('input[inputmode="url"]').fill(API_BASE)
+export async function connect(page: Page, baseUrl = API_BASE) {
+  await page.locator('input[inputmode="url"]').fill(baseUrl)
   await page.locator('input[autocomplete="username"]').fill(USERNAME)
   await page.locator('input[type="password"]').fill(PASSWORD)
   await page.locator('.connect__submit').click()
@@ -587,9 +605,9 @@ export async function connect(page: Page) {
 export async function enableWriteAccess(page: Page) {
   await page.goto('/#/settings')
   const toggle = page
-    .locator('.page-track > :not(.page-neighbor)')
-    .locator('.switch', { hasText: '后端控制' })
-  await toggle.locator('.switch__track').click()
+    .locator('.page-scroll:not([inert])')
+    .locator('.v-switch', { hasText: '后端控制' })
+  await toggle.locator('.v-selection-control__input').click()
   await page.getByRole('dialog').getByRole('button', { name: '我了解风险，开启控制功能' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
 }
@@ -608,4 +626,5 @@ export const ROUTES: { path: string; marker: string }[] = [
   { path: '#/system', marker: '心跳延迟' },
   // A marker that is on screen without opening anything: adding a bot lives in the manager.
   { path: '#/settings', marker: '后端控制' },
+  { path: '#/more', marker: '更多' },
 ]

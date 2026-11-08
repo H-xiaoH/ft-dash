@@ -9,8 +9,8 @@
 - 纯前端：不加后端、不加第三方 API；Service Worker 只缓存应用外壳，`/api/` 一律走网络。
 - 写操作必须同时满足 `allowControls` 与 `controlsAcknowledged`；危险操作用交易对名二次确认。
 - 文案同时进 `src/i18n/locales/zh-CN.ts` 与 `en.ts`，键位保持一致（`tests/i18n.spec.ts` 会拦）。
-- 图表是手写 SVG，不引图表库。
-- `inert` 无 polyfill，浏览器下限 iOS Safari 15.5。
+- 基础界面采用 Vuetify 4 / MD3；周期图用 ECharts + vue-echarts，市场 K 线用 Lightweight Charts，页面切换用 Swiper Vue。
+- `inert` 无 polyfill，浏览器下限 iOS Safari 16.4。
 - 术语用 `CONTEXT.md` 的词；新概念先补词表。
 
 ## 验证 — 由便宜到贵，报「通过」必须带命令与输出

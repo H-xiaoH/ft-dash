@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
-import { ROUTES, connect, mockApi } from './support/fixtures'
+import { ROUTES, connect, livePage, mockApi } from './support/fixtures'
 
 /**
  * Automated accessibility coverage. It is a floor, not a certificate: axe finds roughly a
@@ -67,7 +67,7 @@ async function settle(page: Page) {
  * to expire on its own — clicking at that moment would race the same way.
  */
 async function dismissToasts(page: Page) {
-  const toast = page.locator('.toast')
+  const toast = page.locator('.v-snackbar--active .v-snackbar__wrapper')
   await toast
     .first()
     .waitFor({ state: 'visible', timeout: 2500 })
@@ -84,14 +84,14 @@ test.describe('accessibility', () => {
     await dismissToasts(page)
   })
 
-  test('every route is free of automated WCAG A/AA violations', async ({ page }) => {
-    for (const route of ROUTES) {
+  for (const route of ROUTES) {
+    test(`route ${route.path} is free of automated WCAG A/AA violations`, async ({ page }) => {
       await page.goto(`/${route.path}`)
-      await expect(page.locator('main')).toContainText(route.marker)
+      await expect(livePage(page)).toContainText(route.marker)
       await settle(page)
       expect(await violations(page), `${route.path}:\n`).toEqual([])
-    }
-  })
+    })
+  }
 
   test('the trade detail drawer is free of automated violations', async ({ page }) => {
     /*
@@ -100,7 +100,7 @@ test.describe('accessibility', () => {
      * while the page transition swaps views can be swallowed).
      */
     await page.goto('/#/trades?trade=1')
-    await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
+    await expect(page.locator('.trade-dialog .trade-detail')).toBeVisible()
     await settle(page)
     expect(await violations(page), 'drawer:\n').toEqual([])
   })
@@ -110,7 +110,7 @@ test.describe('accessibility (before connecting)', () => {
   test('the connect screen is free of automated violations', async ({ page }) => {
     await mockApi(page)
     await page.goto('/')
-    await expect(page.locator('.connect__card')).toBeVisible()
+    await expect(page.locator('.connect .v-card')).toBeVisible()
     await settle(page)
     expect(await violations(page), 'connect screen:\n').toEqual([])
   })

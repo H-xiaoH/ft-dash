@@ -18,50 +18,25 @@ const label = computed(() => (props.isShort ? t('trades.short') : t('trades.long
 </script>
 
 <template>
-  <span
+  <VChip
     class="side"
-    :class="isShort ? 'side--short' : 'side--long'"
+    size="x-small"
+    variant="outlined"
+    :color="isShort ? 'error' : 'success'"
     :title="label"
     :aria-label="label"
     role="img"
   >
     <AppIcon :name="isShort ? 'downRight' : 'upRight'" :size="12" />
     <span v-if="!iconOnly" class="side__label">{{ label }}</span>
-  </span>
+  </VChip>
 </template>
 
 <style scoped>
 .side {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 1px 6px;
-  border-radius: var(--r-1);
-  font-size: var(--fs-sm);
-  line-height: 1.5;
-  white-space: nowrap;
   flex: none;
 }
-
-.side--long {
-  color: var(--long);
-  border: 1px solid rgb(36 201 138 / 32%);
-}
-
-@supports (color: color-mix(in srgb, black, white)) {
-  .side--long {
-    border: 1px solid color-mix(in srgb, var(--long) 32%, transparent);
-  }
-}
-
-.side--short {
-  color: var(--short);
-  border: 1px solid rgb(255 91 91 / 32%);
-}
-
-@supports (color: color-mix(in srgb, black, white)) {
-  .side--short {
-    border: 1px solid color-mix(in srgb, var(--short) 32%, transparent);
-  }
+.side__label {
+  margin-inline-start: 3px;
 }
 </style>

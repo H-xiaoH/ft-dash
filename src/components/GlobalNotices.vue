@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import AppIcon from '@/components/AppIcon.vue'
 import { HEARTBEAT_STALE_MS, useBotStore } from '@/stores/bot'
 
 interface Notice {
@@ -27,6 +26,7 @@ const connectionMessage = computed(() => {
 const heartbeatLate = computed(
   () =>
     bot.connection === 'online' &&
+    bot.showConfig?.state !== 'stopped' &&
     bot.heartbeatAgeMs !== null &&
     bot.heartbeatAgeMs > HEARTBEAT_STALE_MS,
 )
@@ -66,19 +66,16 @@ const notices = computed<Notice[]>(() => {
     :aria-label="t('notices.title')"
     aria-live="polite"
   >
-    <div
+    <VAlert
       v-for="notice in notices"
       :key="notice.id"
-      class="banner global-notices__item"
-      :class="`banner--${notice.tone}`"
+      :type="notice.tone === 'bad' ? 'error' : 'warning'"
+      variant="tonal"
+      :title="notice.title"
+      :text="notice.message"
+      class="global-notices__item"
       role="status"
-    >
-      <AppIcon name="alert" :size="18" />
-      <div class="banner__body">
-        <div class="banner__title">{{ notice.title }}</div>
-        <div class="banner__message">{{ notice.message }}</div>
-      </div>
-    </div>
+    />
   </section>
 </template>
 
@@ -91,9 +88,7 @@ const notices = computed<Notice[]>(() => {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  /* Panels sit inside the frame's padding *and* their page's gutter, so the banners match
-     that inset instead of the frame's, or they read as wider than the content below. */
-  padding: var(--sp-3) calc(var(--shell-pad) * 2) 0;
+  padding: var(--sp-3) var(--shell-pad) 0;
   background: var(--ink-900);
 }
 

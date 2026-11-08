@@ -1,99 +1,57 @@
 import { mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { createMemoryHistory, createRouter } from 'vue-router'
+import { h, ref } from 'vue'
+import { VLayout } from 'vuetify/components/VLayout'
 import AppNavigation from '@/components/AppNavigation.vue'
 import { i18n } from '@/i18n'
-import { NAV_ROUTES } from '@/router'
-
-const RouterLinkStub = {
-  props: ['to'],
-  template: '<a :href="to"><slot /></a>',
-}
-
-const global = {
-  plugins: [i18n],
-  stubs: { RouterLink: RouterLinkStub },
-}
-const mountedWrappers: Array<{ unmount: () => void }> = []
-
-function mountNavigation(variant: 'rail' | 'tabbar') {
-  const wrapper = mount(AppNavigation, {
-    global,
-    props: {
-      variant,
-      activeRouteName: 'stats',
-      navIndex: 2,
-      indicatorFraction: 0.5,
-      indicatorTransition: 'transform 180ms ease-out',
-      dragging: true,
-    },
+import { NAV_ROUTES, MORE_ROUTE } from '@/router'
+const { wide } = vi.hoisted(() => ({ wide: { value: false } }))
+vi.mock('@vueuse/core', async (original) => ({
+  ...(await original<typeof import('@vueuse/core')>()),
+  useMediaQuery: () => ref(wide.value),
+}))
+async function render(variant: 'rail' | 'tabbar', path = '/stats') {
+  wide.value = variant === 'rail'
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [...NAV_ROUTES, MORE_ROUTE].map((r) => ({
+      path: r.path,
+      name: r.name,
+      component: { template: '<div />' },
+    })),
   })
-  mountedWrappers.push(wrapper)
+  await router.push(path)
+  const wrapper = mount(VLayout, {
+    slots: { default: () => h(AppNavigation, { variant }) },
+    global: { plugins: [router, i18n] },
+  })
   return wrapper
 }
-
-afterEach(() => {
-  for (const wrapper of mountedWrappers.splice(0)) wrapper.unmount()
-  document.body.innerHTML = ''
-})
-
 describe('AppNavigation', () => {
-  it('renders each navigation mode from the shared route table', () => {
-    const rail = mountNavigation('rail')
-    const tabbar = mountNavigation('tabbar')
-
-    expect(rail.findAll('.rail__item').map((item) => item.attributes('href'))).toEqual(
-      NAV_ROUTES.map((item) => item.path),
-    )
-    expect(tabbar.findAll('.tabbar__item').map((item) => item.attributes('href'))).toEqual(
-      NAV_ROUTES.map((item) => item.path),
-    )
-    expect(rail.find('.tabbar').exists()).toBe(false)
-    expect(tabbar.find('.rail').exists()).toBe(false)
+  it.each(['rail', 'tabbar'] as const)(
+    'renders shared routes and one current page in %s',
+    async (variant) => {
+      const wrapper = await render(variant)
+      const links = wrapper.findAll('a')
+      expect(links.every((a) => a.attributes('role') !== 'listitem')).toBe(true)
+      expect(links.map((a) => a.attributes('href'))).toEqual(
+        variant === 'rail'
+          ? NAV_ROUTES.map((r) => r.path)
+          : ['/', '/trades', '/stats', '/market', '/more'],
+      )
+      expect(links.filter((a) => a.attributes('aria-current') === 'page')).toHaveLength(1)
+      expect(links[2].attributes('aria-current')).toBe('page')
+    },
+  )
+  it('keeps More selected for a direct secondary route', async () => {
+    const wrapper = await render('tabbar', '/settings')
+    expect(wrapper.get('a[aria-current="page"]').attributes('href')).toBe('/more')
   })
-
-  it('marks the active route in both navigation modes', () => {
-    const rail = mountNavigation('rail')
-    const tabbar = mountNavigation('tabbar')
-    const activeRailItem = rail.findAll('.rail__item')[2]
-    const activeTabItem = tabbar.findAll('.tabbar__item')[2]
-
-    expect(activeRailItem.classes()).toContain('is-active')
-    expect(activeTabItem.classes()).toContain('is-active')
-    expect(activeRailItem.attributes('aria-current')).toBe('page')
-    expect(activeTabItem.attributes('aria-current')).toBe('page')
-    expect(rail.findAll('.rail__item').filter((item) => item.classes('is-active'))).toHaveLength(1)
-    expect(
-      tabbar.findAll('.tabbar__item').filter((item) => item.classes('is-active')),
-    ).toHaveLength(1)
-    expect(rail.findAll('.rail__item')[0].attributes('aria-current')).toBeUndefined()
-    expect(tabbar.findAll('.tabbar__item')[0].attributes('aria-current')).toBeUndefined()
-  })
-
-  it('keeps the indicators and tab lighting aligned with the dragged route', () => {
-    const rail = mountNavigation('rail')
-    const tabbar = mountNavigation('tabbar')
-    const railIndicator = rail.find('.rail__indicator').attributes('style')
-    const tabIndicator = tabbar.find('.tabbar__indicator').attributes('style')
-    const tabItems = tabbar.findAll('.tabbar__item')
-
-    expect(railIndicator).toContain('translateY(calc(2.5 * var(--rail-item)))')
-    expect(railIndicator).toContain('transition: transform 180ms ease-out')
-    expect(tabIndicator).toContain('translateX(calc(2.5 * 100%))')
-    expect(tabIndicator).toContain('transition: transform 180ms ease-out')
-    expect(tabItems[2].attributes('style')).toContain('--lit: 50%')
-    expect(tabItems[3].attributes('style')).toContain('--lit: 50%')
-    expect(tabItems[1].attributes('style')).toContain('--lit: 0%')
-    expect(tabItems[2].attributes('style')).toContain('transition: none')
-  })
-
-  it('forwards rail wheel input to the page-drag owner', async () => {
-    const wrapper = mountNavigation('rail')
+  it('forwards rail wheel input to the page owner', async () => {
+    const wrapper = await render('rail')
     const event = new WheelEvent('wheel', { deltaY: 90 })
-
-    wrapper.find('.rail').element.dispatchEvent(event)
-
-    const wheelEvent = wrapper.emitted('railWheel')?.[0]?.[0]
-    expect(wheelEvent).toBe(event)
-    expect((wheelEvent as WheelEvent).deltaY).toBe(90)
+    wrapper.get('.rail').element.dispatchEvent(event)
+    expect(wrapper.findComponent(AppNavigation).emitted('railWheel')?.[0]).toEqual([event])
   })
 })

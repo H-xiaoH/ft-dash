@@ -1,322 +1,221 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createChart, createSeriesMarkers } from 'lightweight-charts'
+import { chartApi } from './support/chart'
 import CandleChart from '@/components/CandleChart.vue'
-import type { Candle, CandleEntry, CandleFormatters } from '@/components/charts'
 import { i18n } from '@/i18n'
-import type { CandleMark } from '@/lib/candles'
 
-const formatters: CandleFormatters = { price: (value) => value.toFixed(4) }
-const global = { plugins: [i18n] }
-
-// jsdom ships no ResizeObserver; the chart only uses it to track its own width.
-beforeEach(() => {
-  vi.stubGlobal(
-    'ResizeObserver',
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    },
-  )
-})
-
-/** A flat series around `base`, so the entry line lands relative to a known range. */
-function candles(base = 1, count = 40): Candle[] {
-  return Array.from({ length: count }, (_, index) => ({
-    open: base,
-    high: base * 1.001,
-    low: base * 0.999,
-    close: base * (1 + (index % 2 ? 0.0005 : -0.0005)),
-    time: null,
-  }))
-}
-
-const mountChart = (entry: CandleEntry | null, height = 260) =>
+const candles = Array.from({ length: 40 }, (_, index) => ({
+  open: 1,
+  high: 1.001,
+  low: 0.999,
+  close: 1 + index / 10000,
+  time: null,
+}))
+const render = () =>
   mount(CandleChart, {
-    props: { candles: candles(), height, formatters, entry },
-    global,
+    props: { candles, height: 260, formatters: { price: (n) => n.toFixed(4) } },
+    global: { plugins: [i18n] },
   })
-
-const line = (wrapper: ReturnType<typeof mountChart>) => {
-  const node = wrapper.find('.candles__entry line').element as SVGLineElement
-  return {
-    x1: Number(node.getAttribute('x1')),
-    x2: Number(node.getAttribute('x2')),
-    y1: Number(node.getAttribute('y1')),
-    y2: Number(node.getAttribute('y2')),
-    stroke: node.getAttribute('stroke'),
-  }
-}
-
-describe('candle chart entry line', () => {
-  it('draws a horizontal line tagged with the floating P&L', () => {
-    const wrapper = mountChart({ price: 1, label: '+1.23', tone: 'good' })
-
-    // Horizontal: the whole point is a price level, not a marker.
-    expect(line(wrapper).y1).toBe(line(wrapper).y2)
-    expect(line(wrapper).x1).toBeLessThan(line(wrapper).x2)
-    expect(wrapper.find('.candles__entry-label').text()).toBe('+1.23')
+beforeEach(() => {
+  vi.clearAllMocks()
+  chartApi.timeScale.setVisibleLogicalRange({ from: 0, to: 39 })
+})
+describe('Lightweight Charts adapter', () => {
+  it('passes OHLC in time order and enables exchange-style gestures', () => {
+    render()
+    expect(chartApi.series.setData).toHaveBeenCalledWith(
+      candles.map((c, i) => ({
+        time: i + 1,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+      })),
+    )
+    expect(createChart).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        height: 260,
+        handleScroll: {
+          mouseWheel: false,
+          pressedMouseMove: true,
+          horzTouchDrag: true,
+          vertTouchDrag: false,
+        },
+        trackingMode: { exitMode: 0 },
+        handleScale: expect.objectContaining({
+          pinch: true,
+          mouseWheel: true,
+          axisPressedMouseMove: { price: true, time: true },
+        }),
+      }),
+    )
+    expect(createSeriesMarkers).not.toHaveBeenCalled()
   })
-
-  it('colours the line and the tag by profit and loss', () => {
-    const up = mountChart({ price: 1, label: '+1.23', tone: 'good' })
-    expect(line(up).stroke).toBe('var(--long)')
-    // The tag paints its tone through a CSS class: an SVG fill attribute loses to the
-    // shared axis rule, which is exactly the bug this replaced.
-    expect(up.find('.candles__entry-label').classes()).toContain('candles__entry-label--good')
-    expect(up.find('.candles__entry-label').attributes('fill')).toBeUndefined()
-
-    const down = mountChart({ price: 1, label: '-0.45', tone: 'bad' })
-    expect(line(down).stroke).toBe('var(--short)')
-    expect(down.find('.candles__entry-label').classes()).toContain('candles__entry-label--bad')
-
-    const unknown = mountChart({ price: 1, label: '', tone: 'flat' })
-    expect(line(unknown).stroke).toBe('var(--text-3)')
-    // No number to show, so no tag.
-    expect(unknown.find('.candles__entry-label').exists()).toBe(false)
+  it('replaces the cost price line without changing the candle range', async () => {
+    const wrapper = render()
+    chartApi.timeScale.setVisibleLogicalRange.mockClear()
+    await wrapper.setProps({ entry: { price: 100, label: '+1.23', tone: 'good' } })
+    expect(chartApi.series.createPriceLine).toHaveBeenLastCalledWith(
+      expect.objectContaining({ price: 100, title: '+1.23', color: '#81D5AA' }),
+    )
+    await wrapper.setProps({ entry: { price: 0.1, label: '-1.23', tone: 'bad' } })
+    expect(chartApi.series.removePriceLine).toHaveBeenCalledTimes(1)
+    expect(chartApi.series.createPriceLine).toHaveBeenLastCalledWith(
+      expect.objectContaining({ color: '#F2B8B5' }),
+    )
+    expect(chartApi.timeScale.setVisibleLogicalRange).not.toHaveBeenCalled()
+    await wrapper.setProps({ entry: null })
+    expect(chartApi.series.removePriceLine).toHaveBeenCalledTimes(2)
   })
-
-  it('stays out of the way when the pair has no position', () => {
-    const wrapper = mountChart(null)
-    expect(wrapper.find('.candles__entry').exists()).toBe(false)
+  it('ignores invalid cost prices', async () => {
+    const wrapper = render()
+    for (const price of [NaN, Infinity, 0, -1])
+      await wrapper.setProps({ entry: { price, label: '', tone: 'good' } })
+    expect(chartApi.series.createPriceLine).not.toHaveBeenCalled()
   })
-
-  it('widens the price range so an entry far from the candles is still visible', () => {
-    const height = 260
-    const wrapper = mountChart({ price: 1.5, label: '+1.00', tone: 'good' }, height)
-
-    // Inside the plot area rather than clamped to an edge or drawn off-canvas.
-    expect(line(wrapper).y1).toBeGreaterThan(12)
-    expect(line(wrapper).y1).toBeLessThan(height - 8)
+  it('refreshes formatted axis labels without resetting the visible candle range', async () => {
+    const wrapper = render()
+    chartApi.timeScale.setVisibleLogicalRange.mockClear()
+    const tickTime = vi.fn(() => '08:00')
+    await wrapper.setProps({
+      formatters: {
+        price: String,
+        locale: 'zh-CN',
+        timezone: 'Asia/Shanghai',
+        tickTime,
+      },
+    })
+    const options = chartApi.chart.applyOptions.mock.lastCall![0]
+    expect(options.localization.locale).toBe('zh-CN')
+    expect(options.timeScale.tickMarkFormatter(1_800_000_000, 3)).toBe('08:00')
+    expect(tickTime).toHaveBeenCalledWith(1_800_000_000_000, 'time')
+    expect(chartApi.timeScale.setVisibleLogicalRange).not.toHaveBeenCalled()
   })
-
-  it('keeps axis numbers from printing underneath the P&L tag', () => {
-    /*
-     * The tag shares the right gutter with the axis, so a label within its height has to go.
-     * A range of 1.0–2.0 puts the 25% gridline at 1.22; an entry filled exactly there would
-     * otherwise print a tick number inside the tag.
-     */
+  it('selects candles with arrow keys and restores the latest readout with Escape', async () => {
+    const wrapper = render()
+    const plot = wrapper.get('.candles__plot')
+    await plot.trigger('keydown', { key: 'ArrowLeft' })
+    expect(chartApi.chart.setCrosshairPosition).toHaveBeenLastCalledWith(
+      candles[38]!.close,
+      39,
+      chartApi.series,
+    )
+    await plot.trigger('keydown', { key: 'ArrowRight' })
+    expect(chartApi.chart.setCrosshairPosition).toHaveBeenLastCalledWith(
+      candles[39]!.close,
+      40,
+      chartApi.series,
+    )
+    await plot.trigger('keydown', { key: 'Escape' })
+    expect(chartApi.chart.clearCrosshairPosition).toHaveBeenCalled()
+  })
+  it('zooms horizontally from the keyboard and restores both scales', async () => {
+    const wrapper = render()
+    await wrapper.get('.candles__plot').trigger('keydown', { key: '+' })
+    expect(chartApi.timeScale.setVisibleLogicalRange).toHaveBeenLastCalledWith({
+      from: 2.9250000000000007,
+      to: 36.075,
+    })
+    await wrapper.get('.candles__plot').trigger('keydown', { key: 'Home' })
+    expect(chartApi.priceScale.applyOptions).toHaveBeenCalledWith({ autoScale: true })
+    expect(chartApi.timeScale.fitContent).toHaveBeenCalled()
+  })
+  it('zooms prices around the candle range, independently of cost lines', async () => {
+    const wrapper = render()
+    await wrapper.get('.candles__plot').trigger('keydown', { key: 'ArrowUp' })
+    expect(chartApi.priceScale.setAutoScale).toHaveBeenCalledWith(false)
+    const range = chartApi.priceScale.setVisibleRange.mock.lastCall?.[0]
+    expect(range?.from).toBeCloseTo(0.915)
+    expect(range?.to).toBeCloseTo(1.085)
+  })
+  it('preserves a historical viewport on refresh and follows the latest bars at the edge', async () => {
+    const wrapper = render()
+    chartApi.timeScale.setVisibleLogicalRange({ from: 2, to: 12 })
+    await wrapper.setProps({ candles: [...candles, candles[0]] })
+    expect(chartApi.timeScale.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 2, to: 12 })
+    chartApi.timeScale.setVisibleLogicalRange({ from: 20, to: 40 })
+    await wrapper.setProps({ candles: [...candles, candles[0], candles[0]] })
+    expect(chartApi.timeScale.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 21, to: 41 })
+  })
+  it('resizes and releases the chart on unmount', async () => {
+    const wrapper = render()
+    await wrapper.setProps({ height: 320 })
+    expect(wrapper.get('.candles').attributes('style')).toContain('height: 416px')
+    wrapper.unmount()
+    expect(chartApi.chart.remove).toHaveBeenCalledTimes(1)
+  })
+  it('shows the latest candle above the plot and follows the crosshair until it leaves', async () => {
     const wrapper = mount(CandleChart, {
       props: {
-        candles: Array.from({ length: 40 }, () => ({
-          open: 1.5,
-          high: 2,
-          low: 1,
-          close: 1.5,
-          time: null,
-        })),
-        height: 260,
-        formatters,
-        entry: { price: 1.22, label: '+1.23', tone: 'good' },
+        candles: [
+          { time: 1_800_000_000, open: 10, high: 12, low: 8, close: 9, volume: 1 },
+          { time: 1_800_000_300, open: 10, high: 13, low: 9, close: 12, volume: 2 },
+        ],
+        formatters: {
+          price: String,
+          volume: String,
+          change: (ratio) => `${Math.round(ratio * 100)}%`,
+        },
       },
-      global,
+      global: { plugins: [i18n] },
     })
-
-    const tagBaseline = Number(
-      (wrapper.find('.candles__entry-label').element as SVGTextElement).getAttribute('y'),
-    )
-    const labels = wrapper
-      .findAll('.candles__axis')
-      .map((node) => Number((node.element as SVGTextElement).getAttribute('y')))
-
-    expect(labels.length).toBeGreaterThan(0)
-    for (const y of labels) {
-      expect(Math.abs(y - tagBaseline), `axis label at y=${y}`).toBeGreaterThan(11)
-    }
+    const summary = wrapper.get('.candles__summary')
+    expect(summary.text()).toContain('20%')
+    expect(wrapper.get('.candles').element.firstElementChild).toBe(summary.element)
+    const move = chartApi.chart.subscribeCrosshairMove.mock.lastCall![0] as (event: {
+      time?: number
+    }) => void
+    move({ time: 1_800_000_000 })
+    await wrapper.vm.$nextTick()
+    expect(summary.text()).toContain('-10%')
+    expect(wrapper.get('.candles__change').classes()).toContain('candles__down')
+    move({})
+    await wrapper.vm.$nextTick()
+    expect(summary.text()).toContain('20%')
   })
 })
 
-/** The wick of one candle: its centre line, from the high down to the low. */
-const wick = (wrapper: ReturnType<typeof mountChart>, index: number) => {
-  const node = wrapper.findAll('.candles__candle line')[index].element
-  return {
-    x: Number(node.getAttribute('x1')),
-    top: Number(node.getAttribute('y1')),
-    bottom: Number(node.getAttribute('y2')),
-  }
-}
-
-const triangles = (wrapper: ReturnType<typeof mountChart>) =>
-  wrapper.findAll('.candles__marks polygon').map((node) => {
-    const [apex, left, right] = (node.attributes('points') ?? '')
-      .split(' ')
-      .map((pair) => pair.split(',').map(Number))
-    return {
-      kind: node.attributes('data-kind'),
-      side: node.attributes('data-side'),
-      fill: node.attributes('fill'),
-      apex,
-      left,
-      right,
-    }
+it('anchors a fixed-length rolling candle window by time and still follows the latest bars', async () => {
+  const timed = (shift: number) =>
+    Array.from({ length: 180 }, (_, i) => ({
+      open: 1,
+      high: 1.1,
+      low: 0.9,
+      close: 1,
+      time: 1_800_000_000_000 + (i + shift) * 300_000,
+    }))
+  const wrapper = mount(CandleChart, {
+    props: { candles: timed(0), formatters: { price: (n) => n.toFixed(4) } },
+    global: { plugins: [i18n] },
   })
-
-const mountWithMarks = (marks: CandleMark[], height = 260) =>
-  mount(CandleChart, { props: { candles: candles(), height, formatters, marks }, global })
-
-describe('candle chart marks', () => {
-  it('hangs a buy signal under its candle and a sell signal over it', () => {
-    const wrapper = mountWithMarks([
-      { index: 10, side: 'buy', kind: 'signal' },
-      { index: 20, side: 'sell', kind: 'signal' },
-    ])
-    const [buy, sell] = triangles(wrapper)
-
-    expect(buy.kind).toBe('signal')
-    expect(buy.side).toBe('buy')
-    expect(buy.fill).toBe('var(--long)')
-    expect(sell.side).toBe('sell')
-    expect(sell.fill).toBe('var(--short)')
-
-    // Buy: centred under the low, wings below the point, so the triangle points up at it.
-    expect(buy.apex[0]).toBeCloseTo(wick(wrapper, 10).x, 1)
-    expect(buy.apex[1]).toBeGreaterThan(wick(wrapper, 10).bottom)
-    expect(buy.left[1]).toBeGreaterThan(buy.apex[1])
-    expect(buy.right[1]).toBeGreaterThan(buy.apex[1])
-
-    // Sell: centred over the high, wings above the point, so it points down at it.
-    expect(sell.apex[0]).toBeCloseTo(wick(wrapper, 20).x, 1)
-    expect(sell.apex[1]).toBeLessThan(wick(wrapper, 20).top)
-    expect(sell.left[1]).toBeLessThan(sell.apex[1])
-    expect(sell.right[1]).toBeLessThan(sell.apex[1])
+  chartApi.timeScale.setVisibleLogicalRange({ from: 20.25, to: 40.25 })
+  await wrapper.setProps({ candles: timed(1) })
+  expect(chartApi.timeScale.setVisibleLogicalRange).toHaveBeenLastCalledWith({
+    from: 19.25,
+    to: 39.25,
   })
-
-  it('points a fill right, at its price, to the left of its candle', () => {
-    const wrapper = mountWithMarks([
-      { index: 5, side: 'buy', kind: 'fill', price: 0.999 },
-      { index: 6, side: 'sell', kind: 'fill', price: 1.02 },
-    ])
-    const [cheap, dear] = triangles(wrapper)
-
-    expect(cheap.kind).toBe('fill')
-    expect(cheap.apex[0]).toBeLessThan(wick(wrapper, 5).x)
-    expect(cheap.left[0]).toBeLessThan(cheap.apex[0])
-    expect(cheap.right[0]).toBeLessThan(cheap.apex[0])
-    // Priced, not pinned to the candle: the dearer fill sits higher up the plot.
-    expect(dear.apex[1]).toBeLessThan(cheap.apex[1])
-  })
-
-  it('widens the price range so a fill away from the candles is still on the chart', () => {
-    const height = 260
-    const wrapper = mountWithMarks([{ index: 3, side: 'buy', kind: 'fill', price: 3 }], height)
-    const [fill] = triangles(wrapper)
-
-    expect(fill.apex[1]).toBeGreaterThan(0)
-    expect(fill.apex[1]).toBeLessThan(height)
-  })
-
-  it('draws nothing for a mark with no candle, or a fill with no price', () => {
-    const wrapper = mountWithMarks([
-      { index: 999, side: 'buy', kind: 'signal' },
-      { index: 0, side: 'sell', kind: 'fill', price: null },
-    ])
-
-    expect(triangles(wrapper)).toEqual([])
-  })
+  chartApi.timeScale.setVisibleLogicalRange({ from: 150, to: 179 })
+  await wrapper.setProps({ candles: timed(2) })
+  expect(chartApi.timeScale.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 150, to: 179 })
 })
 
-it('zooms around the pointer, keeps marks aligned and resets to the full range', async () => {
-  const wrapper = mountWithMarks([
-    { index: 0, side: 'buy', kind: 'signal' },
-    { index: 38, side: 'sell', kind: 'signal' },
-  ])
-  vi.spyOn(wrapper.get('.candles').element, 'getBoundingClientRect').mockReturnValue({
-    left: 0,
-    width: 600,
-  } as DOMRect)
-  const plot = wrapper.get('svg')
-  plot.element.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, clientX: 530 }))
-  await wrapper.vm.$nextTick()
-  const count = wrapper.findAll('.candles__candle').length
-  expect(count).toBeLessThan(40)
-  const [sell] = triangles(wrapper)
-  expect(sell.side).toBe('sell')
-  expect(sell.apex[0]).toBeCloseTo(wick(wrapper, count - 2).x, 1)
-
-  const range = wrapper.get('input[type=range]')
-  await range.setValue('0')
-  expect(wrapper.findAll('.candles__candle')).toHaveLength(count)
-  expect(triangles(wrapper).map((mark) => mark.side)).toEqual(['buy'])
-
-  await plot.trigger('dblclick')
-  expect(range.attributes('disabled')).toBeDefined()
-  expect(wrapper.findAll('.candles__candle')).toHaveLength(40)
-  expect(triangles(wrapper)).toHaveLength(2)
-})
-
-it('pinches around two fingers and pans across the loaded candles', async () => {
-  const wrapper = mountWithMarks([{ index: 5, side: 'buy', kind: 'signal' }])
-  vi.spyOn(wrapper.get('.candles').element, 'getBoundingClientRect').mockReturnValue({
-    left: 0,
-    width: 600,
-  } as DOMRect)
-  const svg = wrapper.get('svg').element
-  function pointer(type: string, pointerId: number, clientX: number) {
-    const event = new MouseEvent(type, { clientX })
-    Object.defineProperties(event, {
-      pointerId: { value: pointerId },
-      pointerType: { value: 'touch' },
-    })
-    svg.dispatchEvent(event)
-  }
-
-  pointer('pointerdown', 1, 200)
-  pointer('pointerdown', 2, 350)
-  pointer('pointermove', 2, 500)
-  pointer('pointerup', 2, 500)
-  await wrapper.vm.$nextTick()
-  expect(wrapper.findAll('.candles__candle')).toHaveLength(20)
-  expect(triangles(wrapper)).toHaveLength(0)
-
-  pointer('pointermove', 1, 470)
-  pointer('pointerup', 1, 470)
-  await wrapper.vm.$nextTick()
-  expect(wrapper.findAll('.candles__candle')).toHaveLength(20)
-  expect(triangles(wrapper)).toHaveLength(1)
-})
-
-it('rescales prices by dragging the axis and restores autoscale on double click', async () => {
-  const wrapper = mountChart(null)
-  const axis = wrapper.get('.candles__price-axis')
-  await wrapper.vm.$nextTick()
-
-  const before = wick(wrapper, 0)
-  function pointer(type: string, clientY: number) {
-    const event = new MouseEvent(type, { clientY })
-    Object.defineProperty(event, 'pointerId', { value: 1 })
-    axis.element.dispatchEvent(event)
-  }
-  pointer('pointerdown', 150)
-  pointer('pointermove', 95)
-  pointer('pointerup', 95)
-  await wrapper.vm.$nextTick()
-  const after = wick(wrapper, 0)
-  expect(after.bottom - after.top).toBeGreaterThan(before.bottom - before.top)
-  expect(after.x).toBe(before.x)
-
-  await axis.trigger('dblclick')
-  expect(wick(wrapper, 0)).toEqual(before)
-
-  await axis.trigger('keydown', { key: 'ArrowUp' })
-  expect(wick(wrapper, 0)).not.toEqual(before)
-  axis.element.dispatchEvent(new MouseEvent('click', { detail: 0 }))
-  await wrapper.vm.$nextTick()
-  expect(wick(wrapper, 0)).toEqual(before)
-})
-
-it('anchors historical candles across refreshes and follows updates at the right edge', async () => {
-  const series = candles().map((candle, index) => ({ ...candle, time: index + 1 }))
-  const wrapper = mountChart(null)
-  await wrapper.setProps({ candles: series })
-  await wrapper.get('svg').trigger('keydown', { key: '+' })
-  const slider = wrapper.get('input[type=range]')
-  await slider.setValue('4')
-  const refresh = (offset: number) =>
-    series.map((candle) => ({ ...candle, time: candle.time + offset }))
-  await wrapper.setProps({ candles: refresh(1) })
-  expect((slider.element as HTMLInputElement).value).toBe('3')
-
-  await slider.setValue(slider.attributes('max'))
-  await wrapper.setProps({ candles: refresh(2) })
-  expect((slider.element as HTMLInputElement).value).toBe(slider.attributes('max'))
+it('uses the first surviving candle when the leftmost visible candle expires', async () => {
+  const timed = Array.from({ length: 180 }, (_, i) => ({
+    open: 1,
+    high: 1.1,
+    low: 0.9,
+    close: 1,
+    time: 1_800_000_000_000 + i * 300_000,
+  }))
+  const wrapper = mount(CandleChart, {
+    props: { candles: timed, formatters: { price: (n) => n.toFixed(4) } },
+    global: { plugins: [i18n] },
+  })
+  chartApi.timeScale.setVisibleLogicalRange({ from: 0, to: 20 })
+  await wrapper.setProps({
+    candles: [...timed.slice(1), { ...timed[179], time: timed[179].time + 300_000 }],
+  })
+  expect(chartApi.timeScale.setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: -1, to: 19 })
 })

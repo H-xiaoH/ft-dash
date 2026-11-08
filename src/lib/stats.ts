@@ -1,4 +1,35 @@
-import type { PerformanceEntry, Trade } from './types'
+import type { PerformanceEntry, Trade, TradeStats } from './types'
+
+export function countTradeOutcomes(stats: TradeStats | null) {
+  if (!stats) return null
+  const total = { wins: 0, losses: 0, draws: 0 }
+  for (const { wins, losses, draws } of Object.values(stats.exit_reasons)) {
+    total.wins += wins
+    total.losses += losses
+    total.draws += draws
+  }
+  return total
+}
+
+export function sumFeesByCurrency(trades: Trade[]): Map<string, number> | null {
+  const fees = new Map<string, number>()
+  for (const trade of trades) {
+    for (const [amount, currency] of [
+      [trade.fee_open_cost, trade.fee_open_currency],
+      [trade.fee_close_cost, trade.fee_close_currency],
+    ] as const) {
+      if (
+        typeof amount !== 'number' ||
+        !Number.isFinite(amount) ||
+        typeof currency !== 'string' ||
+        !currency
+      )
+        continue
+      fees.set(currency, (fees.get(currency) ?? 0) + amount)
+    }
+  }
+  return fees.size ? fees : null
+}
 
 export interface PairStats {
   pair: string
@@ -11,7 +42,7 @@ export interface PairStats {
   losses: number
   winRate: number | null
   avgDuration: number | null
-  fees: number | null
+  fees: Map<string, number> | null
   volume: number | null
   lastTrade: number | null
 }
@@ -54,12 +85,7 @@ export function buildPairStats(performance: PerformanceEntry[], trades: Trade[])
       avgDuration: durations.length
         ? durations.reduce((sum, duration) => sum + duration, 0) / durations.length
         : null,
-      fees: pairTrades.length
-        ? pairTrades.reduce(
-            (sum, trade) => sum + (trade.fee_open_cost ?? 0) + (trade.fee_close_cost ?? 0),
-            0,
-          )
-        : null,
+      fees: sumFeesByCurrency(pairTrades),
       volume: pairTrades.length
         ? pairTrades.reduce((sum, trade) => sum + (trade.open_trade_value ?? 0), 0)
         : null,

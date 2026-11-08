@@ -1,46 +1,32 @@
-/*
- * ft-dash design tokens.
- *
- * Direction: OKX-like. Pure black canvas, flat surfaces separated by hairlines,
- * monochrome chrome — interactive states are white on near-black, never tinted —
- * and colour reserved for values that carry meaning (up/down, warnings). Radii
- * stay small and numbers are set in IBM Plex Mono so digits line up in columns.
- */
+/* Shared MD3 dark theme, spacing and trading semantics. */
 
 :root {
   /* surfaces */
-  --ink-900: #000000;
-  --ink-850: #0f0f0f;
-  --ink-800: #151515;
-  --ink-750: #1c1c1c;
-  --ink-700: #262626;
+  --ink-900: #141218;
+  --ink-850: #1d1b20;
+  --ink-800: #211f26;
+  --ink-750: #2b2930;
+  --ink-700: #36343b;
 
   /* lines */
-  --line: #1f1f1f;
-  --line-strong: #2f2f2f;
+  --line: #36343b;
+  --line-strong: #49454f;
 
   /* text */
-  --text: #ffffff;
-  --text-2: #b5bac1;
+  --text: #e6e0e9;
+  --text-2: #cac4d0;
   /* Muted text: 4.65:1 on the lightest surface it lands on (--ink-700, e.g. the selected
      segment), so small muted labels keep AA contrast everywhere. */
-  --text-3: #8a8f96;
+  --text-3: #a9a2b0;
 
   /* semantics — values only */
   --long: #24c98a;
-  --long-dim: #10402f;
   --short: #ff5b5b;
-  --short-dim: #401d1d;
-
-  --button-h: 32px;
 
   /* interaction */
-  --accent: #e8eaed;
-  --accent-dim: #262626;
-  --accent-text: #000000;
+  --accent: #d0bcff;
 
   --warn: #ffa53b;
-  --info: #8ba0b8;
 
   /* type */
   --font-ui:
@@ -53,9 +39,7 @@
   --fs-base: 0.8125rem;
   --fs-md: 0.875rem;
   --fs-lg: 1rem;
-  --fs-xl: 1.25rem;
   --fs-2xl: 1.625rem;
-  --fs-3xl: 2.125rem;
 
   /* space */
   --sp-1: 4px;
@@ -63,23 +47,15 @@
   --sp-3: 12px;
   --sp-4: 16px;
   --sp-5: 20px;
-  --sp-6: 24px;
-  --sp-8: 32px;
 
   /* motion — the one curve the sliding surfaces share, plus the durations they use */
-  --ease-out-strong: cubic-bezier(0.22, 0.61, 0.36, 1);
-  --dur-quick: 140ms;
-  --dur-slide: 220ms;
 
   /* shape */
-  --r-1: 4px;
-  --r-2: 6px;
-  --r-3: 8px;
+  --r-1: 12px;
+  --r-2: 16px;
   --ring: 0 0 0 2px var(--ink-900), 0 0 0 4px rgb(255 255 255 / 45%);
 
-  --rail-w: 60px;
   --topbar-h: 56px;
-  --tabbar-space: 72px;
 }
 
 *,
@@ -125,14 +101,6 @@ figure {
   margin: 0;
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
-}
-
 a {
   color: var(--accent);
   text-decoration-color: rgb(232 234 237 / 45%);
@@ -145,7 +113,7 @@ a {
   }
 }
 
-:focus-visible {
+:focus-visible:not(.v-btn):not(.v-field__input):not(input):not(textarea):not(select) {
   outline: none;
   box-shadow: var(--ring);
   border-radius: var(--r-1);
@@ -225,17 +193,5 @@ a {
     animation-iteration-count: 1 !important;
     transition-duration: 120ms !important;
     scroll-behavior: auto !important;
-  }
-
-  .page-enter-from,
-  .page-leave-to,
-  .drawer-overlay-enter-from .drawer,
-  .drawer-overlay-leave-to .drawer {
-    transform: none !important;
-  }
-
-  /* Press feedback keeps its colour change, loses the scale. */
-  .btn:active:not(:disabled) {
-    transform: none !important;
   }
 }

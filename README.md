@@ -40,46 +40,43 @@ An installable Vue PWA that talks to your bot directly.</p>
   </tr>
 </table>
 
-<img src="docs/images/en/market.png" alt="Market: candles with the strategy's signals under and over them, the bot's own fills, and the cost basis of the open position" />
+<img src="docs/images/en/market.png" alt="Market: candlesticks and the cost basis of the open position" />
 
-<sub><b>Market</b> — drag across the candles to scrub; the strategy's signals ride on their candles and the bot's fills sit at the price they traded at. These shots come from the end-to-end fixtures, not from a real account.</sub>
+<sub><b>Market</b> — drag across the candles to scrub; drag the price axis or pinch to zoom. These shots come from the end-to-end fixtures, not from a real account.</sub>
 
 ## ✨ Highlights
 
-- 📊 **Overview** — equity, open/closed/today's P&L, trade count and profit factor over a daily
-  P&L chart, plus the open positions and recently closed trades.
+- 📊 **Overview** — equity, open/closed/today's P&L, trade count and profit factor, a daily, weekly
+  or monthly P&L chart and table, open positions and recently closed trades.
 - 🔁 **Trades** — open, closed or all trades (all = positions merged with history) with side,
-  staked amount, prices, P&L and duration; sortable columns on desktop and a sort menu with a
-  direction button on phones, a search that expands from the
-  toolbar, an outcome filter (all / profitable / losing), per-trade detail (orders, fees,
+  staked amount, prices, P&L and duration; a sort menu with a direction button, a search that expands
+  from the toolbar, an outcome filter (all / profitable / losing), per-trade detail (orders, fees,
   funding, leverage, stop loss, liquidation) and CSV export. On phones the same data is a
   card list instead of a wide table. The loaded history is paged locally — 20 rows by default,
   and **Settings → Interface** sets anything from 5 to 300, or 0 to show all loaded trades; the pager resets whenever the filter, search or sort changes.
 - 📈 **Statistics** — per-pair totals plus win rate, average holding time, fees, volume and last
-  close (derived from the loaded trades, so pairs older than the loaded window show —); a
-  daily/weekly/monthly chart with period table; and the average holding time for winners,
-  losers and draws. Column headers sort; the search narrows the list.
+  close (derived from the loaded trades, so pairs older than the loaded window show —); and
+  the average holding time for winners, losers and draws. The sort menu and direction button
+  control the order; search narrows the list.
 - 🕯️ **Market** — a candlestick chart first (drag across it to scrub, with an exchange-style
-  OHLC/volume readout in the corner). The chart is marked up: the strategy's buy and sell
-  signals ride under and over their candles, and the bot's own fills point in at the price
-  they happened at. Then a pair picker, the bot's timeframe, whitelist, blacklist and active
+  OHLC/volume readout). The chart supports price-axis scaling, pinch zoom and a range slider,
+  with a cost-basis line for the current position. Then a pair picker, the bot's timeframe, whitelist, blacklist and active
   pair locks. Whitelist amounts are cumulative closed P&L, excluding open positions.
 - 🪵 **Logs** — live bot log with a level filter, search that expands from the toolbar and a
   follow toggle.
 - 🖥️ **System** — CPU/RAM/load, heartbeat lag warning, process uptime, the effective config
-  (strategy, exchange, trading mode, stake mode) and the live event tape.
+  (strategy, exchange, trading mode, stake mode).
 - 🔔 **Alerts** — optional system notifications for fills, warnings, exceptions, a shutdown
   event and a heartbeat that has been silent for 30 seconds. They fire while the page or the
   installed app is open (background tabs included) — a background tab is checked on a slower
   cadence (every 10 seconds), but browser throttling or suspension can delay it further,
   so background notification timing is not guaranteed. A closed app cannot be reached without a
   push server, which this front-end-only design does not have.
-- ⚡ **Live events** — a real-time tape fed by the Freqtrade websocket (entries, fills,
-  cancellations, protection triggers, warnings, exceptions), shown on the System page.
 - 🎛️ **Bot controls** — pause/resume entries, stop, reload config, close a position, edit the
   blacklist and release locks. These are *off by default* and require an explicit
   acknowledgement in Settings. Every destructive action asks for confirmation in a dialog;
-  closing a position additionally requires typing its pair name.
+  closing a position, releasing a pair lock, and removing a blacklist entry require typing
+  the pair or blacklist entry.
 
 Interface languages: **简体中文** and **English** (follows the browser by default).
 
@@ -101,14 +98,20 @@ Wide screens travel the way the rail reads: a whole page up or down, and the whe
 left rail walks pages — one notch is one page, a trackpad's stream keeps walking as you scroll,
 and the page behind the rail does not move. The wheel only takes over there.
 
-Data refreshes on a fixed 1-second cadence while the tab is visible (balance, positions,
-P&L, plus an independent health check), with heavier slices spread over longer intervals — trades
-and pair lists every 4 seconds, analytics, CPU/RAM, logs and config every 12 seconds. Regular data polling
-pauses when the tab is hidden; low-frequency health checks continue if alerts are enabled.
+While the tab is visible, regular data groups poll at the interval set under Settings → Interface
+(1 second by default). Regular polling pauses when the tab is hidden. If alerts are enabled,
+background health checks are attempted independently every 10 seconds. On the visible Market
+page, candles refresh 30 seconds after a successful request and retry 1 second after a failure.
 Requests already in flight are shared per resource group; a slow health or analytics response
 does not block trading data, connection startup, or retrying completed groups.
 
 ## 🚀 Quick start
+
+On narrow screens, the bottom bar has five destinations: Overview, Trades, Statistics,
+Market and More. Logs, System and Settings live under More and keep their direct URLs;
+wide screens retain all seven entries in the rail. Resizing preserves page filters,
+inputs and scroll positions. With the candle chart focused, Left/Right selects historical
+candles and Escape restores the latest readout; Up/Down and +/- still control zoom.
 
 Builds carry a `YY.MM.dd.HH.mm` timestamp as their version, shown at the foot of the settings
 page (`package.json` keeps a semver, which npm wants and nothing reads at runtime).
@@ -140,9 +143,7 @@ SCREENS=1 npx playwright test e2e/screenshots.spec.ts --project=chromium
 
 The screenshots use fixture data and are written to `docs/images/en/` and `docs/images/zh/`.
 
-**Browser floor.** Off-screen pages and open dialogs are parked with the native `inert`
-attribute, with no polyfill behind it: iOS Safari before 15.5 (May 2022) is not covered, and
-there those pages stay in the tab order.
+**Browser floor.** iOS Safari 16.4 or later. Vuetify 4 provides the MD3 controls and dialog focus management. Off-screen Swiper pages use native `inert`.
 
 Automation covers rendering, interaction and accessibility rules. These few things can only be
 checked on a real device — worth two minutes in Safari with the PWA installed:
@@ -227,28 +228,20 @@ Two transports, two mechanisms — Freqtrade decides which one each accepts:
 
 | Transport | Mechanism | Notes |
 | --- | --- | --- |
-| REST (`/status`, `/profit`, actions, …) | **HTTP Basic** `Authorization: Basic …` | Always used, and always available. If a cached JWT is rejected (a bot restarted with a new `jwt_secret_key`), the client silently retries that request with Basic, so polling keeps working. |
+| REST (`/status`, `/profit`, actions, …) | **HTTP Basic or Bearer JWT** | Basic is used until a JWT is available. A rejected JWT is retried once with Basic. |
 | `POST /token/login` | **HTTP Basic** | Only called to mint the JWT below. |
 | WebSocket (`/message/ws`) | **`?token=` query parameter** | A browser cannot attach an `Authorization` header to a WebSocket handshake, so Basic is impossible here. Freqtrade accepts either a JWT from `/token/login` (requires `api_server.jwt_secret_key`) or the shared `api_server.ws_token`. |
 
-**Live stream auth** is configurable in Settings and defaults to *Automatic*:
-
-1. **Automatic (JWT)** — fetch a 15-minute JWT from `/token/login` for each connection. If the
-   endpoint is missing (old Freqtrade, no `jwt_secret_key`), or the handshake is refused, the
-   app falls back to your `ws_token` when one is set.
-2. **ws_token** — use the shared secret from `api_server.ws_token` directly. Useful behind a
-   reverse proxy, or when you do not want to expose credentials to the login endpoint.
-3. **Disable stream** — poll only. Everything except the live event tape keeps working.
+For live updates, the app requests a fresh JWT from `/token/login` when connecting.
+If the endpoint is unavailable or the handshake is refused, it can fall back to the
+`ws_token` saved in that backend’s editor.
 
 If a request still returns 401 after the Basic retry, polling stops and the app returns to
 the sign-in form with the backend list and fields intact. Check the credentials; if the
 browser reports a cross-origin error, also check the proxy and CORS configuration.
 
-Failures are explicit rather than silent: a rejected handshake (Freqtrade answers `403` for a
-bad token; the browser cannot see a close code) surfaces as "handshake rejected — token
-refused, or your proxy does not forward Upgrade requests". Nothing has to be retried by hand:
-after three rejected handshakes the retries slow down to one a minute until the bot answers
-again. Polling is unaffected — Basic auth still works.
+After three rejected WebSocket handshakes, the app retries on a one-minute interval.
+REST polling continues during those retries.
 
 ## 📦 Deploying to GitHub Pages
 
@@ -312,15 +305,15 @@ JWT auth) or a configured `api_server.ws_token`.
 ## 🧰 Tech stack
 
 Vue 3 (`<script setup>` + TypeScript) · Vite · Pinia · vue-router · vue-i18n ·
-`vite-plugin-pwa` (Workbox) · Vitest + Playwright · hand-rolled SVG charts, no chart dependency.
+`vite-plugin-pwa` (Workbox) · Vitest + Playwright · Vuetify 4 (MD3) + MDI icons · Swiper Vue · VueUse · SortableJS · ECharts + vue-echarts · TradingView Lightweight Charts.
 
 ## 🗂️ Project layout
 
 ```
 src/
   data/freqtrade/ transport (auth, timeouts, error mapping), API client, bot session
-  lib/             stream client, formatters, axis scale, pair statistics, CSV, storage
-  stores/          settings, bot data + polling, live event tape
+  lib/             stream client, formatters, pair statistics, CSV, storage
+  stores/          settings, bot data, polling and stream state
   views/           one file per screen
   components/      shell pieces, hand-rolled charts, toolbar controls, dialogs
   composables/     locale-bound formatters, toasts, responsive chart heights

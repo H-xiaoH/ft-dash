@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, onScopeDispose, ref, watch, type Ref } from 'vue'
+import { sameConnectionIdentity } from '@/data/freqtrade'
 import {
   detectLocale,
   isLocalePreference,
@@ -25,8 +26,10 @@ import type { TimezonePreference } from '@/lib/timezone'
 import { isZone } from '@/lib/timezone'
 
 const SETTINGS_KEY = 'ftdash.settings.v1'
+const DATA_GENERATION_KEY = 'ftdash.dataGeneration.v1'
 
 interface StoredSettings {
+  generation?: string | null
   locale: LocalePreference | null
   timezone: TimezonePreference
   websocket: boolean
@@ -40,15 +43,17 @@ interface StoredSettings {
   dashboardClosedLimit: number
   tradesPerPage: number
   pairTablePerPage: number
+  pollInterval: number
 }
 
-/** The two overview caps and the trade list page size, with the range each input accepts. */
+/** Ranges and defaults for the numeric interface settings. */
 export const COUNT_SETTINGS = {
   dashboardOpenLimit: { min: 1, max: 50, fallback: 6 },
   dashboardClosedLimit: { min: 1, max: 50, fallback: 6 },
   /** Positive page sizes; zero separately means all loaded trades. */
   tradesPerPage: { min: 5, max: 300, fallback: 20 },
   pairTablePerPage: { min: 5, max: 300, fallback: 10 },
+  pollInterval: { min: 1, max: 60, fallback: 1 },
 } as const
 
 type CountKey = keyof typeof COUNT_SETTINGS
@@ -87,6 +92,7 @@ const DEFAULT_SETTINGS: StoredSettings = {
   dashboardClosedLimit: COUNT_SETTINGS.dashboardClosedLimit.fallback,
   tradesPerPage: COUNT_SETTINGS.tradesPerPage.fallback,
   pairTablePerPage: COUNT_SETTINGS.pairTablePerPage.fallback,
+  pollInterval: COUNT_SETTINGS.pollInterval.fallback,
 }
 
 export const STREAM_AUTH_OPTIONS: StreamAuthPreference[] = ['auto', 'ws_token']
@@ -112,13 +118,20 @@ function resolveTimezone(value: unknown): TimezonePreference {
  * localStorage only when the operator asked to remember them; otherwise they live in
  * sessionStorage, so a reload inside the same tab still works but nothing hits the disk.
  */
-function loadBots(rememberLocalSecrets: boolean): Bot[] {
-  const local = parseBots(readJson<unknown>(BOTS_KEY, []))
-  const session = parseBots(readJson<unknown>(BOTS_SESSION_KEY, [], safeSessionStorage()))
-  if (!local.length) return session
-  return local.map((bot) => {
+function loadBots(rememberLocalSecrets: boolean, generation: string | null): Bot[] {
+  const local = readJson<Bot[] | { generation: string | null; bots: Bot[] } | null>(BOTS_KEY, null)
+  const tabStorage = safeSessionStorage()
+  const tabGeneration = readJson<string | null>(DATA_GENERATION_KEY, null, tabStorage)
+  if (tabGeneration !== generation) removeKey(BOTS_SESSION_KEY, tabStorage)
+  const session = parseBots(readJson<unknown>(BOTS_SESSION_KEY, [], tabStorage))
+  if (local === null) return session
+  const localGeneration = Array.isArray(local) ? null : local.generation
+  if (localGeneration !== generation) return session
+  return parseBots(Array.isArray(local) ? local : local.bots).map((bot) => {
     const stored = rememberLocalSecrets ? bot : { ...bot, password: '', wsToken: '' }
-    const tabCopy = session.find((entry) => entry.id === bot.id)
+    const tabCopy = session.find(
+      (entry) => entry.id === bot.id && sameConnectionIdentity(entry, bot),
+    )
     return {
       ...stored,
       password: stored.password || tabCopy?.password || '',
@@ -128,10 +141,13 @@ function loadBots(rememberLocalSecrets: boolean): Bot[] {
 }
 
 export const useSettingsStore = defineStore('settings', () => {
-  const persisted = readJson<Partial<StoredSettings>>(SETTINGS_KEY, {})
+  let storageGeneration = readJson<string | null>(DATA_GENERATION_KEY, null)
+  const stored = readJson<Partial<StoredSettings>>(SETTINGS_KEY, {})
+  const persisted = (stored.generation ?? null) === storageGeneration ? stored : {}
+  const localDataRevision = ref(0)
 
   const remember = ref(persisted.remember ?? DEFAULT_SETTINGS.remember)
-  const bots = ref<Bot[]>(loadBots(remember.value))
+  const bots = ref<Bot[]>(loadBots(remember.value, storageGeneration))
   const storedActive = readJson<string | null>(ACTIVE_BOT_KEY, null)
   const activeBotId = ref(
     typeof storedActive === 'string' && bots.value.some((bot) => bot.id === storedActive)
@@ -170,11 +186,14 @@ export const useSettingsStore = defineStore('settings', () => {
   const dashboardClosedLimit = count('dashboardClosedLimit', persisted.dashboardClosedLimit)
   const tradesPerPage = count('tradesPerPage', persisted.tradesPerPage)
   const pairTablePerPage = count('pairTablePerPage', persisted.pairTablePerPage)
+  const pollInterval = count('pollInterval', persisted.pollInterval)
+  const pollIntervalSeconds = ref(pollInterval.value)
   const countRefs: Record<CountKey, Ref<number>> = {
     dashboardOpenLimit,
     dashboardClosedLimit,
     tradesPerPage,
     pairTablePerPage,
+    pollInterval,
   }
 
   /** Normalized view values; zero is the explicit all-trades mode. */
@@ -196,6 +215,7 @@ export const useSettingsStore = defineStore('settings', () => {
     () => COUNT_KEYS.map((key) => countRefs[key].value),
     () => {
       for (const key of COUNT_KEYS) {
+        if (key === 'pollInterval') continue
         const { min, max } = COUNT_SETTINGS[key]
         const value = countRefs[key].value
         if (isAllTrades(key, value) || (Number.isInteger(value) && value >= min && value <= max))
@@ -223,6 +243,10 @@ export const useSettingsStore = defineStore('settings', () => {
           : Math.min(max, Math.max(min, value))
         : lastCount[key]
     countRefs[key].value = settled
+    if (key === 'pollInterval') {
+      lastCount[key] = settled
+      pollIntervalSeconds.value = settled
+    }
     return settled
   }
   const websocket = ref(persisted.websocket ?? DEFAULT_SETTINGS.websocket)
@@ -247,9 +271,17 @@ export const useSettingsStore = defineStore('settings', () => {
   /** The active bot has no password at hand: the operator has to type it again. */
   const needsPassword = computed(() => Boolean(activeBot.value) && password.value.length === 0)
 
+  function isLocalDataRevisionCurrent(expectedRevision: number): boolean {
+    return (
+      expectedRevision === localDataRevision.value &&
+      storageGeneration === readJson<string | null>(DATA_GENERATION_KEY, null)
+    )
+  }
+
   function persist() {
-    if (suppressPersistence) return
+    if (suppressPersistence || !isLocalDataRevisionCurrent(localDataRevision.value)) return
     writeJson(SETTINGS_KEY, {
+      generation: storageGeneration,
       // The preference is what gets stored; the resolved language is derived from it.
       locale: localePreference.value,
       timezone: timezone.value,
@@ -264,22 +296,27 @@ export const useSettingsStore = defineStore('settings', () => {
       dashboardClosedLimit: dashboardClosedLimit.value,
       tradesPerPage: tradesPerPage.value,
       pairTablePerPage: pairTablePerPage.value,
+      pollInterval: pollIntervalSeconds.value,
     } satisfies StoredSettings)
   }
 
   function persistBots() {
-    if (suppressPersistence) return
-    writeJson(BOTS_KEY, serializeBots(bots.value, remember.value))
-    writeJson(BOTS_SESSION_KEY, serializeBots(bots.value, true), safeSessionStorage())
+    if (suppressPersistence || !isLocalDataRevisionCurrent(localDataRevision.value)) return
+    writeJson(BOTS_KEY, {
+      generation: storageGeneration,
+      bots: serializeBots(bots.value, remember.value),
+    })
+    const tabStorage = safeSessionStorage()
+    writeJson(BOTS_SESSION_KEY, serializeBots(bots.value, true), tabStorage)
+    writeJson(DATA_GENERATION_KEY, storageGeneration, tabStorage)
     writeJson(ACTIVE_BOT_KEY, activeBotId.value)
   }
 
-  function clearStoredData() {
+  function resetLocalState() {
     suppressPersistence = true
-    removeKey(SETTINGS_KEY)
-    removeKey(BOTS_KEY)
-    removeKey(BOTS_SESSION_KEY, safeSessionStorage())
-    removeKey(ACTIVE_BOT_KEY)
+    const tabStorage = safeSessionStorage()
+    removeKey(BOTS_SESSION_KEY, tabStorage)
+    removeKey(DATA_GENERATION_KEY, tabStorage)
     bots.value = []
     activeBotId.value = ''
     baseUrl.value = ''
@@ -298,8 +335,32 @@ export const useSettingsStore = defineStore('settings', () => {
     dashboardClosedLimit.value = DEFAULT_SETTINGS.dashboardClosedLimit
     tradesPerPage.value = DEFAULT_SETTINGS.tradesPerPage
     pairTablePerPage.value = DEFAULT_SETTINGS.pairTablePerPage
+    pollInterval.value = DEFAULT_SETTINGS.pollInterval
+    commitCount('pollInterval')
     controlsAcknowledged.value = DEFAULT_SETTINGS.controlsAcknowledged
+    localDataRevision.value += 1
     suppressPersistence = false
+  }
+
+  function clearStoredData() {
+    writeJson(DATA_GENERATION_KEY, newBotId())
+    storageGeneration = readJson<string | null>(DATA_GENERATION_KEY, null)
+    removeKey(SETTINGS_KEY)
+    removeKey(BOTS_KEY)
+    removeKey(ACTIVE_BOT_KEY)
+    resetLocalState()
+  }
+
+  if (typeof window !== 'undefined') {
+    const syncClearedData = (event: StorageEvent) => {
+      if (event.key !== DATA_GENERATION_KEY && event.key !== null) return
+      const generation = readJson<string | null>(DATA_GENERATION_KEY, null)
+      if (generation === storageGeneration) return
+      storageGeneration = generation
+      resetLocalState()
+    }
+    window.addEventListener('storage', syncClearedData)
+    onScopeDispose(() => window.removeEventListener('storage', syncClearedData))
   }
 
   /** Drops the live connection but keeps the stored bot list. */
@@ -345,6 +406,7 @@ export const useSettingsStore = defineStore('settings', () => {
     const current = bots.value[index]
     const baseUrl = patch.baseUrl?.trim() ?? current.baseUrl
     const username = patch.username?.trim() ?? current.username
+    const sameIdentity = sameConnectionIdentity(current, { baseUrl, username })
     const next: Bot = {
       ...current,
       name:
@@ -353,8 +415,8 @@ export const useSettingsStore = defineStore('settings', () => {
           : current.name,
       baseUrl,
       username,
-      password: patch.password ?? current.password,
-      wsToken: patch.wsToken?.trim() ?? current.wsToken,
+      password: patch.password ?? (sameIdentity ? current.password : ''),
+      wsToken: patch.wsToken?.trim() ?? (sameIdentity ? current.wsToken : ''),
     }
     bots.value = bots.value.map((bot, i) => (i === index ? next : bot))
     if (id === activeBotId.value) applyBot(next)
@@ -412,6 +474,7 @@ export const useSettingsStore = defineStore('settings', () => {
       dashboardClosedLimit,
       tradesPerPage,
       pairTablePerPage,
+      pollIntervalSeconds,
     ],
     persist,
     { flush: 'sync' },
@@ -445,11 +508,15 @@ export const useSettingsStore = defineStore('settings', () => {
     tradesPageSize,
     pairTablePerPage,
     pairTablePageSize,
+    pollInterval,
+    pollIntervalSeconds,
     commitCount,
     overviewOpenLimit,
     overviewClosedLimit,
     hasCredentials,
     writesEnabled,
+    localDataRevision,
+    isLocalDataRevisionCurrent,
     persistBots,
     clearStoredData,
     disconnect,

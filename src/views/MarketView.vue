@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useDocumentVisibility } from '@vueuse/core'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
@@ -8,10 +9,8 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
 import type { Candle, CandleEntry, CandleFormatters } from '@/components/charts'
-import { collectCandleMarks } from '@/lib/candles'
 import { useFormat } from '@/composables/useFormat'
 import { useChartHeight } from '@/composables/useChartHeight'
-import { useSegBlock } from '@/composables/useSegBlock'
 import { pushToast } from '@/composables/useToast'
 import type { Lock } from '@/lib/types'
 import { buildEntryMarker } from '@/lib/positions'
@@ -28,16 +27,10 @@ const settings = useSettingsStore()
 
 const tab = ref<Tab>('whitelist')
 /** The block behind the pair-list tabs, which slides to whichever one is active. */
-const listSeg = ref<HTMLElement | null>(null)
-const { blockStyle: listBlockStyle, blockReady: listBlockReady } = useSegBlock(
-  listSeg,
-  () => tab.value,
-)
 const search = ref('')
 const positionsOnly = ref(false)
 const selectedPair = ref(bot.openTrades[0]?.pair ?? bot.whitelist?.whitelist[0] ?? '')
 const loadingCandles = ref(false)
-const candleError = ref(false)
 const blacklistInput = ref('')
 const lockTarget = ref<Lock | null>(null)
 const blacklistTarget = ref<string | null>(null)
@@ -46,12 +39,15 @@ const candleHeight = useChartHeight(200, 0.32, 340)
 /** The bot trades a single timeframe, so it is displayed rather than chosen. */
 const timeframe = computed(() => String(bot.showConfig?.timeframe ?? '5m'))
 
-const formatters: CandleFormatters = {
+const formatters = computed<CandleFormatters>(() => ({
+  locale: format.locale(),
+  timezone: settings.timezone,
   price: (value) => format.price(value),
   time: (value) => format.stamp(value),
+  tickTime: (value, unit) => format.chartTick(value, unit),
   volume: (value) => format.compact(value),
-  change: (ratio) => format.ratio(ratio),
-}
+  change: (ratio) => format.percent(ratio * 100, 2, true),
+}))
 
 /** One lookup per render instead of a `find` per cell: the list is a few hundred pairs long. */
 const profitByPair = computed(
@@ -79,6 +75,11 @@ const blacklistRows = computed(() => {
   return (bot.blacklist?.blacklist ?? []).filter((entry) =>
     query ? entry.toLowerCase().includes(query) : true,
   )
+})
+
+const lockRows = computed(() => {
+  const query = search.value.trim().toLowerCase()
+  return (bot.locks?.locks ?? []).filter((lock) => lock.pair.toLowerCase().includes(query))
 })
 
 const availablePairKey = computed(() => {
@@ -109,10 +110,6 @@ const candles = computed<Candle[]>(() => {
   }))
 })
 
-const candleMeta = computed(
-  () => bot.candleCache[`${selectedPair.value}|${timeframe.value}`] ?? null,
-)
-
 /**
  * The chart's cost-basis line: where the open position was filled on average, tagged with
  * its floating P&L (the same figure the positions table shows). Null when the pair is flat.
@@ -125,41 +122,24 @@ const chartEntry = computed<CandleEntry | null>(() => {
   if (!marker) return null
   return {
     price: marker.price,
-    label: marker.profit === null ? '' : format.signedMoney(marker.profit, ''),
+    label:
+      marker.profit === null
+        ? t('market.costBasis')
+        : `${t('market.costBasis')} ${format.signedMoney(marker.profit, '')}`,
     tone: marker.tone,
   }
 })
-
-/**
- * What the chart marks on this pair: the entries and exits the strategy signalled, and the
- * ones the bot actually did. The counts under the chart are the signals alone — the marks are
- * what make them findable.
- */
-const chartMarks = computed(() =>
-  collectCandleMarks({
-    meta: candleMeta.value,
-    candles: candles.value,
-    // Closed trades come from `/trades`, the position still open from `/status`.
-    trades: [...bot.trades, ...bot.openTrades],
-    pair: selectedPair.value,
-  }),
-)
 
 /**
  * Whether the router is showing this page. Every page but the one on screen is held on the
  * track and therefore mounted too, so a fetch started on mount would run for a page nobody
  * is looking at: the candles are asked for when this page is the one being walked to.
  */
-const pageVisible = ref(document.visibilityState !== 'hidden')
+const visibility = useDocumentVisibility()
 let disposed = false
-const isCurrentPage = () => !disposed && route.name === 'market' && pageVisible.value
-const onVisibilityChange = () => {
-  pageVisible.value = document.visibilityState !== 'hidden'
-}
-onMounted(() => document.addEventListener('visibilitychange', onVisibilityChange))
+const isCurrentPage = () => !disposed && route.name === 'market' && visibility.value !== 'hidden'
 onBeforeUnmount(() => {
   disposed = true
-  document.removeEventListener('visibilitychange', onVisibilityChange)
   window.clearTimeout(candleRetryTimer)
 })
 
@@ -170,11 +150,8 @@ let candleRequestGeneration = 0
  * of showing the candles from twenty minutes ago for the rest of the session.
  */
 const CANDLE_TTL_MS = 30_000
-/**
- * A failed request is usually a restarting bot, so it is retried on its own while the page is
- * on screen. No button: the operator would only be pressing it again in ten seconds.
- */
-const CANDLE_RETRY_MS = 10_000
+/** Retry failures while the chart is on screen. */
+const CANDLE_RETRY_MS = 1_000
 const candleFetchedAt = new Map<string, number>()
 let candleRetryTimer = 0
 const candleKey = (pair: string, currentTimeframe: string) => `${pair}|${currentTimeframe}`
@@ -189,7 +166,6 @@ async function loadCandles(
 ) {
   if (!pair || !isCurrentPage() || !isCurrent()) return
   loadingCandles.value = true
-  candleError.value = false
   const result = await bot.fetchCandles(pair, currentTimeframe, 180)
   if (
     !isCurrent() ||
@@ -200,11 +176,11 @@ async function loadCandles(
   ) {
     return
   }
-  candleError.value = !result
   loadingCandles.value = false
   window.clearTimeout(candleRetryTimer)
-  if (result) candleFetchedAt.set(candleKey(pair, currentTimeframe), Date.now())
-  scheduleCandleRefresh(pair, currentTimeframe, result ? CANDLE_TTL_MS : CANDLE_RETRY_MS)
+  const hasCandles = !!result?.data.length
+  if (hasCandles) candleFetchedAt.set(candleKey(pair, currentTimeframe), Date.now())
+  scheduleCandleRefresh(pair, currentTimeframe, hasCandles ? CANDLE_TTL_MS : CANDLE_RETRY_MS)
 }
 
 function scheduleCandleRefresh(pair: string, currentTimeframe: string, delay: number) {
@@ -245,7 +221,7 @@ async function confirmLockDelete() {
 }
 
 watch(
-  () => [selectedPair.value, timeframe.value, route.name, pageVisible.value] as const,
+  () => [selectedPair.value, timeframe.value, route.name, visibility.value] as const,
   ([pair, currentTimeframe], _, onCleanup) => {
     if (!pair || !isCurrentPage()) return
     const generation = ++candleRequestGeneration
@@ -276,13 +252,13 @@ watch(
 </script>
 
 <template>
-  <div class="stack market-page">
+  <div class="d-flex flex-column ga-4 market-page">
     <!-- Candles come first: pick a pair from the selector here or from the list below. -->
-    <section class="panel">
-      <div class="panel__head">
-        <span class="panel__title">{{ t('market.candleChart') }}</span>
-        <span class="chip">{{ timeframe }}</span>
-        <div class="panel__actions row row--wrap">
+    <VCard tag="section" class="panel">
+      <VCardItem class="panel__head">
+        <VCardTitle tag="span" class="panel__title">{{ t('market.candleChart') }}</VCardTitle>
+        <VChip size="x-small" variant="tonal">{{ timeframe }}</VChip>
+        <div class="panel__actions d-flex align-center ga-2 flex-wrap">
           <FilterMenu
             v-model="selectedPair"
             :options="pairOptions"
@@ -291,102 +267,75 @@ watch(
             align="end"
           />
         </div>
-      </div>
-      <div class="panel__body">
+      </VCardItem>
+      <VCardText class="panel__body">
         <div
           class="market__plot"
-          :style="{ height: `${candleHeight + 20}px` }"
+          :style="{ height: `${candleHeight + 96}px` }"
           :aria-busy="loadingCandles"
         >
-          <p v-if="!selectedPair" class="empty">{{ t('market.noCandles') }}</p>
-          <div v-else-if="(loadingCandles || candleError) && !candles.length" class="skeleton" />
-          <p v-else-if="!candles.length" class="empty">{{ t('market.noCandles') }}</p>
+          <VSkeletonLoader v-if="!candles.length" type="image" height="100%" />
           <CandleChart
             v-else
             :key="`${settings.activeBotId}|${selectedPair}|${timeframe}`"
             :candles="candles"
             :entry="chartEntry"
-            :marks="chartMarks"
             :height="candleHeight"
             :formatters="formatters"
           />
         </div>
-        <div class="market__meta small muted">
-          <span class="market__strategy">{{ candleMeta?.strategy }}</span>
-          <span v-if="candleMeta?.buy_signals !== undefined">
-            {{ t('market.buySignals') }} {{ candleMeta.buy_signals }}
-          </span>
-          <span v-if="candleMeta?.sell_signals !== undefined">
-            {{ t('market.sellSignals') }} {{ candleMeta.sell_signals }}
-          </span>
-        </div>
-        <div v-if="chartMarks.length" class="market__legend row row--wrap small muted">
-          <span class="candles-legend candles-legend--buy">▲ {{ t('market.buySignals') }}</span>
-          <span class="candles-legend candles-legend--sell">▼ {{ t('market.sellSignals') }}</span>
-          <span class="candles-legend">▶ {{ t('market.fills') }}</span>
-        </div>
-      </div>
-    </section>
+      </VCardText>
+    </VCard>
 
-    <section class="panel market__pairs">
-      <div class="panel__head">
-        <div ref="listSeg" class="seg">
-          <button
+    <VCard tag="section" class="panel market__pairs">
+      <VCardItem class="panel__head">
+        <VBtnToggle v-model="tab" mandatory divided class="page-tabs">
+          <VBtn
             type="button"
-            class="seg__item"
+            variant="outlined"
             :aria-pressed="tab === 'whitelist'"
-            @click="tab = 'whitelist'"
+            value="whitelist"
           >
             {{ t('market.whitelist') }}
             <span class="small muted">{{ bot.whitelist?.whitelist.length ?? 0 }}</span>
-          </button>
-          <button
+          </VBtn>
+          <VBtn
             type="button"
-            class="seg__item"
+            variant="outlined"
             :aria-pressed="tab === 'blacklist'"
-            @click="tab = 'blacklist'"
+            value="blacklist"
           >
             {{ t('market.blacklist') }}
             <span class="small muted">{{ bot.blacklist?.blacklist.length ?? 0 }}</span>
-          </button>
-          <button
-            type="button"
-            class="seg__item"
-            :aria-pressed="tab === 'locks'"
-            @click="tab = 'locks'"
-          >
+          </VBtn>
+          <VBtn type="button" variant="outlined" :aria-pressed="tab === 'locks'" value="locks">
             {{ t('market.locks') }}
             <span class="small muted">{{ bot.locks?.lock_count ?? 0 }}</span>
-          </button>
-          <span
-            class="seg__block"
-            :class="{ 'is-ready': listBlockReady }"
-            :style="listBlockStyle"
-          />
-        </div>
-        <div class="panel__actions row row--wrap">
-          <label v-if="tab === 'whitelist'" class="switch">
-            <input v-model="positionsOnly" type="checkbox" />
-            <span class="switch__track" />
-            <span class="switch__text">
-              <span class="switch__title small">{{ t('market.showOnlyPositions') }}</span>
-            </span>
-          </label>
+          </VBtn>
+        </VBtnToggle>
+        <div class="panel__actions d-flex align-center ga-2 flex-wrap">
+          <VSwitch v-if="tab === 'whitelist'" v-model="positionsOnly">
+            <template #label
+              ><span class="d-flex flex-column"
+                ><span>{{ t('market.showOnlyPositions') }}</span></span
+              ></template
+            >
+          </VSwitch>
           <SearchToggle v-model="search" :placeholder="t('market.searchPairs')" />
         </div>
-      </div>
+      </VCardItem>
 
       <!-- Keyboard users need a focus stop to scroll this list (WCAG 2.1.1). -->
-      <div
+      <VCardText
         v-if="tab === 'whitelist'"
         class="panel__body panel__body--flush market__scroll"
         tabindex="0"
         role="region"
         :aria-label="t('market.whitelist')"
       >
-        <div v-if="!whitelistRows.length" class="empty">{{ t('empty.table') }}</div>
+        <VEmptyState v-if="!whitelistRows.length" :text="t('empty.table')" class="pa-6" />
         <div v-else class="table-wrap market__whitelist">
-          <table class="table table--clickable">
+          <VTable class="table table--clickable">
             <thead>
               <tr>
                 <th scope="col">{{ t('market.pair') }}</th>
@@ -403,9 +352,9 @@ watch(
               >
                 <td>{{ pair }}</td>
                 <td>
-                  <span v-if="openPairs.has(pair)" class="chip chip--accent">
+                  <VChip v-if="openPairs.has(pair)" size="x-small" variant="tonal" color="primary">
                     {{ t('trades.open') }}
-                  </span>
+                  </VChip>
                   <span v-else class="muted small">—</span>
                 </td>
                 <td class="num" :class="format.toneClass(profitByPair.get(pair))">
@@ -413,140 +362,140 @@ watch(
                 </td>
               </tr>
             </tbody>
-          </table>
+          </VTable>
         </div>
-      </div>
+      </VCardText>
 
-      <div
+      <VCardText
         v-else-if="tab === 'blacklist'"
-        class="panel__body stack market__scroll"
+        class="panel__body d-flex flex-column ga-4 market__scroll"
         tabindex="0"
         role="region"
         :aria-label="t('market.blacklist')"
       >
-        <div v-if="bot.writesAllowed" class="row row--wrap">
-          <input
+        <div v-if="bot.writesAllowed" class="d-flex align-center ga-2 flex-wrap">
+          <VTextField
             v-model="blacklistInput"
-            class="input num"
+            class="num"
             :placeholder="t('market.addBlacklistPlaceholder')"
             @keyup.enter="submitBlacklist"
           />
-          <button
+          <VBtn
+            color="primary"
+            variant="flat"
             type="button"
-            class="btn btn--primary"
             :disabled="!blacklistInput.trim() || bot.actionPending === 'blacklistAdd'"
             @click="submitBlacklist"
           >
             <AppIcon name="plus" />
             {{ t('actions.blacklistAdd') }}
-          </button>
+          </VBtn>
         </div>
         <p v-if="!bot.writesAllowed" class="small muted">
           {{ t('actions.controlsShortHint') }}
         </p>
-        <div v-if="!blacklistRows.length" class="empty">{{ t('empty.table') }}</div>
+        <VEmptyState v-if="!blacklistRows.length" :text="t('empty.table')" class="pa-6" />
         <ul v-else class="blist">
           <li v-for="entry in blacklistRows" :key="entry" class="blist__item">
             <span class="num blist__pattern">{{ entry }}</span>
-            <button
+            <VBtn
               v-if="bot.writesAllowed"
+              variant="text"
               type="button"
-              class="btn btn--sm btn--ghost"
               @click="blacklistTarget = entry"
             >
               <AppIcon name="trash" />
               {{ t('actions.blacklistRemove') }}
-            </button>
+            </VBtn>
           </li>
         </ul>
-        <div
+        <VAlert
           v-if="bot.blacklist?.errors && Object.keys(bot.blacklist.errors).length"
-          class="banner banner--warn"
-        >
-          <AppIcon name="alert" :size="18" />
-          <div class="banner__body">
-            <div class="banner__message">{{ t('market.blacklistErrors') }}</div>
-          </div>
-        </div>
-      </div>
+          type="warning"
+          variant="tonal"
+          :text="t('market.blacklistErrors')"
+        />
+      </VCardText>
 
       <!-- Keyboard users need a focus stop to scroll this list (WCAG 2.1.1). -->
-      <div
+      <VCardText
         v-else
         class="panel__body panel__body--flush market__scroll responsive-table responsive-table--short"
         tabindex="0"
         role="region"
         :aria-label="t('market.locks')"
       >
-        <div v-if="!bot.locks?.locks.length" class="empty">{{ t('market.noLocks') }}</div>
+        <VEmptyState v-if="!bot.locks?.locks.length" :text="t('market.noLocks')" class="pa-6" />
+        <VEmptyState v-else-if="!lockRows.length" :text="t('empty.table')" class="pa-6" />
         <div v-else class="table-wrap u-desktop-only">
-          <table class="table">
+          <VTable class="table">
             <thead>
               <tr>
                 <th scope="col">{{ t('market.pair') }}</th>
                 <th scope="col">{{ t('market.lockUntil') }}</th>
                 <th scope="col">{{ t('market.lockReason') }}</th>
                 <th scope="col">{{ t('market.locks') }}</th>
-                <th v-if="bot.writesAllowed" scope="col" />
+                <th v-if="bot.canDeleteLocks" scope="col" />
               </tr>
             </thead>
             <tbody>
-              <tr v-for="lock in bot.locks.locks" :key="lock.id">
+              <tr v-for="lock in lockRows" :key="lock.id">
                 <td>{{ lock.pair }}</td>
                 <td class="num">{{ format.dateTime(lock.lock_end_timestamp) }}</td>
                 <td class="table__muted">{{ lock.reason }}</td>
                 <td>
-                  <span class="chip" :class="lock.active ? 'chip--warn' : ''">
+                  <VChip
+                    size="x-small"
+                    variant="tonal"
+                    :color="lock.active ? 'warning' : undefined"
+                  >
                     {{ lock.active ? t('market.lockActive') : t('market.lockInactive') }}
-                  </span>
+                  </VChip>
                 </td>
-                <td v-if="bot.writesAllowed">
-                  <button type="button" class="btn btn--sm btn--danger" @click="lockTarget = lock">
+                <td v-if="bot.canDeleteLocks">
+                  <VBtn v-if="lock.active" color="error" type="button" @click="lockTarget = lock">
                     <AppIcon name="unlock" />
                     {{ t('actions.deleteLock') }}
-                  </button>
+                  </VBtn>
                 </td>
               </tr>
             </tbody>
-          </table>
+          </VTable>
         </div>
 
-        <ul v-if="bot.locks?.locks.length" class="cards u-mobile-only">
-          <li v-for="lock in bot.locks.locks" :key="lock.id" class="card">
-            <div class="card__row">
-              <span class="num card__pair">{{ lock.pair }}</span>
-              <span class="chip" :class="lock.active ? 'chip--warn' : ''">
-                {{ lock.active ? t('market.lockActive') : t('market.lockInactive') }}
-              </span>
-              <span class="spacer" />
-              <button
-                v-if="bot.writesAllowed"
-                type="button"
-                class="btn btn--sm btn--danger"
-                @click="lockTarget = lock"
-              >
-                <AppIcon name="unlock" />
-                {{ t('actions.deleteLock') }}
-              </button>
-            </div>
-            <div class="card__row small muted">
-              <span
+        <VList v-if="lockRows.length" role="list" class="lock-details u-mobile-only" lines="three">
+          <VListItem v-for="lock in lockRows" :key="lock.id" role="listitem" class="border-b">
+            <template #title
+              ><span class="num">{{ lock.pair }}</span>
+              <VChip size="x-small" variant="tonal" :color="lock.active ? 'warning' : undefined">{{
+                lock.active ? t('market.lockActive') : t('market.lockInactive')
+              }}</VChip></template
+            >
+            <template #subtitle
+              ><span class="d-block"
                 >{{ t('market.lockUntil') }} {{ format.dateTime(lock.lock_end_timestamp) }}</span
-              >
-            </div>
-            <div class="card__row small muted">
-              <span>{{ lock.reason }}</span>
-            </div>
-          </li>
-        </ul>
-      </div>
-    </section>
+              ><span class="d-block">{{ lock.reason }}</span></template
+            >
+            <template #append
+              ><VBtn
+                v-if="bot.canDeleteLocks && lock.active"
+                color="error"
+                @click="lockTarget = lock"
+                ><AppIcon name="unlock" />{{ t('actions.deleteLock') }}</VBtn
+              ></template
+            >
+          </VListItem>
+        </VList>
+      </VCardText>
+    </VCard>
 
     <ConfirmDialog
-      :open="blacklistTarget !== null"
+      :open="route.name === 'market' && blacklistTarget !== null"
       tone="danger"
       :title="bot.labelWithBot(t('actions.blacklistRemove'))"
       :body="blacklistTarget ?? ''"
+      :require-text="blacklistTarget ?? ''"
+      :required-hint="t('actions.pairConfirm', { pair: blacklistTarget })"
       :confirm-label="t('actions.blacklistRemove')"
       :pending="bot.actionPending === 'blacklistDelete'"
       @cancel="blacklistTarget = null"
@@ -554,12 +503,14 @@ watch(
     />
 
     <ConfirmDialog
-      :open="lockTarget !== null"
+      :open="route.name === 'market' && lockTarget !== null"
       tone="danger"
       :title="bot.labelWithBot(t('actions.deleteLock'))"
       :body="
         lockTarget ? `${lockTarget.pair} · ${format.dateTime(lockTarget.lock_end_timestamp)}` : ''
       "
+      :require-text="lockTarget?.pair ?? ''"
+      :required-hint="t('actions.pairConfirm', { pair: lockTarget?.pair })"
       :confirm-label="t('actions.deleteLock')"
       :pending="bot.actionPending === 'lockDelete'"
       @cancel="lockTarget = null"
@@ -569,59 +520,25 @@ watch(
 </template>
 
 <style scoped>
-/* The legend carries the shapes' colours, so the chart below reads without a key. */
-.candles-legend--buy {
-  color: var(--long);
+.lock-details :deep(.v-list-item-subtitle) {
+  -webkit-line-clamp: unset;
+  white-space: normal;
 }
-
-.candles-legend--sell {
-  color: var(--short);
-}
-
-/* Toolbar controls drop to a second line instead of squeezing the tabs. */
-.panel__head {
-  flex-wrap: wrap;
-  row-gap: var(--sp-2);
-}
-
-.seg {
-  flex: none;
-}
-
 .market-page {
-  height: calc(100dvh - var(--topbar-h) - var(--shell-pad) - var(--shell-pad-bottom));
+  height: 100%;
 }
 
 .market__plot {
   flex: none;
 }
 
-.market__plot > .skeleton {
+.market__plot > .v-skeleton-loader {
   width: 100%;
   height: 100%;
 }
 
-.market__meta {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  min-height: 1.5em;
-  margin-top: 8px;
-  white-space: nowrap;
-}
-
-.market__strategy {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.market__meta > span:not(.market__strategy) {
-  flex: none;
-}
-
-.market__legend {
-  margin-top: 4px;
+.market__plot :deep(.v-skeleton-loader__image) {
+  height: 100%;
 }
 
 /* Let sticky headers follow the outer list's vertical scroll. */

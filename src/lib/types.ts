@@ -372,3 +372,10 @@ export interface WsMessage {
   type: WsEventType | string
   data?: Record<string, unknown>
 }
+
+export interface HistoricBalanceResponse {
+  columns: string[]
+  data: (number | string | null)[][]
+  length: number
+  capture_start_ts: number
+}

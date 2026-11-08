@@ -2,13 +2,12 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
-import CollapseTransition from '@/components/CollapseTransition.vue'
 import ControlsPanel from '@/components/ControlsPanel.vue'
 import FilterMenu, { type FilterOption, type StatusLamp } from '@/components/FilterMenu.vue'
 import BotList from '@/components/BotList.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { pushToast } from '@/composables/useToast'
-import { describeError, FreqtradeApiClient } from '@/data/freqtrade'
+import { describeError, FreqtradeApiClient, sameConnectionIdentity } from '@/data/freqtrade'
 import { defaultBotName, type Bot } from '@/lib/bots'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
@@ -46,6 +45,7 @@ const manageOpen = ref(false)
 
 const probeLamps = ref<Record<string, StatusLamp>>({})
 let probeController: AbortController | null = null
+let disposed = false
 
 function probeBackends(open: boolean) {
   probeController?.abort()
@@ -68,7 +68,10 @@ function probeBackends(open: boolean) {
       })
   }
 }
-onBeforeUnmount(() => probeController?.abort())
+onBeforeUnmount(() => {
+  disposed = true
+  probeController?.abort()
+})
 
 const activeBot = computed(
   () => settings.bots.find((entry) => entry.id === settings.activeBotId) ?? null,
@@ -86,13 +89,13 @@ const activeLamp = computed<StatusLamp>(() => lamp.value)
 const connectionChip = computed(() => {
   switch (bot.connection) {
     case 'online':
-      return { tone: 'chip--good', label: t('system.wsConnected') }
+      return { color: 'success', label: t('system.wsConnected') }
     case 'connecting':
-      return { tone: 'chip--warn', label: t('bots.connecting') }
+      return { color: 'warning', label: t('bots.connecting') }
     case 'idle':
-      return { tone: '', label: t('common.unknown') }
+      return { color: undefined, label: t('common.unknown') }
     default:
-      return { tone: 'chip--bad', label: t('common.offline') }
+      return { color: 'error', label: t('common.offline') }
   }
 })
 
@@ -125,9 +128,12 @@ const botChoice = computed<string>({
 const canSave = computed(() => {
   const entry = form.value
   if (!entry) return false
-  const storedPassword = entry.id
-    ? (settings.bots.find((item) => item.id === entry.id)?.password ?? '')
-    : ''
+  const stored = settings.bots.find((item) => item.id === entry.id)
+  const storedPassword =
+    stored &&
+    sameConnectionIdentity(stored, { baseUrl: entry.baseUrl, username: entry.username.trim() })
+      ? stored.password
+      : ''
   return Boolean(
     entry.baseUrl.trim() && entry.username.trim() && (entry.password || storedPassword),
   )
@@ -177,13 +183,17 @@ function cancelEdit() {
 }
 
 async function submit() {
-  const entry = form.value
-  if (!entry || !canSave.value || saving.value) return
+  const currentForm = form.value
+  if (!currentForm || !canSave.value || saving.value) return
+  const entry = { ...currentForm }
   saving.value = true
+  const localDataRevision = settings.localDataRevision
   try {
     const username = entry.username.trim()
     const stored = entry.id ? settings.bots.find((item) => item.id === entry.id) : undefined
-    const password = entry.password || stored?.password || ''
+    const sameIdentity =
+      stored && sameConnectionIdentity(stored, { baseUrl: entry.baseUrl, username })
+    const password = entry.password || (sameIdentity ? stored.password : '')
     const probe = new FreqtradeApiClient({ baseUrl: entry.baseUrl, username, password })
     const baseUrl = probe.baseUrl
     const name = entry.name.trim() || defaultBotName(username, baseUrl)
@@ -195,7 +205,15 @@ async function submit() {
     // Renaming or updating the stream token stays available while the backend is offline.
     if (password && credentialsChanged) {
       await probe.ping()
+      if (!settings.isLocalDataRevisionCurrent(localDataRevision)) return
       await probe.showConfig()
+    }
+    if (!settings.isLocalDataRevisionCurrent(localDataRevision) || form.value !== currentForm)
+      return
+    if (entry.id && settings.bots.find((item) => item.id === entry.id) !== stored) return
+    if (entry.id === settings.activeBotId && bot.actionPending !== null) {
+      pushToast(t('bots.busy'), 'bad')
+      return
     }
 
     if (entry.id) {
@@ -204,10 +222,9 @@ async function submit() {
         baseUrl,
         username,
         password: entry.password || undefined,
-        wsToken: entry.wsToken,
+        wsToken: !sameIdentity && entry.wsToken === stored?.wsToken ? '' : entry.wsToken,
       })
       if (entry.id === settings.activeBotId) {
-        bot.rebuildClient()
         await bot.connect()
       } else {
         pushToast(t('common.saved'), 'good')
@@ -216,8 +233,9 @@ async function submit() {
       settings.addBot({ name, baseUrl, username, password: entry.password, wsToken: entry.wsToken })
       pushToast(t('bots.added', { name }), 'good')
     }
-    form.value = null
+    if (form.value === currentForm) form.value = null
   } catch (error) {
+    if (!settings.isLocalDataRevisionCurrent(localDataRevision)) return
     const described = describeError(error)
     pushToast(t(described.key, described.params ?? {}), 'bad')
   } finally {
@@ -232,6 +250,8 @@ async function testConnection(entry: Bot) {
     return
   }
   testing.value = entry.id
+  const localDataRevision = settings.localDataRevision
+  const isCurrent = () => !disposed && settings.isLocalDataRevisionCurrent(localDataRevision)
   const nextResult = { ...testResult.value }
   delete nextResult[entry.id]
   testResult.value = nextResult
@@ -242,10 +262,13 @@ async function testConnection(entry: Bot) {
       password: entry.password,
     })
     await api.ping()
+    if (!isCurrent()) return
     await api.showConfig()
+    if (!isCurrent()) return
     testResult.value = { ...testResult.value, [entry.id]: 'ok' }
     pushToast(t('bots.testOk'), 'good')
   } catch (error) {
+    if (!isCurrent()) return
     const described = describeError(error)
     pushToast(t(described.key, described.params ?? {}), 'bad')
   } finally {
@@ -297,7 +320,6 @@ async function submitPassword() {
     return
   }
   // The bot on screen just needs its password before it can be polled again.
-  bot.rebuildClient()
   const ok = await bot.connect()
   pushToast(ok ? t('bots.testOk') : t(bot.errorKey?.key ?? 'actions.failed'), ok ? 'good' : 'bad')
 }
@@ -328,17 +350,17 @@ async function confirmRemove() {
 </script>
 
 <template>
-  <section class="panel">
-    <div class="panel__head">
-      <span class="panel__title">{{ t('bots.title') }}</span>
-      <div class="panel__actions row">
-        <span class="chip" :class="connectionChip.tone">
+  <VCard tag="section" class="panel">
+    <VCardItem class="panel__head">
+      <VCardTitle tag="span" class="panel__title">{{ t('bots.title') }}</VCardTitle>
+      <div class="panel__actions d-flex align-center ga-2">
+        <VChip size="x-small" variant="tonal" :color="connectionChip.color">
           {{ connectionChip.label }}
-        </span>
+        </VChip>
       </div>
-    </div>
+    </VCardItem>
 
-    <div class="panel__body stack">
+    <VCardText class="panel__body d-flex flex-column ga-4">
       <!-- One picker for every bot; the last entry manages them instead of switching. -->
       <FilterMenu
         v-model="botChoice"
@@ -348,44 +370,44 @@ async function confirmRemove() {
         @open-change="probeBackends"
       />
 
-      <form v-if="passwordEntry" class="bots__prompt" @submit.prevent="submitPassword">
-        <label class="field">
-          <span class="field__label">{{
-            t('bots.needPassword', { name: passwordEntry.name })
-          }}</span>
-          <input
-            v-model="passwordDraft"
-            class="input"
-            type="password"
-            autocomplete="current-password"
-          />
-        </label>
-        <div class="row">
-          <button type="submit" class="btn btn--sm btn--primary" :disabled="!passwordDraft">
+      <VForm v-if="passwordEntry" class="bots__prompt" @submit.prevent="submitPassword">
+        <VTextField
+          v-model="passwordDraft"
+          :label="t('bots.needPassword', { name: passwordEntry.name })"
+          type="password"
+          autocomplete="current-password"
+        />
+        <div class="d-flex align-center ga-2">
+          <VBtn color="primary" variant="flat" type="submit" :disabled="!passwordDraft">
             <AppIcon name="wifi" />
             {{ t('bots.connect') }}
-          </button>
-          <button type="button" class="btn btn--sm" @click="passwordTarget = null">
+          </VBtn>
+          <VBtn type="button" @click="passwordTarget = null">
             <AppIcon name="close" />
             {{ t('common.cancel') }}
-          </button>
+          </VBtn>
         </div>
-      </form>
+      </VForm>
 
       <!-- 管理后端: add, edit, test and remove the saved backends. -->
-      <CollapseTransition>
+      <VExpandTransition>
         <div v-if="manageOpen">
-          <section class="inset bots__manage">
-            <div class="inset__head">
-              <span class="panel__title">{{ t('bots.manage') }}</span>
-              <div class="spacer" />
-              <button type="button" class="btn btn--sm btn--ghost" @click="closeManage">
+          <VSheet
+            tag="section"
+            border
+            rounded="lg"
+            class="d-flex flex-column ga-3 pa-3 bots__manage"
+          >
+            <div class="d-flex align-center ga-2">
+              <VCardTitle tag="span" class="panel__title">{{ t('bots.manage') }}</VCardTitle>
+              <VSpacer />
+              <VBtn variant="text" type="button" @click="closeManage">
                 <AppIcon name="close" />
                 {{ t('common.close') }}
-              </button>
+              </VBtn>
             </div>
 
-            <p v-if="!settings.bots.length" class="empty">{{ t('bots.empty') }}</p>
+            <VEmptyState v-if="!settings.bots.length" :text="t('bots.empty')" class="pa-6" />
 
             <BotList
               v-else
@@ -411,99 +433,91 @@ async function confirmRemove() {
               @confirm="confirmRemove"
             />
 
-            <CollapseTransition>
+            <VExpandTransition>
               <div v-if="form" key="editor">
-                <form class="bots__editor" @submit.prevent="submit">
+                <VForm class="bots__editor" @submit.prevent="submit">
                   <div class="bots__grid">
-                    <label class="field">
-                      <span class="field__label">{{ t('bots.name') }}</span>
-                      <input
-                        v-model="form.name"
-                        class="input"
-                        type="text"
-                        :placeholder="t('bots.nameOptional')"
-                        @input="nameTouched = true"
-                      />
-                      <span v-if="duplicateName" class="field__hint">{{
-                        t('bots.duplicateName')
-                      }}</span>
-                    </label>
-                    <label class="field">
-                      <span class="field__label">{{ t('connect.baseUrl') }}</span>
-                      <input
-                        v-model="form.baseUrl"
-                        class="input num"
-                        type="text"
-                        inputmode="url"
-                        spellcheck="false"
-                      />
-                    </label>
-                    <label class="field">
-                      <span class="field__label">{{ t('connect.username') }}</span>
-                      <input
-                        v-model="form.username"
-                        class="input"
-                        type="text"
-                        autocomplete="username"
-                      />
-                    </label>
-                    <label class="field">
-                      <span class="field__label">{{ t('connect.password') }}</span>
-                      <input
-                        v-model="form.password"
-                        class="input"
-                        type="password"
-                        autocomplete="current-password"
-                        :placeholder="form.id ? t('settings.passwordKept') : ''"
-                      />
-                    </label>
-                    <label class="field">
-                      <span class="field__label">{{ t('settings.wsToken') }}</span>
-                      <input
-                        v-model="form.wsToken"
-                        class="input num"
-                        type="password"
-                        autocomplete="off"
-                        spellcheck="false"
-                        :placeholder="t('settings.wsTokenPlaceholder')"
-                      />
-                    </label>
+                    <VTextField
+                      v-model="form.name"
+                      :label="t('bots.name')"
+                      type="text"
+                      :placeholder="t('bots.nameOptional')"
+                      :messages="duplicateName ? t('bots.duplicateName') : undefined"
+                      @input="nameTouched = true"
+                    />
+                    <VTextField
+                      v-model="form.baseUrl"
+                      :label="t('connect.baseUrl')"
+                      class="num"
+                      type="text"
+                      inputmode="url"
+                      spellcheck="false"
+                    />
+                    <VTextField
+                      v-model="form.username"
+                      :label="t('connect.username')"
+                      type="text"
+                      autocomplete="username"
+                    />
+                    <VTextField
+                      v-model="form.password"
+                      :label="t('connect.password')"
+                      type="password"
+                      autocomplete="current-password"
+                      :placeholder="form.id ? t('settings.passwordKept') : ''"
+                    />
+                    <VTextField
+                      v-model="form.wsToken"
+                      :label="t('settings.wsToken')"
+                      class="num"
+                      type="password"
+                      autocomplete="off"
+                      spellcheck="false"
+                      :placeholder="t('settings.wsTokenPlaceholder')"
+                    />
                   </div>
                   <p class="small muted">{{ t('bots.probeHint') }}</p>
-                  <div class="row row--wrap">
-                    <button type="submit" class="btn btn--primary" :disabled="!canSave || saving">
+                  <div class="d-flex align-center ga-2 flex-wrap">
+                    <VBtn
+                      color="primary"
+                      variant="flat"
+                      type="submit"
+                      :disabled="!canSave || saving"
+                    >
                       <AppIcon name="check" />
                       {{ t('common.save') }}
-                    </button>
-                    <button type="button" class="btn" @click="cancelEdit">
+                    </VBtn>
+                    <VBtn type="button" @click="cancelEdit">
                       <AppIcon name="close" />
                       {{ t('common.cancel') }}
-                    </button>
+                    </VBtn>
                   </div>
-                </form>
+                </VForm>
               </div>
               <div v-else key="add">
-                <button type="button" class="btn btn--sm bots__add" @click="startAdd">
+                <VBtn type="button" class="bots__add" @click="startAdd">
                   <AppIcon name="plus" />
                   {{ t('bots.add') }}
-                </button>
+                </VBtn>
               </div>
-            </CollapseTransition>
-          </section>
+            </VExpandTransition>
+          </VSheet>
         </div>
-      </CollapseTransition>
+      </VExpandTransition>
       <ControlsPanel />
 
-      <label class="switch">
-        <input v-model="settings.remember" type="checkbox" />
-        <span class="switch__track" />
-        <span class="switch__text">
-          <span class="switch__title">{{ t('connect.remember') }}</span>
-          <span class="switch__hint">{{ t('connect.rememberHint') }}</span>
-        </span>
-      </label>
-    </div>
-  </section>
+      <VSwitch v-model="settings.remember">
+        <template #label
+          ><span class="d-flex flex-column"
+            ><span>{{ t('connect.remember') }}</span
+            ><span class="text-caption text-medium-emphasis">{{
+              t('connect.rememberHint')
+            }}</span></span
+          ></template
+        >
+      </VSwitch>
+    </VCardText>
+  </VCard>
 </template>
 
 <style scoped>

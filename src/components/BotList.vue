@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import Sortable from 'sortablejs'
+import { VList } from 'vuetify/components/VList'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import type { Bot } from '@/lib/bots'
@@ -17,58 +19,35 @@ const emit = defineEmits<{
   reorder: [ids: string[]]
 }>()
 const { t } = useI18n()
-const list = ref<HTMLElement | null>(null)
-const draft = ref<Bot[] | null>(null)
-const dragging = ref<string | null>(null)
+const list = ref<InstanceType<typeof VList> | null>(null)
 const announcement = ref('')
-const rows = computed(() => draft.value ?? props.bots)
-let timer = 0
-let gesture: { id: string; pointer: number; x: number; y: number; handle: HTMLElement } | null =
-  null
-
-function cancel() {
-  window.clearTimeout(timer)
-  const previous = gesture
-  gesture = null
-  draft.value = null
-  dragging.value = null
-  if (previous?.handle.hasPointerCapture?.(previous.pointer))
-    previous.handle.releasePointerCapture(previous.pointer)
-}
-function start(event: PointerEvent, id: string) {
-  if (event.button !== 0 || gesture || props.bots.length < 2) return
-  const handle = list.value
-  if (!handle) return
-  gesture = { id, pointer: event.pointerId, x: event.clientX, y: event.clientY, handle }
-  handle.setPointerCapture?.(event.pointerId)
-  timer = window.setTimeout(() => {
-    draft.value = [...props.bots]
-    dragging.value = id
-  }, 350)
-}
+let sortable: Sortable | null = null
+onMounted(() => {
+  if (!list.value) return
+  sortable = Sortable.create(list.value.$el, {
+    handle: '.bots__drag',
+    forceFallback: true,
+    dataIdAttr: 'data-bot-id',
+    animation: 180,
+    delay: 350,
+    touchStartThreshold: 8,
+    ghostClass: 'is-dragging',
+    onEnd(event) {
+      const ids = sortable!.toArray()
+      sortable!.sort(props.bots.map((bot) => bot.id))
+      const next = ids.map((id) => props.bots.find((bot) => bot.id === id)!)
+      if (next.length === props.bots.length && next.every(Boolean))
+        commit(next, event.item.dataset.botId ?? '')
+    },
+  })
+})
+onBeforeUnmount(() => sortable?.destroy())
 function moved(ids: Bot[], id: string, to: number) {
   const next = [...ids]
   const from = next.findIndex((bot) => bot.id === id)
   if (from < 0 || to < 0 || to >= next.length || from === to) return null
   next.splice(to, 0, next.splice(from, 1)[0]!)
   return next
-}
-function move(event: PointerEvent) {
-  if (!gesture || gesture.pointer !== event.pointerId) return
-  if (!dragging.value) {
-    if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 8) cancel()
-    return
-  }
-  const target = document
-    .elementFromPoint(event.clientX, event.clientY)
-    ?.closest<HTMLElement>('[data-bot-id]')
-  if (!target || !list.value?.contains(target)) return
-  const next = moved(
-    rows.value,
-    gesture.id,
-    rows.value.findIndex((bot) => bot.id === target.dataset.botId),
-  )
-  if (next) draft.value = next
 }
 function commit(next: Bot[], id: string) {
   if (next.every((bot, index) => bot.id === props.bots[index]?.id)) return
@@ -77,7 +56,8 @@ function commit(next: Bot[], id: string) {
     next.map((bot) => bot.id),
   )
   void nextTick(() => {
-    const row = [...(list.value?.querySelectorAll<HTMLElement>('[data-bot-id]') ?? [])].find(
+    const element = list.value?.$el as HTMLElement | undefined
+    const row = [...(element?.querySelectorAll<HTMLElement>('[data-bot-id]') ?? [])].find(
       (element) => element.dataset.botId === id,
     )
     row?.querySelector<HTMLButtonElement>('.bots__drag')?.focus({ preventScroll: true })
@@ -88,108 +68,83 @@ function commit(next: Bot[], id: string) {
     total: next.length,
   })
 }
-function finish(event: PointerEvent) {
-  if (!gesture || gesture.pointer !== event.pointerId) return
-  const next = draft.value
-  const id = gesture.id
-  cancel()
-  if (next) commit(next, id)
-}
 function keyboard(event: KeyboardEvent, id: string) {
-  if (event.key === 'Escape') {
-    cancel()
-    return
-  }
   if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
   event.preventDefault()
-  cancel()
   const index = props.bots.findIndex((bot) => bot.id === id)
   const next = moved(props.bots, id, index + (event.key === 'ArrowUp' ? -1 : 1))
   if (next) commit(next, id)
 }
-watch(() => props.bots, cancel)
-onBeforeUnmount(cancel)
 </script>
 
 <template>
-  <ul
+  <VList
     ref="list"
-    class="bots"
-    @pointermove="move"
-    @pointerup="finish"
-    @pointercancel="cancel"
-    @lostpointercapture="cancel"
+    tag="ul"
+    role="list"
+    class="bots d-flex flex-column ga-3 pa-0 ma-0"
+    bg-color="transparent"
   >
-    <li
-      v-for="entry in rows"
+    <VListItem
+      v-for="entry in bots"
       :key="entry.id"
-      class="bots__row"
+      tag="li"
+      role="listitem"
+      border
+      rounded="lg"
+      class="bots__row pa-3"
       :data-bot-id="entry.id"
-      :class="{ 'is-active': entry.id === activeBotId, 'is-dragging': dragging === entry.id }"
+      :active="entry.id === activeBotId"
+      color="primary"
     >
-      <div class="row row--wrap">
-        <span class="bots__name">{{ entry.name }}</span>
-        <span v-if="entry.id === activeBotId" class="chip chip--good">{{ t('bots.current') }}</span>
-        <span class="num small muted bots__url">{{ entry.baseUrl }}</span>
+      <div class="d-flex flex-column ga-3">
+        <div class="d-flex align-center ga-2 flex-wrap">
+          <span class="bots__name">{{ entry.name }}</span>
+          <VChip v-if="entry.id === activeBotId" size="x-small" variant="tonal" color="success">{{
+            t('bots.current')
+          }}</VChip>
+          <span class="num small muted bots__url">{{ entry.baseUrl }}</span>
+        </div>
+        <div class="d-flex align-center ga-2 flex-wrap">
+          <VBtn type="button" @click="emit('edit', entry)">
+            <AppIcon name="edit" />{{ t('bots.edit') }}
+          </VBtn>
+          <VBtn
+            type="button"
+            :color="testResult[entry.id] === 'ok' ? 'success' : undefined"
+            :disabled="testing === entry.id"
+            @click="emit('test', entry)"
+          >
+            <AppIcon name="wifi" />{{
+              testResult[entry.id] === 'ok' ? t('bots.testSucceeded') : t('bots.test')
+            }}
+          </VBtn>
+          <VBtn color="error" type="button" @click="emit('remove', entry)">
+            <AppIcon name="trash" />{{ t('bots.remove') }}
+          </VBtn>
+          <VSpacer />
+          <VBtn
+            variant="text"
+            :icon="true"
+            type="button"
+            class="bots__drag"
+            density="comfortable"
+            :disabled="bots.length < 2"
+            :title="t('bots.reorder', { name: entry.name })"
+            :aria-label="t('bots.reorder', { name: entry.name })"
+            @contextmenu.prevent
+            @keydown.stop="keyboard($event, entry.id)"
+          >
+            <AppIcon name="grip" />
+          </VBtn>
+        </div>
       </div>
-      <div class="row row--wrap">
-        <button type="button" class="btn btn--sm" @click="emit('edit', entry)">
-          <AppIcon name="edit" />{{ t('bots.edit') }}
-        </button>
-        <button
-          type="button"
-          class="btn btn--sm"
-          :class="{ 'bots__test--ok': testResult[entry.id] === 'ok' }"
-          :disabled="testing === entry.id"
-          @click="emit('test', entry)"
-        >
-          <AppIcon name="wifi" />{{
-            testResult[entry.id] === 'ok' ? t('bots.testSucceeded') : t('bots.test')
-          }}
-        </button>
-        <button type="button" class="btn btn--sm btn--danger" @click="emit('remove', entry)">
-          <AppIcon name="trash" />{{ t('bots.remove') }}
-        </button>
-        <div class="spacer" />
-        <button
-          type="button"
-          class="btn btn--sm btn--icon btn--ghost bots__drag"
-          :disabled="bots.length < 2"
-          :title="t('bots.reorder', { name: entry.name })"
-          :aria-label="t('bots.reorder', { name: entry.name })"
-          @pointerdown="start($event, entry.id)"
-          @contextmenu.prevent
-          @keydown="keyboard($event, entry.id)"
-        >
-          <AppIcon name="grip" />
-        </button>
-      </div>
-    </li>
-  </ul>
+    </VListItem>
+  </VList>
   <p class="sr-only" role="status">{{ announcement }}</p>
 </template>
 
 <style scoped>
-.bots {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.bots__row {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  padding: var(--sp-3);
-  border: 1px solid var(--line);
-  border-radius: var(--r-2);
-  background: var(--ink-900);
-}
-.bots__row.is-active {
-  border-color: var(--line-strong);
-}
 .bots__row.is-dragging {
   border-color: var(--accent);
   background: var(--ink-800);
@@ -208,14 +163,5 @@ onBeforeUnmount(cancel)
 }
 .bots__drag:active {
   cursor: grabbing;
-}
-.bots__test--ok {
-  color: var(--long);
-  border-color: rgb(36 201 138 / 35%);
-}
-@supports (color: color-mix(in srgb, black, white)) {
-  .bots__test--ok {
-    border-color: color-mix(in srgb, var(--long) 35%, transparent);
-  }
 }
 </style>

@@ -104,6 +104,7 @@ describe('connect recovery', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
 
@@ -116,6 +117,7 @@ describe('connect recovery', () => {
       password: 'p',
     })
     const bot = useBotStore()
+    const fetcher = vi.spyOn(globalThis, 'fetch')
 
     expect(await bot.connect()).toBe(false)
     expect(bot.connection).toBe('unreachable')
@@ -126,8 +128,51 @@ describe('connect recovery', () => {
     await vi.advanceTimersByTimeAsync(1_100)
     expect(bot.connection).toBe('online')
     expect(bot.errorKey).toBeNull()
+    expect(fetcher.mock.calls.some(([url]) => String(url).endsWith('/token/login'))).toBe(true)
 
     bot.cleanup()
+  })
+
+  it('allows only Start when the authenticated bot is stopped', async () => {
+    const settings = useSettingsStore()
+    settings.addBot({
+      baseUrl: 'https://bot.example/api/v1',
+      username: 'a',
+      password: 'p',
+    })
+    settings.websocket = false
+    const fetcher = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input)).pathname.replace('/api/v1', '')
+      if (path === '/show_config')
+        return Promise.resolve(jsonResponse({ ...showConfig, state: 'stopped' }))
+      if (path === '/count')
+        return Promise.resolve(jsonResponse({ error: 'trader is not running' }, 502))
+      if (path === '/trades')
+        return Promise.resolve(
+          jsonResponse({ trades: [], trades_count: 0, offset: 0, total_trades: 0 }),
+        )
+      if (init?.method === 'POST') return Promise.resolve(jsonResponse({ status: 'ok' }))
+      return Promise.resolve(jsonResponse(corePayloads[path] ?? {}))
+    })
+    vi.stubGlobal('fetch', fetcher)
+    const bot = useBotStore()
+    try {
+      expect(await bot.connect()).toBe(true)
+      expect(bot.connection).toBe('online')
+      settings.allowControls = true
+      expect(await bot.start()).toBeNull()
+      settings.controlsAcknowledged = true
+      expect(bot.writesAllowed).toBe(false)
+      expect(await bot.forceExit(1)).toBeNull()
+      expect(await bot.start()).toEqual({ status: 'ok' })
+      expect(
+        fetcher.mock.calls
+          .filter(([, init]) => init?.method === 'POST')
+          .map(([url]) => String(url)),
+      ).toEqual(['https://bot.example/api/v1/start'])
+    } finally {
+      bot.cleanup()
+    }
   })
 
   it('does not poll a rejected password', async () => {

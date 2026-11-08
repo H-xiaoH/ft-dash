@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import AppIcon from '@/components/AppIcon.vue'
-import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue'
+import { computed, useId, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useModalFocus } from '@/composables/useModalFocus'
 import { RATIO_BANDS, type RatioKey } from '@/lib/ratios'
 
 const props = defineProps<{
@@ -12,62 +11,60 @@ const props = defineProps<{
 const emit = defineEmits<{ close: [] }>()
 
 const { t } = useI18n()
-const panel = ref<HTMLElement | null>(null)
 const titleId = useId()
 
 const open = computed(() => props.ratio !== null)
 const title = computed(() => (props.ratio ? t(`stats.ratios.${props.ratio}.name`) : ''))
-
-const { isTopModal } = useModalFocus(open, panel)
-
-function onKeydown(event: KeyboardEvent) {
-  if (event.key !== 'Escape' || !open.value || !isTopModal.value) return
-  event.preventDefault()
-  event.stopPropagation()
-  emit('close')
-}
-
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+const activator = shallowRef<HTMLElement>()
+watch(
+  () => props.ratio !== null,
+  (open) => {
+    if (open) {
+      const active = document.activeElement
+      activator.value =
+        active instanceof HTMLElement && active !== document.body ? active : undefined
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="popup" appear @before-leave="(el) => el.setAttribute('inert', '')">
-      <div
-        v-if="ratio"
-        class="overlay"
-        role="dialog"
-        aria-modal="true"
-        :aria-labelledby="titleId"
-        @click.self="emit('close')"
-      >
-        <div ref="panel" class="dialog ratios" tabindex="-1">
-          <div class="dialog__head">
-            <span :id="titleId" class="dialog__title">{{ title }}</span>
-            <div class="spacer" />
-            <button type="button" class="btn btn--icon btn--ghost" @click="emit('close')">
-              <AppIcon name="close" />
-              <span class="sr-only">{{ t('common.close') }}</span>
-            </button>
-          </div>
-          <div class="dialog__body">
-            <p>{{ t(`stats.ratios.${ratio}.plain`) }}</p>
-            <p class="ratios__bench">
-              {{ t(`stats.ratios.${ratio}.bench`, { ...RATIO_BANDS[ratio] }) }}
-            </p>
-            <p class="ratios__caveat">{{ t('stats.ratios.caveat') }}</p>
-          </div>
-          <div class="dialog__foot">
-            <button type="button" class="btn btn--primary" @click="emit('close')">
-              <AppIcon name="close" />
-              {{ t('common.close') }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
+  <VDialog
+    :activator="activator"
+    :open-on-click="false"
+    :model-value="open"
+    max-width="480"
+    :aria-labelledby="titleId"
+    @update:model-value="!$event && emit('close')"
+  >
+    <VCard v-if="ratio" class="ratios">
+      <VCardItem>
+        <template #title
+          ><span :id="titleId" class="text-wrap">{{ title }}</span></template
+        >
+        <template #append>
+          <VBtn variant="text" :icon="true" :aria-label="t('common.close')" @click="emit('close')"
+            ><AppIcon name="close"
+          /></VBtn>
+        </template>
+      </VCardItem>
+      <VCardText class="dialog__body">
+        <p>{{ t(`stats.ratios.${ratio}.plain`) }}</p>
+        <p class="ratios__bench">
+          {{ t(`stats.ratios.${ratio}.bench`, { ...RATIO_BANDS[ratio] }) }}
+        </p>
+        <p class="ratios__caveat">{{ t('stats.ratios.caveat') }}</p>
+      </VCardText>
+      <VCardActions>
+        <VSpacer />
+        <VBtn color="primary" variant="flat" type="button" @click="emit('close')">
+          <AppIcon name="close" />
+          {{ t('common.close') }}
+        </VBtn>
+      </VCardActions>
+    </VCard>
+  </VDialog>
 </template>
 
 <style scoped>
@@ -84,12 +81,5 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   padding-top: var(--sp-3);
   color: var(--text-2);
   font-size: var(--fs-base);
-}
-
-/* Long ratio names must not push the plain-language line off a phone screen. */
-@media (max-width: 560px) {
-  .dialog__title {
-    font-size: var(--fs-base);
-  }
 }
 </style>

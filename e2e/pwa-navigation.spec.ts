@@ -84,24 +84,24 @@ test('an API-shaped path preserves its upstream status instead of the app shell'
 test('standalone page navigation does not leave a page history entry', async ({ page }) => {
   const historyLength = await page.evaluate(() => history.length)
 
-  await page.locator('.tabbar__item').nth(1).click()
+  await page.locator('.tabbar .v-btn').nth(1).click()
   await expect(page).toHaveURL(/#\/trades(?:\?|$)/)
   expect(await page.evaluate(() => history.length)).toBe(historyLength)
 })
 
 test('standalone trade detail keeps one list entry for back', async ({ page }) => {
-  await page.locator('.tabbar__item').nth(1).click()
+  await page.locator('.tabbar .v-btn').nth(1).click()
   await expect(page).toHaveURL(/#\/trades(?:\?|$)/)
 
   const row = livePage(page).locator('.progressive-table tbody tr').first()
   await expect(row).toBeVisible()
   await page.waitForTimeout(300)
   await row.click()
-  await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
+  await expect(page.locator('.trade-dialog .trade-detail')).toBeVisible()
 
   await page.goBack()
   await expect(page).toHaveURL(/#\/trades(?:\?|$)/)
-  await expect(page.locator('.overlay--drawer')).toHaveCount(0)
+  await expect(page.locator('.trade-dialog')).toHaveCount(0)
 })
 
 test('standalone overview detail returns to the trades list', async ({ page }) => {
@@ -112,18 +112,19 @@ test('standalone overview detail returns to the trades list', async ({ page }) =
     .first()
 
   await openTrades.click()
-  await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
+  await expect(page.locator('.trade-dialog .trade-detail')).toBeVisible()
 
   await page.goBack()
   await expect(page).toHaveURL(/#\/trades\?filter=open$/)
-  await expect(page.locator('.overlay--drawer')).toHaveCount(0)
+  await expect(page.locator('.trade-dialog')).toHaveCount(0)
 })
 
 test('standalone deep-linked detail seeds a list history entry', async ({ page }) => {
   await page.goto('/#/trades?filter=closed&trade=1')
-  await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
+  await expect(page.locator('.trade-dialog .trade-detail')).toBeVisible()
+  expect(await page.evaluate(() => history.state.back)).toBe('/trades?filter=closed')
 
   await page.goBack()
   await expect(page).toHaveURL(/#\/trades\?filter=closed$/)
-  await expect(page.locator('.overlay--drawer')).toHaveCount(0)
+  await expect(page.locator('.trade-dialog')).toHaveCount(0)
 })

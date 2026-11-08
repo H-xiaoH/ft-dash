@@ -948,7 +948,7 @@ describe('switching bots', () => {
     bot.stopPolling()
     bot.startPolling()
 
-    // Warm three completed ticks so the fourth tick would enter its heavier branch.
+    // Warm three completed ticks before leaving one request in flight.
     await vi.advanceTimersByTimeAsync(3000)
     expect(firstStatusCalls).toBe(4)
 
@@ -960,11 +960,12 @@ describe('switching bots', () => {
     // The new bot starts its own poll even though the old request is unresolved.
     await vi.advanceTimersByTimeAsync(1000)
     expect(secondStatusCalls).toBe(2)
+    expect(secondTradesCalls).toBe(2)
 
-    // Finishing the old poll must not run its heavy branch against the new client.
+    // Finishing the old poll must not refresh the new client.
     releaseFirstPoll(jsonResponse([]))
     await vi.advanceTimersByTimeAsync(0)
-    expect(secondTradesCalls).toBe(1)
+    expect(secondTradesCalls).toBe(2)
 
     // Nor may the old finally clear the new poll's latch while its request is pending.
     await vi.advanceTimersByTimeAsync(1000)

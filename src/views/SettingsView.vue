@@ -1,22 +1,21 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import BotsPanel from '@/components/BotsPanel.vue'
-import FilterMenu from '@/components/FilterMenu.vue'
 import InlineConfirm from '@/components/InlineConfirm.vue'
 import { pushToast } from '@/composables/useToast'
 import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from '@/i18n'
 import { canInstall, isStandalone, offlineReady, promptInstall } from '@/pwa'
 import { useBotStore } from '@/stores/bot'
-import { useEventsStore } from '@/stores/events'
 import { browserZone, listZones, zoneOffsetLabel, type TimezonePreference } from '@/lib/timezone'
 import { COUNT_SETTINGS, useSettingsStore } from '@/stores/settings'
 
 const { t } = useI18n()
+const route = useRoute()
 const settings = useSettingsStore()
 const bot = useBotStore()
-const events = useEventsStore()
 
 const clearConfirm = ref(false)
 const appVersion = __APP_VERSION__
@@ -43,7 +42,7 @@ const languageOptions = computed(() => [
  * ~420 up front costs about 30ms of `Intl` work before the page can paint.
  */
 const timezoneOptions = computed(() => [
-  { value: 'browser' as TimezonePreference, label: t('settings.timezoneBrowser') },
+  { value: 'browser' as TimezonePreference, label: t('settings.timezoneBrowser'), hint: '' },
   ...listZones().map((zone) => ({
     value: zone as TimezonePreference,
     label: zone,
@@ -53,13 +52,6 @@ const timezoneOptions = computed(() => [
   })),
 ])
 
-/**
- * "Follow the browser" can also be found by the zone it resolves to — an operator who types
- * "Shanghai" deserves to see both answers. The offsets are deliberately *not* matched on:
- * every one of them contains "UTC", so searching UTC would return the entire list.
- */
-const timezoneSearchText = computed<Record<string, string>>(() => ({ browser: browserZone() }))
-
 async function install() {
   const accepted = await promptInstall()
   if (accepted) pushToast(t('settings.installed'), 'good')
@@ -68,145 +60,152 @@ async function install() {
 async function clearData() {
   settings.clearStoredData()
   clearConfirm.value = false
-  bot.cleanup()
-  events.endScope()
   pushToast(t('actions.done'), 'good')
 }
 </script>
 
 <template>
-  <div class="stack settings">
-    <BotsPanel />
+  <div class="d-flex flex-column ga-4 settings">
+    <BotsPanel v-if="route.name === 'settings'" />
 
-    <div class="settings__columns">
-      <div class="settings__col">
-        <section class="panel">
-          <div class="panel__head">
-            <span class="panel__title">{{ t('settings.region') }}</span>
-          </div>
-          <div class="panel__body stack">
-            <div class="field">
-              <span class="field__label">{{ t('settings.language') }}</span>
-              <FilterMenu
-                v-model="settings.localePreference"
-                class="settings__filter"
-                :options="languageOptions"
-                :label="t('settings.language')"
-                align="start"
-              />
-            </div>
-            <div class="field">
-              <span class="field__label">{{ t('settings.timezone') }}</span>
-              <FilterMenu
-                v-model="settings.timezone"
-                class="settings__filter"
-                :options="timezoneOptions"
-                :label="t('settings.timezone')"
-                :search-text="timezoneSearchText"
-                searchable
-                align="start"
-              />
-            </div>
-          </div>
-        </section>
+    <VRow dense class="settings__columns">
+      <VCol cols="12" lg="6" class="d-flex flex-column ga-4">
+        <VCard tag="section" class="panel">
+          <VCardItem class="panel__head">
+            <VCardTitle tag="span" class="panel__title">{{ t('settings.region') }}</VCardTitle>
+          </VCardItem>
+          <VCardText class="panel__body d-flex flex-column ga-4">
+            <VSelect
+              v-model="settings.localePreference"
+              :items="languageOptions"
+              item-title="label"
+              item-value="value"
+              :label="t('settings.language')"
+            />
+            <VAutocomplete
+              v-model="settings.timezone"
+              :items="timezoneOptions"
+              item-title="label"
+              item-value="value"
+              :label="t('settings.timezone')"
+              :custom-filter="
+                (value, query, item) =>
+                  `${value} ${item?.raw.value === 'browser' ? browserZone() : ''}`
+                    .toLowerCase()
+                    .includes(query.toLowerCase())
+              "
+            >
+              <template #item="{ props: itemProps, item }">
+                <VListItem v-bind="itemProps"
+                  ><template #append
+                    ><span class="small muted num">{{ item.hint }}</span></template
+                  ></VListItem
+                >
+              </template>
+            </VAutocomplete>
+          </VCardText>
+        </VCard>
 
-        <section class="panel">
-          <div class="panel__head">
-            <span class="panel__title">{{ t('settings.display') }}</span>
-          </div>
-          <div class="panel__body stack">
-            <label class="field">
-              <span class="field__label">{{ t('settings.openLimit') }}</span>
-              <input
-                v-model.number="settings.dashboardOpenLimit"
-                class="input num"
-                type="number"
-                :min="COUNT_SETTINGS.dashboardOpenLimit.min"
-                :max="COUNT_SETTINGS.dashboardOpenLimit.max"
-                :placeholder="countPlaceholder('dashboardOpenLimit')"
-                inputmode="numeric"
-                @change="settings.commitCount('dashboardOpenLimit')"
-              />
-            </label>
-            <label class="field">
-              <span class="field__label">{{ t('settings.closedLimit') }}</span>
-              <input
-                v-model.number="settings.dashboardClosedLimit"
-                class="input num"
-                type="number"
-                :min="COUNT_SETTINGS.dashboardClosedLimit.min"
-                :max="COUNT_SETTINGS.dashboardClosedLimit.max"
-                :placeholder="countPlaceholder('dashboardClosedLimit')"
-                inputmode="numeric"
-                @change="settings.commitCount('dashboardClosedLimit')"
-              />
-            </label>
-            <label class="field">
-              <span class="field__label">{{ t('settings.tradesPerPage') }}</span>
-              <input
-                v-model.number="settings.tradesPerPage"
-                class="input num"
-                type="number"
-                :min="0"
-                :max="COUNT_SETTINGS.tradesPerPage.max"
-                :placeholder="countPlaceholder('tradesPerPage')"
-                inputmode="numeric"
-                @change="settings.commitCount('tradesPerPage')"
-              />
-            </label>
-            <label class="field">
-              <span class="field__label">{{ t('settings.pairTablePerPage') }}</span>
-              <input
-                v-model.number="settings.pairTablePerPage"
-                class="input num"
-                type="number"
-                :min="COUNT_SETTINGS.pairTablePerPage.min"
-                :max="COUNT_SETTINGS.pairTablePerPage.max"
-                :placeholder="countPlaceholder('pairTablePerPage')"
-                inputmode="numeric"
-                @change="settings.commitCount('pairTablePerPage')"
-              />
-            </label>
-          </div>
-        </section>
-      </div>
+        <VCard tag="section" class="panel">
+          <VCardItem class="panel__head">
+            <VCardTitle tag="span" class="panel__title">{{ t('settings.display') }}</VCardTitle>
+          </VCardItem>
+          <VCardText class="panel__body d-flex flex-column ga-4">
+            <VTextField
+              v-model.number="settings.dashboardOpenLimit"
+              :label="t('settings.openLimit')"
+              class="num"
+              type="number"
+              :min="COUNT_SETTINGS.dashboardOpenLimit.min"
+              :max="COUNT_SETTINGS.dashboardOpenLimit.max"
+              :placeholder="countPlaceholder('dashboardOpenLimit')"
+              inputmode="numeric"
+              @change="settings.commitCount('dashboardOpenLimit')"
+            />
+            <VTextField
+              v-model.number="settings.dashboardClosedLimit"
+              :label="t('settings.closedLimit')"
+              class="num"
+              type="number"
+              :min="COUNT_SETTINGS.dashboardClosedLimit.min"
+              :max="COUNT_SETTINGS.dashboardClosedLimit.max"
+              :placeholder="countPlaceholder('dashboardClosedLimit')"
+              inputmode="numeric"
+              @change="settings.commitCount('dashboardClosedLimit')"
+            />
+            <VTextField
+              v-model.number="settings.tradesPerPage"
+              :label="t('settings.tradesPerPage')"
+              class="num"
+              type="number"
+              :min="0"
+              :max="COUNT_SETTINGS.tradesPerPage.max"
+              :placeholder="countPlaceholder('tradesPerPage')"
+              inputmode="numeric"
+              @change="settings.commitCount('tradesPerPage')"
+            />
+            <VTextField
+              v-model.number="settings.pairTablePerPage"
+              :label="t('settings.pairTablePerPage')"
+              class="num"
+              type="number"
+              :min="COUNT_SETTINGS.pairTablePerPage.min"
+              :max="COUNT_SETTINGS.pairTablePerPage.max"
+              :placeholder="countPlaceholder('pairTablePerPage')"
+              inputmode="numeric"
+              @change="settings.commitCount('pairTablePerPage')"
+            />
+            <VTextField
+              v-model.number="settings.pollInterval"
+              :label="t('settings.pollInterval')"
+              class="num"
+              type="number"
+              :min="COUNT_SETTINGS.pollInterval.min"
+              :max="COUNT_SETTINGS.pollInterval.max"
+              :placeholder="countPlaceholder('pollInterval')"
+              inputmode="numeric"
+              @change="settings.commitCount('pollInterval')"
+            />
+          </VCardText>
+        </VCard>
+      </VCol>
 
-      <div class="settings__col">
-        <section class="panel">
-          <div class="panel__head">
-            <span class="panel__title">{{ t('settings.pwaTitle') }}</span>
+      <VCol cols="12" lg="6" class="d-flex flex-column ga-4">
+        <VCard tag="section" class="panel">
+          <VCardItem class="panel__head">
+            <VCardTitle tag="span" class="panel__title">{{ t('settings.pwaTitle') }}</VCardTitle>
             <div class="panel__actions">
-              <span v-if="offlineReady" class="chip chip--good">{{
+              <VChip v-if="offlineReady" size="x-small" variant="tonal" color="success">{{
                 t('settings.offlineReady')
-              }}</span>
+              }}</VChip>
             </div>
-          </div>
-          <div class="panel__body row row--wrap">
-            <button v-if="canInstall" type="button" class="btn btn--primary" @click="install">
+          </VCardItem>
+          <VCardText class="panel__body d-flex align-center ga-2 flex-wrap">
+            <VBtn v-if="canInstall" color="primary" variant="flat" type="button" @click="install">
               <AppIcon name="install" />
               {{ t('settings.install') }}
-            </button>
-            <span v-else-if="isStandalone" class="chip chip--good">{{
+            </VBtn>
+            <VChip v-else-if="isStandalone" size="x-small" variant="tonal" color="success">{{
               t('settings.installed')
-            }}</span>
+            }}</VChip>
             <p v-else class="small muted">{{ t('settings.installManual') }}</p>
             <p class="small muted settings__hint">{{ t('settings.installHint') }}</p>
-          </div>
-        </section>
-      </div>
-    </div>
+          </VCardText>
+        </VCard>
+      </VCol>
+    </VRow>
 
-    <section class="panel">
-      <div class="panel__head">
-        <span class="panel__title">{{ t('settings.dataTitle') }}</span>
-      </div>
-      <div class="panel__body stack">
+    <VCard tag="section" class="panel">
+      <VCardItem class="panel__head">
+        <VCardTitle tag="span" class="panel__title">{{ t('settings.dataTitle') }}</VCardTitle>
+      </VCardItem>
+      <VCardText class="panel__body d-flex flex-column ga-4">
         <p class="small muted">{{ t('settings.dataHint') }}</p>
-        <div class="row row--wrap">
-          <button type="button" class="btn btn--danger" @click="clearConfirm = true">
+        <div class="d-flex align-center ga-2 flex-wrap">
+          <VBtn color="error" type="button" @click="clearConfirm = true">
             <AppIcon name="trash" />
             {{ t('settings.clearData') }}
-          </button>
+          </VBtn>
           <span class="small muted">
             {{ t('app.name') }} - {{ appVersion }} · {{ t('app.freqtrade') }} -
             {{ bot.showConfig?.version ?? '—' }}
@@ -221,71 +220,12 @@ async function clearData() {
           @confirm="clearData"
           @cancel="clearConfirm = false"
         />
-      </div>
-    </section>
+      </VCardText>
+    </VCard>
   </div>
 </template>
 
 <style scoped>
-.settings {
-  /*
-   * Column flow rather than a grid: a grid row is as tall as its tallest card, which
-   * left a hole under the short language card. `display` is restated because the
-   * `.stack` helper already made the root a flex column.
-   */
-  display: flex;
-  flex-direction: column;
-}
-
-/*
- * Two explicit stacks instead of CSS columns or a grid: the cards keep their order, both
- * columns start at the same line, and every gap is the same — balancing a multi-column box
- * moved the right-hand stack down and closed the gap before the full-width card.
- */
-.settings__columns {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sp-4);
-  align-items: start;
-}
-
-.settings__col {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-  min-width: 0;
-}
-
-@media (max-width: 1100px) {
-  .settings__columns {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.settings__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
-  gap: var(--sp-3);
-}
-
-.settings__filter {
-  width: 100%;
-}
-
-.settings__filter :deep(.filter-menu__button) {
-  width: 100%;
-  justify-content: space-between;
-}
-
-/* Full-width triggers need less horizontal scaling to match compact buttons. */
-.settings__filter :deep(.filter-menu__button:active:not(:disabled)) {
-  transform: scale(0.99, 0.97);
-}
-
-.settings__clear-confirm {
-  justify-items: center;
-}
-
 .settings__list {
   margin: 0;
   padding-left: 18px;
@@ -298,29 +238,5 @@ async function clearData() {
 
 .settings__hint {
   flex-basis: 100%;
-}
-
-.settings__danger {
-  border-color: rgb(109 52 52);
-}
-
-@supports (color: color-mix(in srgb, black, white)) {
-  .settings__danger {
-    border-color: color-mix(in srgb, var(--short) 35%, var(--line));
-  }
-}
-
-.stream-auth {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  padding: var(--sp-4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-2);
-  background: var(--ink-800);
-}
-
-.stream-auth--disabled {
-  opacity: 0.6;
 }
 </style>

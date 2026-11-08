@@ -4,13 +4,12 @@ import { ApiError, FreqtradeApiClient, websocketUrl, type Credentials } from '@/
 import {
   BotSessionController,
   HEARTBEAT_STALE_MS,
-  POLL_INTERVAL_SECONDS,
   type BotSessionSnapshot,
   type ConnectionState,
   type ErrorDescription,
 } from '@/data/freqtrade/session'
-import { CANDLE_COLUMNS, SIGNAL_COLUMNS } from '@/lib/candles'
 import { parseTimestamp } from '@/lib/format'
+import { countTradeOutcomes } from '@/lib/stats'
 import {
   classifyJwtFailure,
   nextRetryDelay,
@@ -69,9 +68,11 @@ export const useBotStore = defineStore('bot', () => {
   const refreshing = computed(() => session.value?.state.refreshing ?? false)
   const actionPending = computed(() => session.value?.state.actionPending ?? null)
   const snapshotStale = computed(() => session.value?.state.snapshotStale ?? false)
+  const connectionRevision = ref(0)
 
   const showConfig = computed(() => session.value?.state.data.showConfig ?? null)
   const health = computed(() => session.value?.state.data.health ?? null)
+  const healthRequestFailed = computed(() => Boolean(session.value?.state.resourceErrors.health))
   const sysinfo = computed(() => session.value?.state.data.sysinfo ?? null)
   const balance = computed(() => session.value?.state.data.balance ?? null)
   const profit = computed(() => session.value?.state.data.profit ?? null)
@@ -83,6 +84,7 @@ export const useBotStore = defineStore('bot', () => {
   const performanceStats = computed(() => session.value?.state.data.performance ?? [])
   const daily = computed(() => session.value?.state.data.daily ?? null)
   const weekly = computed(() => session.value?.state.data.weekly ?? null)
+  const historicBalance = computed(() => session.value?.state.data.historicBalance ?? null)
   const monthly = computed(() => session.value?.state.data.monthly ?? null)
   const whitelist = computed(() => session.value?.state.data.whitelist ?? null)
   const blacklist = computed(() => session.value?.state.data.blacklist ?? null)
@@ -92,6 +94,7 @@ export const useBotStore = defineStore('bot', () => {
 
   let lifecycleToken = 0
   let stopped = false
+  let waitingForFirstOnline = false
   let ws: WebSocket | null = null
   let wsRetry = 0
   let wsTimer: number | null = null
@@ -128,17 +131,31 @@ export const useBotStore = defineStore('bot', () => {
       .filter((currency) => currency.is_position)
       .reduce((sum, currency) => sum + (currency.est_stake ?? 0), 0),
   )
+  const tradeOutcomes = computed(() => countTradeOutcomes(tradeStats.value))
   const winRate = computed(() => {
-    const summary = profit.value
-    if (!summary) return null
-    const decided = summary.winning_trades + summary.losing_trades
-    return decided > 0 ? (summary.winning_trades / decided) * 100 : null
+    const outcomes = tradeOutcomes.value
+    if (!outcomes) return null
+    const decided = outcomes.wins + outcomes.losses
+    return decided > 0 ? (outcomes.wins / decided) * 100 : null
   })
-  const heartbeatAgeMs = computed(() => {
+  const heartbeatTimestamp = computed(() => {
     const timestamp = health.value?.last_process_ts ?? health.value?.last_process ?? null
-    const parsed = parseTimestamp(timestamp)
-    return parsed === null ? null : Date.now() - parsed
+    return parseTimestamp(timestamp)
   })
+  const heartbeatNow = ref(Date.now())
+  watch(
+    [heartbeatTimestamp, connection],
+    ([timestamp, state], _, onCleanup) => {
+      heartbeatNow.value = Date.now()
+      if (timestamp === null || state === 'idle' || state === 'unauthorized') return
+      const timer = setInterval(() => (heartbeatNow.value = Date.now()), 1_000)
+      onCleanup(() => clearInterval(timer))
+    },
+    { flush: 'sync' },
+  )
+  const heartbeatAgeMs = computed(() =>
+    heartbeatTimestamp.value === null ? null : heartbeatNow.value - heartbeatTimestamp.value,
+  )
   const closedTrades = computed(() => trades.value.filter((trade) => !trade.is_open))
   const closedByRecency = computed(() =>
     [...closedTrades.value].sort((a, b) => (b.close_timestamp ?? 0) - (a.close_timestamp ?? 0)),
@@ -157,10 +174,23 @@ export const useBotStore = defineStore('bot', () => {
     () =>
       settings.writesEnabled &&
       connection.value === 'online' &&
+      showConfig.value?.state !== 'stopped' &&
       !snapshotStale.value &&
       session.value?.state.coreReady === true &&
       session.value?.state.tradesReady === true &&
       actionPending.value === null,
+  )
+  const canResume = computed(
+    () =>
+      writesAllowed.value ||
+      (settings.writesEnabled &&
+        connection.value === 'online' &&
+        session.value?.state.configReady === true &&
+        showConfig.value?.state === 'stopped' &&
+        actionPending.value === null),
+  )
+  const canDeleteLocks = computed(
+    () => writesAllowed.value && session.value?.state.locksReady === true,
   )
 
   function notify(title: string, body: string, tag?: string) {
@@ -180,6 +210,7 @@ export const useBotStore = defineStore('bot', () => {
     return new BotSessionController({
       botId,
       credentials,
+      pollIntervalSeconds: settings.pollIntervalSeconds,
       backgroundCheckEnabled: () => settings.notifications,
       onHeartbeatAlert: (ageMs) =>
         notify(
@@ -200,18 +231,6 @@ export const useBotStore = defineStore('bot', () => {
   function ensureSession(): BotSessionController {
     if (!session.value) session.value = createSession()
     return session.value
-  }
-
-  function ensureClient(): FreqtradeApiClient {
-    const value = ensureSession().ensureClient()
-    client.value = value
-    return value
-  }
-
-  function rebuildClient() {
-    const current = ensureSession()
-    current.updateCredentials(currentCredentials())
-    client.value = null
   }
 
   function applyConfigMetadata() {
@@ -235,18 +254,6 @@ export const useBotStore = defineStore('bot', () => {
     return ensureSession().refreshCore()
   }
 
-  function refreshTrades() {
-    return ensureSession().refreshTrades()
-  }
-
-  function refreshAnalytics() {
-    return ensureSession().refreshAnalytics()
-  }
-
-  function refreshMarket() {
-    return ensureSession().refreshMarket()
-  }
-
   function refreshSystem() {
     return ensureSession()
       .refreshSystem()
@@ -264,6 +271,11 @@ export const useBotStore = defineStore('bot', () => {
     ensureSession().startPolling()
   }
 
+  watch(
+    () => settings.pollIntervalSeconds,
+    (seconds) => session.value?.setPollingInterval(seconds),
+  )
+
   function stopPolling() {
     session.value?.stopPolling()
   }
@@ -275,14 +287,21 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   async function connectForLifecycle(token: number): Promise<boolean> {
-    if (!isCurrentLifecycle(token)) return false
+    const localDataRevision = settings.localDataRevision
+    if (!isCurrentLifecycle(token) || !settings.isLocalDataRevisionCurrent(localDataRevision))
+      return false
     if (!settings.baseUrl || !settings.username || !settings.password) {
       return false
     }
     stopped = false
     const current = ensureSession()
     const ok = await current.connect()
-    if (!isCurrentLifecycle(token) || current !== session.value) return false
+    if (
+      !isCurrentLifecycle(token) ||
+      current !== session.value ||
+      !settings.isLocalDataRevisionCurrent(localDataRevision)
+    )
+      return false
     client.value = current.currentClient
     if (!ok) {
       /*
@@ -291,20 +310,27 @@ export const useBotStore = defineStore('bot', () => {
        * only hammer the API, so that case stays a manual retry.
        */
       if (current.state.data.showConfig && current.state.connection === 'unreachable') {
+        waitingForFirstOnline = true
         startPolling()
       }
       return false
     }
+    activateConnection(current)
+    startPolling()
+    return true
+  }
+
+  function activateConnection(current: BotSessionController) {
+    waitingForFirstOnline = false
     events.beginScope({ botId: current.state.botId, epoch: current.currentEpoch })
     settings.persistBots()
     applyConfigMetadata()
-    startPolling()
     if (settings.websocket) retryStream()
-    return true
   }
 
   function stopLifecycle() {
     stopped = true
+    waitingForFirstOnline = false
     stopPolling()
     disconnectStream()
     session.value?.stop()
@@ -313,18 +339,25 @@ export const useBotStore = defineStore('bot', () => {
   }
 
   async function connect(): Promise<boolean> {
+    if (
+      actionPending.value !== null ||
+      !settings.isLocalDataRevisionCurrent(settings.localDataRevision)
+    )
+      return false
     const token = ++lifecycleToken
     stopLifecycle()
     const current = ensureSession()
     if (current.state.botId !== settings.activeBotId) {
       current.setBot(settings.activeBotId, currentCredentials())
-    } else {
-      current.updateCredentials(currentCredentials())
+    } else if (current.updateCredentials(currentCredentials())) {
+      snapshots.delete(settings.activeBotId)
+      connectionRevision.value += 1
     }
     return connectForLifecycle(token)
   }
 
   async function switchBotForLifecycle(id: string, token: number): Promise<boolean> {
+    if (!settings.isLocalDataRevisionCurrent(settings.localDataRevision)) return false
     const previous = settings.activeBotId
     if (previous) snapshots.set(previous, ensureSession().captureSnapshot())
     stopLifecycle()
@@ -383,7 +416,10 @@ export const useBotStore = defineStore('bot', () => {
     session.value?.cleanup()
     session.value = null
     snapshots.clear()
+    if (typeof document !== 'undefined') document.title = 'FT Dash'
   }
+
+  watch(() => settings.localDataRevision, cleanup, { flush: 'sync' })
 
   // --- websocket -----------------------------------------------------------
 
@@ -646,8 +682,16 @@ export const useBotStore = defineStore('bot', () => {
       disconnectStream()
       return
     }
-    // The socket died while the bot was away; polling just brought it back.
-    if (state === 'online' && streamNeedsRevive) retryStream()
+    if (state !== 'online') return
+    if (
+      waitingForFirstOnline &&
+      session.value &&
+      settings.isLocalDataRevisionCurrent(settings.localDataRevision)
+    ) {
+      activateConnection(session.value)
+    } else if (streamNeedsRevive) {
+      retryStream()
+    }
   })
 
   watch([() => settings.streamAuth, () => settings.wsToken], () => {
@@ -657,11 +701,20 @@ export const useBotStore = defineStore('bot', () => {
 
   // --- write actions -------------------------------------------------------
 
-  function runAction<T>(name: string, task: (client: FreqtradeApiClient) => Promise<T>) {
-    if (!writesAllowed.value) return Promise.resolve(null)
+  function runAction<T>(
+    name: string,
+    task: (client: FreqtradeApiClient) => Promise<T>,
+    allowed = writesAllowed.value,
+  ) {
+    if (!allowed || !settings.isLocalDataRevisionCurrent(settings.localDataRevision))
+      return Promise.resolve(null)
+    const token = lifecycleToken
+    const localDataRevision = settings.localDataRevision
     return ensureSession()
       .runAction(name, task)
       .then((result) => {
+        if (!isCurrentLifecycle(token) || !settings.isLocalDataRevisionCurrent(localDataRevision))
+          return null
         if (result !== null)
           events.push({ type: 'action', subject: name, detail: '', severity: 'info' })
         return result
@@ -674,14 +727,19 @@ export const useBotStore = defineStore('bot', () => {
     limit = 180,
   ): Promise<PairCandlesResponse | null> {
     return ensureSession().fetchCandles(pair, timeframe, limit, [
-      ...CANDLE_COLUMNS,
-      ...SIGNAL_COLUMNS,
+      'date',
+      'open',
+      'high',
+      'low',
+      'close',
+      'volume',
     ])
   }
 
   return {
     // state
     connection,
+    connectionRevision,
     errorKey,
     latencyMs,
     lastFetchAt,
@@ -689,6 +747,7 @@ export const useBotStore = defineStore('bot', () => {
     actionPending,
     showConfig,
     health,
+    healthRequestFailed,
     sysinfo,
     balance,
     profit,
@@ -701,6 +760,7 @@ export const useBotStore = defineStore('bot', () => {
     daily,
     weekly,
     monthly,
+    historicBalance,
     whitelist,
     blacklist,
     locks,
@@ -712,12 +772,15 @@ export const useBotStore = defineStore('bot', () => {
     availableBalance,
     positionValue,
     winRate,
+    tradeOutcomes,
     isLiveAccount,
     heartbeatAgeMs,
     closedTrades,
     closedByRecency,
     tradesByPair,
     writesAllowed,
+    canResume,
+    canDeleteLocks,
     activeBotName,
     labelWithBot: (label: string) =>
       activeBotName.value ? `${label} · ${activeBotName.value}` : label,
@@ -728,12 +791,8 @@ export const useBotStore = defineStore('bot', () => {
     removeBot,
     refreshAll,
     refreshCore,
-    refreshTrades,
-    refreshAnalytics,
-    refreshMarket,
     refreshSystem,
     resetData,
-    rebuildClient,
     startPolling,
     stopPolling,
     cleanup,
@@ -743,13 +802,11 @@ export const useBotStore = defineStore('bot', () => {
     streamAuthMode,
     streamReasonKey,
     streamBlocked,
-    pollIntervalSeconds: POLL_INTERVAL_SECONDS,
+    pollIntervalSeconds: computed(() => settings.pollIntervalSeconds),
     fetchCandles,
-    runAction,
-    ensureClient,
     forceExit: (tradeid: number | string, ordertype: 'market' | 'limit' = 'market') =>
       runAction('forceExit', (api) => api.forceExit({ tradeid, ordertype })),
-    start: () => runAction('start', (api) => api.start()),
+    start: () => runAction('start', (api) => api.start(), canResume.value),
     stop: () => runAction('stop', (api) => api.stop()),
     pauseEntries: () => runAction('pause', (api) => api.pause()),
     reloadConfig: () => runAction('reloadConfig', (api) => api.reloadConfig()),
@@ -757,6 +814,15 @@ export const useBotStore = defineStore('bot', () => {
     deleteBlacklist: (pairs: string[]) =>
       runAction('blacklistDelete', (api) => api.deleteBlacklist(pairs)),
     deleteLock: (payload: DeleteLockPayload) =>
-      runAction('lockDelete', (api) => api.deleteLock(payload)),
+      runAction(
+        'lockDelete',
+        (api) => api.deleteLock(payload),
+        canDeleteLocks.value &&
+          Boolean(
+            locks.value?.locks.some(
+              (lock) => lock.active && lock.id === payload.lockid && lock.pair === payload.pair,
+            ),
+          ),
+      ),
   }
 })

@@ -6,6 +6,7 @@ import type {
   DeleteLockPayload,
   ForceExitPayload,
   HealthResponse,
+  HistoricBalanceResponse,
   LocksResponse,
   LogsResponse,
   PairCandlesResponse,
@@ -454,6 +455,28 @@ function parsePairCandles(value: unknown, context: ParseContext): PairCandlesRes
   return asResponse<PairCandlesResponse>(object)
 }
 
+function parseHistoricBalance(value: unknown, context: ParseContext): HistoricBalanceResponse {
+  const object = record(value, context)
+  const columns = array(object, 'columns', context, 'column names', (item, field) => {
+    if (!isString(item)) invalid(context, field, 'a string')
+    return item
+  })
+  for (const name of ['__date_ts', 'total_quote']) {
+    if (!columns.includes(name)) invalid(context, 'columns', name)
+  }
+  array(object, 'data', context, 'balance rows', (item, field) => {
+    if (!Array.isArray(item)) invalid(context, field, 'an array')
+    for (const name of ['__date_ts', 'total_quote']) {
+      if (!isNumber(item[columns.indexOf(name)]))
+        invalid(context, field, 'numeric timestamp and equity')
+    }
+    return item
+  })
+  required(object, 'length', isNumber, context, 'a number')
+  required(object, 'capture_start_ts', isNumber, context, 'a number')
+  return asResponse<HistoricBalanceResponse>(object)
+}
+
 function parseStatusMsg(value: unknown, context: ParseContext): StatusMsg {
   return record(value, context) as StatusMsg
 }
@@ -461,10 +484,7 @@ function parseStatusMsg(value: unknown, context: ParseContext): StatusMsg {
 export class FreqtradeApiClient {
   readonly baseUrl: string
   readonly transport: FreqtradeTransport
-  private readonly credentials: Credentials
-
   constructor(credentials: Credentials) {
-    this.credentials = { ...credentials }
     this.transport = new FreqtradeTransport(credentials)
     this.baseUrl = this.transport.baseUrl
   }
@@ -490,11 +510,6 @@ export class FreqtradeApiClient {
   async login(): Promise<string> {
     const token = await this.parsed('/token/login', parseAccessToken, {
       method: 'POST',
-      form: {
-        username: this.credentials.username,
-        password: this.credentials.password,
-        grant_type: 'password',
-      },
       basic: true,
       timeoutMs: 15_000,
     })
@@ -556,6 +571,10 @@ export class FreqtradeApiClient {
 
   performance(options: RequestOptions = {}): Promise<PerformanceEntry[]> {
     return this.parsed('/performance', parsePerformance, options)
+  }
+
+  historicBalance(options: RequestOptions = {}): Promise<HistoricBalanceResponse> {
+    return this.parsed('/historic_balance', parseHistoricBalance, options)
   }
 
   daily(days?: number, options: RequestOptions = {}): Promise<DailyResponse> {

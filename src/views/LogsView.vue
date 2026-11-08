@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
+import { VVirtualScroll } from 'vuetify/components/VVirtualScroll'
 import { useI18n } from 'vue-i18n'
 import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
@@ -18,7 +19,7 @@ const bot = useBotStore()
 const minLevel = ref<Level>('INFO')
 const search = ref('')
 const follow = ref(true)
-const logsRef = useTemplateRef<HTMLDivElement>('logs')
+const logsRef = useTemplateRef<InstanceType<typeof VVirtualScroll>>('logs')
 
 const levelOptions: FilterOption<Level>[] = LEVELS.map((level) => ({ value: level, label: level }))
 
@@ -60,27 +61,24 @@ const lines = computed<DisplayLogLine[]>(() => {
 watch(lines, async (_currentLines, previousLines) => {
   if (!follow.value || previousLines === undefined) return
   await nextTick()
-  const container = logsRef.value
-  // The API rows are rendered newest-first, so following the latest line means staying at
-  // the top. This also handles an empty filtered result becoming visible again.
-  if (container) container.scrollTop = 0
+  logsRef.value?.scrollToIndex(0)
 })
 
-function levelClass(level: string): string {
+function levelColor(level: string): string {
   const normalized = level.toUpperCase()
-  if (normalized.startsWith('ERROR') || normalized.startsWith('CRIT')) return 'chip--bad'
-  if (normalized.startsWith('WARN')) return 'chip--warn'
+  if (normalized.startsWith('ERROR') || normalized.startsWith('CRIT')) return 'error'
+  if (normalized.startsWith('WARN')) return 'warning'
   if (normalized.startsWith('DEBUG')) return ''
-  return 'chip--accent'
+  return 'primary'
 }
 </script>
 
 <template>
-  <section class="panel logs-page">
-    <div class="panel__head">
-      <span class="panel__title">{{ t('logs.title') }}</span>
+  <VCard tag="section" class="panel logs-page">
+    <VCardItem class="panel__head">
+      <VCardTitle tag="span" class="panel__title">{{ t('logs.title') }}</VCardTitle>
       <span class="panel__meta num">{{ t('logs.lines', { n: lines.length }) }}</span>
-      <div class="panel__actions row row--wrap">
+      <div class="panel__actions d-flex align-center ga-2 flex-wrap">
         <FilterMenu
           v-model="minLevel"
           :options="levelOptions"
@@ -88,118 +86,73 @@ function levelClass(level: string): string {
           :label="t('logs.filterLevel')"
         />
         <SearchToggle v-model="search" :placeholder="t('logs.searchLogs')" />
-        <label class="switch">
-          <input v-model="follow" type="checkbox" />
-          <span class="switch__track" />
-          <span class="switch__text">
-            <span class="switch__title small">{{ t('logs.follow') }}</span>
-          </span>
-        </label>
+        <VSwitch v-model="follow">
+          <template #label
+            ><span class="d-flex flex-column"
+              ><span>{{ t('logs.follow') }}</span></span
+            ></template
+          >
+        </VSwitch>
       </div>
-    </div>
-    <div class="panel__body panel__body--flush">
-      <div v-if="!lines.length" class="empty">{{ t('logs.empty') }}</div>
-      <!-- Keyboard users need a focus stop to scroll the log (WCAG 2.1.1). -->
-      <div v-else ref="logs" class="logs" tabindex="0" role="region" :aria-label="t('logs.title')">
-        <div v-for="entry in lines" :key="entry.key" class="logs__line">
-          <span class="logs__time num">
-            <span class="logs__date">{{ entry.dateTime.date }}</span>
-            <span class="logs__clock">{{ entry.dateTime.time }}</span>
-          </span>
-          <span class="chip" :class="levelClass(entry.line[3])">{{ entry.line[3] }}</span>
-          <span class="logs__source num">{{ entry.line[2] }}</span>
-          <span class="logs__message">{{ entry.line[4] }}</span>
-        </div>
-      </div>
-    </div>
-  </section>
+    </VCardItem>
+    <VCardText class="panel__body panel__body--flush">
+      <VEmptyState v-if="!lines.length" :text="t('logs.empty')" class="pa-6" />
+      <VList v-else role="presentation" class="logs pa-0" bg-color="transparent">
+        <VVirtualScroll
+          ref="logs"
+          :items="lines"
+          item-key="key"
+          :item-height="88"
+          tabindex="0"
+          role="list"
+          :aria-label="t('logs.title')"
+          @keydown.stop
+        >
+          <template #default="{ item: entry }">
+            <VListItem role="listitem" class="logs__line border-b py-2" :lines="false">
+              <template #prepend
+                ><span class="num text-caption text-medium-emphasis mr-4"
+                  ><span class="d-block">{{ entry.dateTime.date }}</span
+                  ><span class="d-block">{{ entry.dateTime.time }}</span></span
+                ></template
+              >
+              <template #title
+                ><div class="d-flex align-center ga-2 flex-wrap">
+                  <VChip size="x-small" variant="tonal" :color="levelColor(entry.line[3])">{{
+                    entry.line[3]
+                  }}</VChip
+                  ><span class="num text-caption text-medium-emphasis">{{ entry.line[2] }}</span>
+                </div></template
+              >
+              <template #subtitle>{{ entry.line[4] }}</template>
+            </VListItem>
+          </template>
+        </VVirtualScroll>
+      </VList>
+    </VCardText>
+  </VCard>
 </template>
 
 <style scoped>
-/*
- * Fills what the viewport has left under the strip, with the list scrolling inside the panel
- * instead of the document: stopping at the last line left the rest of the screen empty. A
- * definite height, not a minimum — with only a minimum the list still grows the page.
- */
 .logs-page {
-  height: calc(100dvh - var(--topbar-h) - var(--shell-pad) - var(--shell-pad-bottom));
+  height: 100%;
 }
-
-.logs-page :deep(.panel__body) {
+.logs-page > :deep(.v-card-text) {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
-
 .logs {
+  min-height: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  font-size: var(--fs-sm);
+  overflow: hidden;
 }
-
-.logs__line {
-  display: grid;
-  grid-template-columns: auto auto minmax(90px, auto) 1fr;
-  gap: var(--sp-3);
-  align-items: baseline;
-  padding: 5px var(--sp-4);
-  border-bottom: 1px solid var(--line);
-}
-
-.logs__line:hover {
-  background: var(--ink-800);
-}
-
-.logs__time {
-  color: var(--text-3);
-  font-size: var(--fs-xs);
-  white-space: nowrap;
-}
-
-.logs__date,
-.logs__clock {
-  display: block;
-}
-
-.logs__source {
-  color: var(--text-2);
-  font-size: var(--fs-xs);
-}
-
-.logs__message {
-  overflow-wrap: anywhere;
+.logs__line :deep(.v-list-item-subtitle) {
+  -webkit-line-clamp: unset;
   white-space: pre-wrap;
-}
-
-.logs-page {
-  container: log-layout / inline-size;
-}
-
-@container log-layout (max-width: 699.98px) {
-  .logs__line {
-    grid-template-columns: auto 1fr;
-  }
-
-  .logs__source,
-  .logs__message {
-    grid-column: 2;
-  }
-}
-
-@supports not (container-type: inline-size) {
-  @media (max-width: 900px) {
-    .logs__line {
-      grid-template-columns: auto 1fr;
-    }
-
-    .logs__source,
-    .logs__message {
-      grid-column: 2;
-    }
-  }
+  overflow-wrap: anywhere;
 }
 </style>

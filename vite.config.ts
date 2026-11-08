@@ -1,5 +1,6 @@
 import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
+import vuetify from 'vite-plugin-vuetify'
 import { VitePWA } from 'vite-plugin-pwa'
 import { defineConfig, loadEnv } from 'vite'
 
@@ -34,6 +35,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       vue(),
+      vuetify({ autoImport: true }),
       VitePWA({
         registerType: 'prompt',
         includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'robots.txt'],
@@ -93,6 +95,17 @@ export default defineConfig(({ mode }) => {
       : undefined,
     build: {
       target: 'es2022',
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              { name: 'chart-renderer', test: /node_modules\/zrender\//, priority: 20 },
+              { name: 'chart-series', test: /node_modules\/echarts\/lib\/chart\//, priority: 20 },
+              { name: 'chart-core', test: /node_modules\/echarts\//, priority: 10 },
+            ],
+          },
+        },
+      },
     },
   }
 })

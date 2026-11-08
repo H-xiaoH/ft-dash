@@ -10,6 +10,7 @@ export {
   FreqtradeTransport,
   absoluteBaseUrl,
   normalizeBaseUrl,
+  sameConnectionIdentity,
   websocketUrl,
   type Credentials,
   type RequestOptions,

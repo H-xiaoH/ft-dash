@@ -1,54 +1,44 @@
 <script setup lang="ts">
 import AppIcon from '@/components/AppIcon.vue'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useMediaQuery } from '@vueuse/core'
+import { WIDE_LAYOUT_QUERY } from '@/lib/layout'
+import { computed, useId, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useFormat } from '@/composables/useFormat'
-import { useModalFocus } from '@/composables/useModalFocus'
+import { sumFeesByCurrency } from '@/lib/stats'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
 
-let nextTradeDetailTitleId = 0
-
-function createTradeDetailTitleId(): string {
-  nextTradeDetailTitleId += 1
-  return `trade-detail-title-${nextTradeDetailTitleId}`
-}
-
 const props = defineProps<{ trade: Trade | null }>()
+const trade = shallowRef(props.trade)
+watch(
+  () => props.trade,
+  (value) => {
+    if (value) trade.value = value
+  },
+)
 const emit = defineEmits<{ close: []; forceExit: [trade: Trade] }>()
 
 const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
 
-const panel = ref<HTMLElement | null>(null)
-
-const { isTopModal } = useModalFocus(
-  computed(() => props.trade !== null),
-  panel,
-)
-
-const dialogTitleId = createTradeDetailTitleId()
+const dialogTitleId = useId()
+const wide = useMediaQuery(WIDE_LAYOUT_QUERY)
 
 const stake = computed(() => bot.stakeCurrency)
 
 const duration = computed(() => {
-  const trade = props.trade
-  if (!trade) return null
-  const open = format.timestamp(trade.open_timestamp)
-  const close = format.timestamp(trade.close_timestamp) ?? Date.now()
+  const current = trade.value
+  if (!current) return null
+  const open = format.timestamp(current.open_timestamp)
+  const close = format.timestamp(current.close_timestamp) ?? Date.now()
   return open === null ? null : close - open
 })
 
-const totalFees = computed(() => {
-  const trade = props.trade
-  if (!trade) return null
-  const open = trade.fee_open_cost ?? 0
-  const close = trade.fee_close_cost ?? 0
-  return open + close
-})
+const fees = computed(() => (trade.value ? sumFeesByCurrency([trade.value]) : null))
 
-const orders = computed(() => props.trade?.orders ?? [])
+const orders = computed(() => trade.value?.orders ?? [])
 const orderRows = computed(() => {
   const occurrences = new Map<string, number>()
   return orders.value.map((order) => {
@@ -58,264 +48,201 @@ const orderRows = computed(() => {
     return { key: `${identity}:${occurrence}`, order }
   })
 })
-
-/** Escape dismisses the drawer, matching the charts and the search box. */
-function onKeydown(event: KeyboardEvent) {
-  if (event.key !== 'Escape' || !props.trade || !isTopModal.value) return
-  event.preventDefault()
-  event.stopPropagation()
-  emit('close')
-}
-
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+const activator = shallowRef<HTMLElement>()
+watch(
+  () => props.trade !== null,
+  (open) => {
+    if (open) {
+      const active = document.activeElement
+      activator.value =
+        active instanceof HTMLElement && active !== document.body ? active : undefined
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="drawer-overlay" appear @before-leave="(el) => el.setAttribute('inert', '')">
-      <div
-        v-if="trade"
-        :key="trade.trade_id"
-        class="overlay overlay--drawer"
-        @click.self="emit('close')"
-      >
-        <aside
-          ref="panel"
-          class="drawer"
-          role="dialog"
-          aria-modal="true"
-          :aria-labelledby="dialogTitleId"
-          tabindex="-1"
-        >
-          <header class="drawer__head">
-            <div>
-              <div class="row">
-                <span
-                  class="table__side"
-                  :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
-                />
-                <span :id="dialogTitleId" class="drawer__pair num">{{ trade.pair }}</span>
-                <span class="chip" :class="trade.is_open ? 'chip--accent' : ''">
-                  {{ trade.is_open ? t('trades.open') : t('trades.closed') }}
-                </span>
-              </div>
-              <div class="small muted">
-                {{ t('trades.tradeId') }} #{{ trade.trade_id }} · {{ trade.strategy }}
-              </div>
-            </div>
-            <div class="spacer" />
-            <button type="button" class="btn btn--ghost" @click="emit('close')">
-              <AppIcon name="close" />
-              {{ t('common.close') }}
-            </button>
-          </header>
-
-          <div class="drawer__body stack">
-            <div class="drawer__pnl">
-              <span
-                class="num drawer__pnl-value"
-                :class="format.toneClass(trade.profit_ratio ?? trade.close_profit)"
-              >
-                {{ format.signedMoney(trade.profit_abs ?? trade.close_profit_abs ?? 0, stake) }}
-              </span>
-              <span class="num" :class="format.toneClass(trade.profit_ratio ?? trade.close_profit)">
-                {{ format.ratio(trade.profit_ratio ?? trade.close_profit) }}
-              </span>
-            </div>
-
-            <dl class="dl">
-              <dt>{{ t('trades.side') }}</dt>
-              <dd>{{ trade.is_short ? t('trades.short') : t('trades.long') }}</dd>
-              <dt>{{ t('trades.amount') }}</dt>
-              <dd>{{ format.number(trade.amount, 6) }}</dd>
-              <dt>{{ t('trades.stake') }}</dt>
-              <dd>{{ format.money(trade.stake_amount, stake) }}</dd>
-              <dt>{{ t('trades.entryPrice') }}</dt>
-              <dd>{{ format.price(trade.open_rate) }}</dd>
-              <dt>{{ t('trades.currentPrice') }}</dt>
-              <dd>{{ format.price(trade.current_rate ?? trade.close_rate ?? null) }}</dd>
-              <dt>{{ t('trades.exitPrice') }}</dt>
-              <dd>{{ format.price(trade.close_rate ?? null) }}</dd>
-              <dt>{{ t('trades.leverage') }}</dt>
-              <dd>{{ trade.leverage ? `${trade.leverage}x` : '—' }}</dd>
-              <dt>{{ t('trades.liquidation') }}</dt>
-              <dd>{{ format.price(trade.liquidation_price ?? null) }}</dd>
-              <dt>{{ t('trades.stoploss') }}</dt>
-              <dd>{{ format.price(trade.stop_loss_abs ?? null) }}</dd>
-              <dt>{{ t('trades.openDate') }}</dt>
-              <dd>{{ format.dateTime(trade.open_timestamp) }}</dd>
-              <dt>{{ t('trades.closeDate') }}</dt>
-              <dd>{{ format.dateTime(trade.close_timestamp ?? null) }}</dd>
-              <dt>{{ t('trades.duration') }}</dt>
-              <dd>{{ format.duration(duration) }}</dd>
-              <dt>{{ t('trades.enterTag') }}</dt>
-              <dd>{{ trade.enter_tag?.trim() || '—' }}</dd>
-              <dt>{{ t('trades.exitReason') }}</dt>
-              <dd>{{ trade.exit_reason ?? '—' }}</dd>
-              <dt>{{ t('trades.fees') }}</dt>
-              <dd>{{ format.money(totalFees, stake, 4) }}</dd>
-              <dt>{{ t('trades.funding') }}</dt>
-              <dd>{{ format.money(trade.funding_fees ?? null, stake, 4) }}</dd>
-            </dl>
-
-            <section class="panel">
-              <div class="panel__head">
-                <span class="panel__title">{{ t('trades.orders') }}</span>
-                <div class="panel__actions">
-                  <span class="panel__meta num">{{ orders.length }}</span>
-                </div>
-              </div>
-              <div class="panel__body panel__body--flush">
-                <div v-if="!orders.length" class="empty">{{ t('trades.noOrders') }}</div>
-                <!-- The orders table scrolls sideways on phones: give it a focus stop. -->
-                <div
-                  v-else
-                  class="table-wrap"
-                  tabindex="0"
-                  role="region"
-                  :aria-label="t('trades.orders')"
-                >
-                  <table class="table">
-                    <thead>
-                      <tr>
-                        <th scope="col">{{ t('trades.orderSide') }}</th>
-                        <th scope="col">{{ t('trades.orderType') }}</th>
-                        <th scope="col" class="num">{{ t('trades.orderPrice') }}</th>
-                        <th scope="col" class="num">{{ t('trades.orderFilled') }}</th>
-                        <th scope="col">{{ t('trades.orderStatus') }}</th>
-                        <th scope="col">{{ t('trades.orderDate') }}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="row in orderRows" :key="row.key">
-                        <td>{{ row.order.ft_order_side ?? row.order.side ?? '—' }}</td>
-                        <td>{{ row.order.order_type ?? '—' }}</td>
-                        <td class="num">
-                          {{ format.price(row.order.average ?? row.order.price ?? null) }}
-                        </td>
-                        <td class="num">
-                          {{ format.number(row.order.filled ?? null, 4) }} /
-                          {{ format.number(row.order.amount ?? null, 4) }}
-                        </td>
-                        <td>{{ row.order.status ?? '—' }}</td>
-                        <td class="num">
-                          {{ format.dateTime(row.order.order_timestamp ?? null) }}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </section>
+  <VDialog
+    :activator="activator"
+    :open-on-click="false"
+    :close-on-back="false"
+    class="trade-dialog"
+    :transition="wide ? 'slide-x-reverse-transition' : 'slide-y-reverse-transition'"
+    :model-value="props.trade !== null"
+    max-width="560"
+    scrollable
+    :aria-labelledby="dialogTitleId"
+    @after-leave="!props.trade && (trade = null)"
+    @update:model-value="!$event && emit('close')"
+  >
+    <VCard v-if="trade" :key="trade.trade_id" class="trade-detail">
+      <VCardItem>
+        <template #title>
+          <div class="d-flex align-center ga-2">
+            <span
+              class="table__side"
+              :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
+            />
+            <span :id="dialogTitleId" class="num text-h6">{{ trade.pair }}</span>
+            <VChip size="x-small" variant="tonal" :color="trade.is_open ? 'primary' : undefined">{{
+              trade.is_open ? t('trades.open') : t('trades.closed')
+            }}</VChip>
           </div>
+        </template>
+        <template #subtitle
+          >{{ t('trades.tradeId') }} #{{ trade.trade_id }} · {{ trade.strategy }}</template
+        >
+        <template #append
+          ><VBtn variant="text" :icon="true" :aria-label="t('common.close')" @click="emit('close')"
+            ><AppIcon name="close" /></VBtn
+        ></template>
+      </VCardItem>
+      <VDivider />
 
-          <footer v-if="trade.is_open && bot.writesAllowed" class="drawer__foot">
-            <button type="button" class="btn btn--danger" @click="emit('forceExit', trade)">
-              <AppIcon name="logout" />
-              {{ t('actions.forceExit') }}
-            </button>
-          </footer>
-        </aside>
-      </div>
-    </Transition>
-  </Teleport>
+      <VCardText class="d-flex flex-column ga-4">
+        <div class="d-flex align-baseline ga-3">
+          <span
+            class="num drawer__pnl-value"
+            :class="format.toneClass(trade.profit_ratio ?? trade.close_profit)"
+          >
+            {{ format.signedMoney(trade.profit_abs ?? trade.close_profit_abs ?? 0, stake) }}
+          </span>
+          <span class="num" :class="format.toneClass(trade.profit_ratio ?? trade.close_profit)">
+            {{ format.ratio(trade.profit_ratio ?? trade.close_profit) }}
+          </span>
+        </div>
+
+        <dl class="dl">
+          <dt>{{ t('trades.side') }}</dt>
+          <dd>{{ trade.is_short ? t('trades.short') : t('trades.long') }}</dd>
+          <dt>{{ t('trades.amount') }}</dt>
+          <dd>{{ format.number(trade.amount, 6) }}</dd>
+          <dt>{{ t('trades.stake') }}</dt>
+          <dd>{{ format.money(trade.stake_amount, stake) }}</dd>
+          <dt>{{ t('trades.entryPrice') }}</dt>
+          <dd>{{ format.price(trade.open_rate) }}</dd>
+          <dt>{{ t('trades.currentPrice') }}</dt>
+          <dd>{{ format.price(trade.current_rate ?? trade.close_rate ?? null) }}</dd>
+          <dt>{{ t('trades.exitPrice') }}</dt>
+          <dd>{{ format.price(trade.close_rate ?? null) }}</dd>
+          <dt>{{ t('trades.leverage') }}</dt>
+          <dd>{{ trade.leverage ? `${trade.leverage}x` : '—' }}</dd>
+          <dt>{{ t('trades.liquidation') }}</dt>
+          <dd>{{ format.price(trade.liquidation_price ?? null) }}</dd>
+          <dt>{{ t('trades.stoploss') }}</dt>
+          <dd>{{ format.price(trade.stop_loss_abs ?? null) }}</dd>
+          <dt>{{ t('trades.openDate') }}</dt>
+          <dd>{{ format.dateTime(trade.open_timestamp) }}</dd>
+          <dt>{{ t('trades.closeDate') }}</dt>
+          <dd>{{ format.dateTime(trade.close_timestamp ?? null) }}</dd>
+          <dt>{{ t('trades.duration') }}</dt>
+          <dd>{{ format.duration(duration) }}</dd>
+          <dt>{{ t('trades.enterTag') }}</dt>
+          <dd>{{ trade.enter_tag?.trim() || '—' }}</dd>
+          <dt>{{ t('trades.exitReason') }}</dt>
+          <dd>{{ trade.exit_reason ?? '—' }}</dd>
+          <dt>{{ t('trades.fees') }}</dt>
+          <dd>
+            <template v-if="fees">
+              <div v-for="[currency, amount] in fees" :key="currency">
+                {{ format.number(amount, currency === stake ? 4 : 8) }} {{ currency }}
+              </div>
+            </template>
+            <template v-else>—</template>
+          </dd>
+          <dt>{{ t('trades.funding') }}</dt>
+          <dd>{{ format.money(trade.funding_fees ?? null, stake, 4) }}</dd>
+        </dl>
+
+        <VCard tag="section" class="panel">
+          <VCardItem class="panel__head">
+            <VCardTitle tag="span" class="panel__title">{{ t('trades.orders') }}</VCardTitle>
+            <div class="panel__actions">
+              <span class="panel__meta num">{{ orders.length }}</span>
+            </div>
+          </VCardItem>
+          <VCardText class="panel__body panel__body--flush">
+            <VEmptyState v-if="!orders.length" :text="t('trades.noOrders')" class="pa-6" />
+            <!-- The orders table scrolls sideways on phones: give it a focus stop. -->
+            <div
+              v-else
+              class="table-wrap"
+              tabindex="0"
+              role="region"
+              :aria-label="t('trades.orders')"
+            >
+              <VTable class="table">
+                <thead>
+                  <tr>
+                    <th scope="col">{{ t('trades.orderSide') }}</th>
+                    <th scope="col">{{ t('trades.orderType') }}</th>
+                    <th scope="col" class="num">{{ t('trades.orderPrice') }}</th>
+                    <th scope="col" class="num">{{ t('trades.orderFilled') }}</th>
+                    <th scope="col">{{ t('trades.orderStatus') }}</th>
+                    <th scope="col">{{ t('trades.orderDate') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in orderRows" :key="row.key">
+                    <td>{{ row.order.ft_order_side ?? row.order.side ?? '—' }}</td>
+                    <td>{{ row.order.order_type ?? '—' }}</td>
+                    <td class="num">
+                      {{ format.price(row.order.average ?? row.order.price ?? null) }}
+                    </td>
+                    <td class="num">
+                      {{ format.number(row.order.filled ?? null, 4) }} /
+                      {{ format.number(row.order.amount ?? null, 4) }}
+                    </td>
+                    <td>{{ row.order.status ?? '—' }}</td>
+                    <td class="num">
+                      {{ format.dateTime(row.order.order_timestamp ?? null) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </VTable>
+            </div>
+          </VCardText>
+        </VCard>
+      </VCardText>
+
+      <VCardActions v-if="trade.is_open && bot.writesAllowed" class="border-t">
+        <VBtn color="error" type="button" @click="emit('forceExit', trade)">
+          <AppIcon name="logout" />
+          {{ t('actions.forceExit') }}
+        </VBtn>
+      </VCardActions>
+    </VCard>
+  </VDialog>
 </template>
 
 <style scoped>
-.overlay--drawer {
-  align-items: stretch;
-  justify-content: flex-end;
-  padding: 0;
+.trade-dialog :deep(.v-overlay__content) {
+  position: fixed;
+  inset: 0 0 0 auto;
+  margin: 0;
+  width: min(560px, 100%);
+  max-width: 100%;
+  max-height: 100%;
 }
-
-.drawer {
-  width: min(520px, 100%);
-  background: var(--ink-850);
-  border-left: 1px solid var(--line-strong);
+.trade-detail {
+  height: 100%;
   display: flex;
   flex-direction: column;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  border-radius: 28px 0 0 28px !important;
 }
-
-/* Desktop: slides in from the right. Phones override this to rise from the bottom. */
-.drawer-overlay-enter-active,
-.drawer-overlay-leave-active {
-  transition:
-    opacity 200ms ease,
-    backdrop-filter 200ms ease,
-    background-color 200ms ease;
-}
-
-.drawer-overlay-enter-active .drawer,
-.drawer-overlay-leave-active .drawer {
-  transition: transform 200ms ease;
-}
-
-.drawer-overlay-enter-from,
-.drawer-overlay-leave-to {
-  opacity: 0;
-}
-
-.drawer-overlay-enter-from .drawer,
-.drawer-overlay-leave-to .drawer {
-  transform: translateX(100%);
-}
-
-.drawer__head {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sp-3);
-  padding: var(--sp-4);
-  border-bottom: 1px solid var(--line);
-  padding-top: calc(var(--sp-4) + env(safe-area-inset-top, 0px));
-}
-
-.drawer__pair {
-  font-size: var(--fs-lg);
-}
-
-.drawer__body {
-  padding: var(--sp-4);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
-}
-
-.drawer__pnl {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-3);
+@media (width < 720px) {
+  .trade-dialog :deep(.v-overlay__content) {
+    inset: auto 0 0;
+    width: 100%;
+    max-height: 90dvh;
+  }
+  .trade-detail {
+    border-radius: 28px 28px 0 0 !important;
+  }
 }
 
 .drawer__pnl-value {
   font-size: var(--fs-2xl);
-}
-
-.drawer__foot {
-  padding: var(--sp-4);
-  border-top: 1px solid var(--line);
-  display: flex;
-  justify-content: flex-end;
-}
-
-@media not all and (min-width: 720px) {
-  /* A bottom sheet should rise from the bottom, not slide in from the side. */
-  .drawer-overlay-enter-from .drawer,
-  .drawer-overlay-leave-to .drawer {
-    transform: translateY(100%);
-  }
-
-  .overlay--drawer {
-    align-items: flex-end;
-  }
-
-  .drawer {
-    width: 100%;
-    max-height: 92vh;
-    border-left: 0;
-    border-top: 1px solid var(--line-strong);
-    border-radius: var(--r-3) var(--r-3) 0 0;
-  }
 }
 </style>

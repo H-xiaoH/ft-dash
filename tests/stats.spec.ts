@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildPairStats } from '@/lib/stats'
+import { buildPairStats, countTradeOutcomes, sumFeesByCurrency } from '@/lib/stats'
 import { hideFreqtradeSentinel } from '@/lib/format'
 import type { PerformanceEntry, Trade } from '@/lib/types'
 
@@ -30,6 +30,8 @@ function trade(overrides: Partial<Trade> & { pair: string }): Trade {
     stake_amount: 10,
     strategy: 's',
     fee_open: 0.0005,
+    fee_open_currency: 'USDT',
+    fee_close_currency: 'USDT',
     open_date: '2026-09-01 00:00:00',
     open_timestamp: 1_000_000,
     open_rate: 1,
@@ -63,7 +65,7 @@ describe('buildPairStats', () => {
     expect(row.wins).toBe(2)
     expect(row.losses).toBe(1)
     expect(row.winRate).toBeCloseTo(66.666, 2)
-    expect(row.fees).toBeCloseTo(0.07, 6)
+    expect(row.fees?.get('USDT')).toBeCloseTo(0.07, 6)
     expect(row.volume).toBeCloseTo(30, 6)
     expect(row.avgDuration).toBe(3_600_000)
     expect(row.lastTrade).toBe(1_000_000 + 3_600_000)
@@ -113,4 +115,30 @@ describe('buildPairStats', () => {
     // The second trade has no close time, the first still provides the latest one.
     expect(row.lastTrade).toBe(1_000_000)
   })
+})
+
+it('keeps amounts paid in different fee currencies separate', () => {
+  const fees = sumFeesByCurrency([
+    trade({ pair: 'BTC/USDT', fee_open_currency: 'BTC', fee_open_cost: 0.001, fee_close_cost: 1 }),
+    trade({ pair: 'BTC/USDT', fee_open_currency: null, fee_open_cost: 0.5, fee_close_cost: 2 }),
+  ])
+  expect(fees).toEqual(
+    new Map([
+      ['BTC', 0.001],
+      ['USDT', 3],
+    ]),
+  )
+})
+
+it('totals wins, losses and draws separately across exit reasons', () => {
+  expect(countTradeOutcomes(null)).toBeNull()
+  expect(
+    countTradeOutcomes({
+      exit_reasons: {
+        exit_signal: { wins: 1, losses: 0, draws: 2 },
+        stop_loss: { wins: 0, losses: 1, draws: 1 },
+      },
+      durations: { wins: 3600, losses: 1800, draws: null },
+    }),
+  ).toEqual({ wins: 1, losses: 1, draws: 3 })
 })

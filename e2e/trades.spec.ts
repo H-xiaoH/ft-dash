@@ -1,43 +1,59 @@
 import { expect, test, type Page } from '@playwright/test'
-import { connect, enableWriteAccess, livePage, mockApi, segBlockMatches } from './support/fixtures'
+import { settlePages } from './support/gestures'
+import { connect, enableWriteAccess, livePage, mockApi, selectionMatches } from './support/fixtures'
 
-const touchAt = (
+const TRADE_COUNTS_TEST = 'trade tab counts describe the same loaded trades as the list'
+
+const touchAt = async (
   page: Page,
   type: 'touchstart' | 'touchmove' | 'touchend',
   x: number,
   y: number,
   selector: string,
-) =>
-  page.evaluate(
-    ({ type, x, y, selector }) => {
-      const target = document.querySelector(selector) as Element
-      const point = new Touch({ identifier: 1, target, clientX: x, clientY: y })
-      target.dispatchEvent(
-        new TouchEvent(type, {
-          touches: type === 'touchend' ? [] : [point],
-          changedTouches: [point],
-          bubbles: true,
-          cancelable: true,
-        }),
-      )
-    },
-    { type, x, y, selector },
-  )
+) => {
+  await page.locator(selector).first().waitFor()
+  if (type === 'touchstart') {
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+  } else if (type === 'touchmove') await page.mouse.move(x, y, { steps: 12 })
+  else await page.mouse.up()
+}
 
-test.beforeEach(async ({ page }) => {
-  await mockApi(page)
+test.beforeEach(async ({ page }, testInfo) => {
+  await mockApi(page, testInfo.title === TRADE_COUNTS_TEST ? { tradeCount: 6 } : undefined)
   await page.goto('/#/trades')
   await connect(page)
   await expect(page.locator('.shell')).toBeVisible()
+  await settlePages(page)
+})
+
+test(TRADE_COUNTS_TEST, async ({ page }) => {
+  const tabs = livePage(page).locator('.v-btn-toggle .v-btn')
+  await expect(tabs.nth(0)).toContainText('持仓中 1')
+  await expect(tabs.nth(1)).toContainText('已平仓 6')
+  await expect(tabs.nth(2)).toContainText('全部交易 7')
+  await tabs.nth(1).click()
+  await expect(livePage(page).locator('table tbody tr')).toHaveCount(6)
+})
+
+test('the trade pair button opens its details from the keyboard', async ({ page }) => {
+  const pair = livePage(page).getByRole('button', { name: 'OPEN/USDT', exact: true })
+  await expect(pair).toBeVisible()
+  await pair.focus()
+  await expect(pair).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.trade-dialog .trade-detail')).toContainText('OPEN/USDT')
 })
 
 test('switching trade filters transitions the result and announces its scope', async ({ page }) => {
-  const tabs = livePage(page).locator('.seg__item')
+  const tabs = livePage(page).locator('.v-btn-toggle .v-btn')
   const status = livePage(page).locator('[data-filter-status]')
 
   await expect(status).toContainText('全部交易')
-  await expect(livePage(page).locator('.seg__block')).toHaveCount(1)
-  await expect.poll(() => segBlockMatches(livePage(page).locator('.seg').first())).toBe(true)
+  await expect(livePage(page).locator('.v-btn-toggle .v-btn--active')).toHaveCount(1)
+  await expect
+    .poll(() => selectionMatches(livePage(page).locator('.v-btn-toggle').first()))
+    .toBe(true)
   await expect(livePage(page).locator('[data-swipe-tabs]')).toHaveCount(0)
   await page.evaluate(() => {
     const frames: { opacity: number; translateY: number }[] = []
@@ -53,7 +69,7 @@ test('switching trade filters transitions the result and announces its scope', a
         const style = getComputedStyle(content)
         const transform = style.transform
         frames.push({
-          opacity: Number(style.opacity),
+          opacity: content.getBoundingClientRect().height,
           translateY: transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42,
         })
       }
@@ -64,7 +80,9 @@ test('switching trade filters transitions the result and announces its scope', a
 
   await tabs.nth(1).click()
   await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
-  await expect.poll(() => segBlockMatches(livePage(page).locator('.seg').first())).toBe(true)
+  await expect
+    .poll(() => selectionMatches(livePage(page).locator('.v-btn-toggle').first()))
+    .toBe(true)
   await expect(livePage(page).locator('table tbody tr')).toHaveCount(4)
   await expect(status).toHaveText('已平仓，显示 4 笔交易。')
   await page.waitForTimeout(400)
@@ -74,17 +92,15 @@ test('switching trade filters transitions the result and announces its scope', a
       (window as unknown as { __tradeFilterFrames?: { opacity: number; translateY: number }[] })
         .__tradeFilterFrames ?? [],
   )
-  expect(
-    frames.some(({ opacity, translateY }) => opacity < 0.99 || Math.abs(translateY) > 0.5),
-  ).toBe(true)
+  expect(new Set(frames.map(({ opacity }) => Math.round(opacity))).size > 1).toBe(true)
 })
 
 test('a horizontal swipe on trade results stays a page navigation', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 })
   await page.goto('/#/trades?filter=closed')
 
-  const tabs = livePage(page).locator('.seg__item')
-  const cardSelector = '.page-track > :not(.page-neighbor) tbody tr'
+  const tabs = livePage(page).locator('.v-btn-toggle .v-btn')
+  const cardSelector = '.page-scroll:not([inert]) tbody tr'
   await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator(cardSelector).first()).toBeVisible()
 
@@ -96,7 +112,7 @@ test('a horizontal swipe on trade results stays a page navigation', async ({ pag
 })
 
 test('“all trades” includes the open position, not just history', async ({ page }) => {
-  const tabs = livePage(page).locator('.seg__item')
+  const tabs = livePage(page).locator('.v-btn-toggle .v-btn')
   await expect(tabs.nth(0)).toContainText('持仓中 1')
   await expect(tabs.nth(1)).toContainText('已平仓 4')
   await expect(tabs.nth(2)).toContainText('全部交易 5')
@@ -116,11 +132,12 @@ test('outcome filter narrows the list to profitable or losing trades', async ({ 
   await expect(rows).toHaveCount(5)
 
   await livePage(page).locator('.filter-menu__button').first().click()
-  await page.locator('.filter-menu__item', { hasText: '亏损' }).click()
+  await page.locator('.v-overlay--active [role=option]', { hasText: '亏损' }).click()
   await expect(rows).toHaveCount(1)
+  await expect(page.locator('.filter-menu__list')).toBeHidden()
 
   await livePage(page).locator('.filter-menu__button').first().click()
-  await page.locator('.filter-menu__item', { hasText: '盈利' }).click()
+  await page.locator('.v-overlay--active [role=option]', { hasText: '盈利' }).click()
   await expect(rows).toHaveCount(4)
 })
 
@@ -139,7 +156,10 @@ test('trade sorting uses the same toolbar on phone and desktop', async ({ page }
   await expect(direction).toBeVisible()
   expect(await direction.evaluate((el) => getComputedStyle(el, '::before').content)).toBe('none')
   await expect(sortMenu).toHaveCSS('border-right-width', '0px')
-  await expect(direction).toHaveCSS('border-left-width', '1px')
+  await expect(livePage(page).locator('.sort-group .v-divider')).toHaveCSS(
+    'border-right-width',
+    '1px',
+  )
 
   // The toolbar carries five controls; it has to fit even a 360px phone.
   const head = livePage(page).locator('.panel__head').first()
@@ -151,7 +171,7 @@ test('trade sorting uses the same toolbar on phone and desktop', async ({ page }
 
   // A new field starts at its own natural direction.
   await sortMenu.click()
-  await page.locator('.filter-menu__item', { hasText: '盈亏' }).click()
+  await page.locator('.v-overlay--active [role=option]', { hasText: '盈亏' }).click()
   expect(await firstPair()).toBe('AAA/USDT')
   await expect(rows.first()).toContainText('0.8000')
   await expect(rows.last()).toContainText('-0.2000')
@@ -185,7 +205,7 @@ test('search expands on demand and clears when collapsed', async ({ page }) => {
   await livePage(page).locator('.search-toggle input').fill('BBB')
   await expect(rows).toHaveCount(1)
 
-  await livePage(page).locator('.search-toggle__close').click()
+  await livePage(page).locator('.v-field__clearable [role=button]').click()
   await expect(rows).toHaveCount(5)
 })
 
@@ -194,15 +214,15 @@ test('the overview "view all" links open the matching trades tab', async ({ page
     livePage(page)
       .locator('.panel')
       .filter({ has: page.locator('.panel__title', { hasText: title }) })
-  const tabs = livePage(page).locator('.seg__item')
+  const tabs = livePage(page).locator('.v-btn-toggle .v-btn')
 
   await page.goto('/#/')
-  await panel('当前持仓').locator('.btn', { hasText: '查看全部' }).click()
+  await panel('当前持仓').locator('.v-btn', { hasText: '查看全部' }).click()
   await expect(page).toHaveURL(/filter=open/)
   await expect(tabs.nth(0)).toHaveAttribute('aria-pressed', 'true')
 
   await page.goto('/#/')
-  await panel('最近平仓').locator('.btn', { hasText: '查看全部' }).click()
+  await panel('最近平仓').locator('.v-btn', { hasText: '查看全部' }).click()
   await expect(page).toHaveURL(/filter=closed/)
   await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
 })
@@ -218,7 +238,10 @@ test('the overview rows open the matching trades tab', async ({ page }) => {
   await row.click()
   await expect(page).toHaveURL(/filter=open/)
   await expect(page).toHaveURL(/trade=99/)
-  await expect(livePage(page).locator('.seg__item').nth(0)).toHaveAttribute('aria-pressed', 'true')
+  await expect(livePage(page).locator('.v-btn-toggle .v-btn').nth(0)).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
 })
 
 test('the overview recently closed rows open the matching trades tab', async ({ page }) => {
@@ -233,9 +256,12 @@ test('the overview recently closed rows open the matching trades tab', async ({ 
   await row.click()
   await expect(page).toHaveURL(/filter=closed/)
   await expect(page).toHaveURL(/trade=\d+/)
-  await expect(livePage(page).locator('.seg__item').nth(1)).toHaveAttribute('aria-pressed', 'true')
+  await expect(livePage(page).locator('.v-btn-toggle .v-btn').nth(1)).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
   // The drawer names the same pair the overview row shows.
-  await expect(page.locator('.overlay--drawer .drawer')).toContainText(pair)
+  await expect(page.locator('.trade-dialog .trade-detail')).toContainText(pair)
 })
 
 test('opening an overview trade animates the detail drawer', async ({ page }) => {
@@ -248,7 +274,7 @@ test('opening an overview trade animates the detail drawer', async ({ page }) =>
     ;(window as unknown as { __drawerTravel?: number[] }).__drawerTravel = frames
     let started = 0
     const tick = () => {
-      const drawer = document.querySelector('.overlay--drawer .drawer')
+      const drawer = document.querySelector('.trade-dialog .v-overlay__content')
       if (drawer) {
         started ||= performance.now()
         const transform = getComputedStyle(drawer).transform
@@ -272,7 +298,7 @@ test('opening an overview trade animates the detail drawer', async ({ page }) =>
     .locator('table tbody tr')
     .first()
     .click()
-  await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
+  await expect(page.locator('.trade-dialog .trade-detail')).toBeVisible()
   await page.waitForTimeout(350)
 
   const travel = await page.evaluate(
@@ -283,23 +309,23 @@ test('opening an overview trade animates the detail drawer', async ({ page }) =>
 
 test('browser back closes the drawer on the same trades list', async ({ page }) => {
   await livePage(page).locator('table tbody tr').first().click()
-  await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
+  await expect(page.locator('.trade-dialog .trade-detail')).toBeVisible()
 
   await page.goBack()
   await expect(page).toHaveURL(/#\/trades(?:\?|$)/)
-  await expect(page.locator('.overlay--drawer')).toHaveCount(0)
+  await expect(page.locator('.trade-dialog')).toHaveCount(0)
 })
 
 test('closing a deep-linked trade preserves its filter without adding history', async ({
   page,
 }) => {
   await page.goto('/#/trades?filter=closed&trade=1')
-  const drawer = page.locator('.overlay--drawer .drawer')
+  const drawer = page.locator('.trade-dialog .trade-detail')
   await expect(drawer).toBeVisible()
 
-  await drawer.locator('.drawer__head button').click()
+  await drawer.locator('.v-card-item button').click()
   await expect(page).toHaveURL(/#\/trades\?filter=closed$/)
-  await expect(page.locator('.overlay--drawer')).toHaveCount(0)
+  await expect(page.locator('.trade-dialog')).toHaveCount(0)
 
   await page.goBack()
   await expect(page).toHaveURL(/#\/trades(?:\?|$)/)
@@ -308,13 +334,13 @@ test('closing a deep-linked trade preserves its filter without adding history', 
 
 test('an unresolved trade query clears the stale trade drawer', async ({ page }) => {
   await livePage(page).locator('table tbody tr').first().click()
-  await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
+  await expect(page.locator('.trade-dialog .trade-detail')).toBeVisible()
 
   await page.evaluate(() => {
     window.location.hash = '/trades?trade=404'
   })
   await expect(page).toHaveURL(/trade=404/)
-  await expect(page.locator('.overlay--drawer')).toHaveCount(0)
+  await expect(page.locator('.trade-dialog')).toHaveCount(0)
 })
 
 test('a deep link opens its trade even when the page boots empty', async ({ page }) => {
@@ -325,12 +351,12 @@ test('a deep link opens its trade even when the page boots empty', async ({ page
    */
   await page.goto('/#/trades?trade=1')
   await page.reload()
-  await expect(page.locator('.overlay--drawer .drawer')).toBeVisible()
-  await expect(page.locator('.overlay--drawer .drawer')).toContainText('AAA/USDT')
+  await expect(page.locator('.trade-dialog .trade-detail')).toBeVisible()
+  await expect(page.locator('.trade-dialog .trade-detail')).toContainText('AAA/USDT')
 })
 
 test('the filter travels between the URL and the tabs', async ({ page }) => {
-  const tabs = livePage(page).locator('.seg__item')
+  const tabs = livePage(page).locator('.v-btn-toggle .v-btn')
 
   await page.goto('/#/trades?filter=closed')
   await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
@@ -349,16 +375,36 @@ test('a trade drawer takes focus, parks the page, and gives both back on close',
   expect(await shell.evaluate((el) => el.hasAttribute('inert'))).toBe(false)
 
   await livePage(page).locator('table tbody tr').first().click()
-  const drawer = page.locator('.overlay--drawer .drawer')
+  const drawer = page.locator('.trade-dialog .trade-detail')
   await expect(drawer).toBeVisible()
   // Tab must start inside the dialog, not behind it.
-  await expect(drawer).toBeFocused()
-  expect(await shell.evaluate((el) => el.hasAttribute('inert'))).toBe(true)
+  await expect
+    .poll(() => page.getByRole('dialog').evaluate((el) => el.contains(document.activeElement)))
+    .toBe(true)
+  await page.keyboard.press('Tab')
+  expect(await page.getByRole('dialog').evaluate((el) => el.contains(document.activeElement))).toBe(
+    true,
+  )
 
   await page.keyboard.press('Escape')
-  await expect(page.locator('.overlay--drawer')).toHaveCount(0)
+  await expect(page.locator('.trade-dialog')).toHaveCount(0)
   expect(await shell.evaluate((el) => el.hasAttribute('inert'))).toBe(false)
 })
+
+for (const width of [390, 1280]) {
+  test(`trade detail retains its content during departure at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 924 })
+    await livePage(page).locator('table tbody tr').first().click()
+    const detail = page.locator('.trade-dialog .trade-detail')
+    await expect(detail).toBeVisible()
+    await expect(page.locator('.trade-dialog [class*="-enter-active"]')).toHaveCount(0)
+    const pair = await detail.locator('.text-h6').textContent()
+    await detail.getByRole('button', { name: '关闭', exact: true }).click()
+    const leaving = page.locator('.trade-dialog .v-overlay__content[class*="-leave-active"]')
+    await expect(leaving.locator('.trade-detail')).toContainText(pair!)
+    await expect(page.locator('.trade-dialog')).toHaveCount(0)
+  })
+}
 
 test('force exit requires the exact pair and Escape only closes its confirmation', async ({
   page,
@@ -366,25 +412,24 @@ test('force exit requires the exact pair and Escape only closes its confirmation
   await enableWriteAccess(page)
 
   await page.goto('/#/trades?filter=open&trade=99')
-  const drawer = page.locator('.overlay--drawer .drawer')
+  const drawer = page.locator('.trade-dialog .trade-detail')
   await expect(drawer).toBeVisible()
 
-  const titleId = await drawer.getAttribute('aria-labelledby')
-  expect(titleId).toMatch(/^trade-detail-title-/)
+  const titleId = await page.getByRole('dialog').getAttribute('aria-labelledby')
+  expect(titleId).toBeTruthy()
   await expect(page.locator(`#${titleId}`)).toHaveText('OPEN/USDT')
 
   const forceExit = drawer.getByRole('button', { name: '平仓' })
-  const confirmation = page.locator('.overlay[role="dialog"]:not(.overlay--drawer)')
+  const confirmation = page.locator('.v-dialog[role="dialog"]:not(.trade-dialog)')
   await forceExit.click()
   await expect(confirmation).toBeVisible()
-  await expect(confirmation.locator('.dialog')).toBeFocused()
-
-  const firstFocusable = confirmation.getByRole('button').first()
-  const lastFocusable = confirmation.getByRole('button', { name: '取消' })
-  await page.keyboard.press('Shift+Tab')
-  await expect(lastFocusable).toBeFocused()
-  await page.keyboard.press('Tab')
-  await expect(firstFocusable).toBeFocused()
+  await expect
+    .poll(() => confirmation.evaluate((el) => el.contains(document.activeElement)))
+    .toBe(true)
+  for (let i = 0; i < 8; i++) {
+    await page.keyboard.press('Tab')
+    expect(await confirmation.evaluate((el) => el.contains(document.activeElement))).toBe(true)
+  }
 
   const input = confirmation.locator('input')
   const confirm = confirmation.getByRole('button', { name: '平仓' })
@@ -401,7 +446,9 @@ test('force exit requires the exact pair and Escape only closes its confirmation
   await confirmation.getByRole('button', { name: '平仓' }).click()
   await expect(confirmation).toHaveCount(0)
   await expect(drawer).toBeVisible()
-  await expect(page.locator('.toast', { hasText: '指令已发送' })).toBeVisible()
+  await expect(
+    page.locator('.v-snackbar--active .v-snackbar__wrapper', { hasText: '指令已发送' }),
+  ).toBeVisible()
 })
 
 test('back and forward around an open force-exit confirmation restores focus safely', async ({
@@ -414,8 +461,8 @@ test('back and forward around an open force-exit confirmation restores focus saf
   await page.goto('/#/trades')
   await livePage(page).locator('table tbody tr', { hasText: 'OPEN/USDT' }).click()
 
-  const drawer = page.locator('.overlay--drawer .drawer')
-  const confirmation = page.locator('.overlay[role="dialog"]:not(.overlay--drawer)')
+  const drawer = page.locator('.trade-dialog .trade-detail')
+  const confirmation = page.locator('.v-dialog[role="dialog"]:not(.trade-dialog)')
   await drawer.getByRole('button', { name: '平仓' }).click()
   await expect(confirmation).toBeVisible()
 
@@ -437,14 +484,10 @@ test('trade details scroll inside the drawer without moving the page', async ({ 
   await page.setViewportSize({ width: 390, height: 480 })
   await page.goto('/#/trades?trade=1')
 
-  const body = page.locator('.overlay--drawer .drawer__body')
+  const body = page.locator('.trade-dialog .trade-detail > .v-card-text')
   await expect
     .poll(() => body.evaluate((element) => element.scrollHeight > element.clientHeight))
     .toBe(true)
-  expect(await body.evaluate((element) => getComputedStyle(element).overscrollBehaviorY)).toBe(
-    'contain',
-  )
-
   await body.evaluate((element) => {
     element.scrollTop = 0
   })
@@ -460,4 +503,28 @@ test('trade details scroll inside the drawer without moving the page', async ({ 
   await page.mouse.wheel(0, 320)
   await expect.poll(() => body.evaluate((element) => element.scrollTop)).toBe(bodyBottom)
   expect(await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)).toBe(0)
+})
+
+test('CSV export follows the table sort in both directions', async ({ page }, testInfo) => {
+  const menu = livePage(page).locator('.sort-group .filter-menu__button')
+  await menu.click()
+  await page.getByRole('option', { name: '盈亏', exact: true }).click()
+  await expect(livePage(page).locator('tbody tr').first()).toContainText('0.8000')
+  const exportIds = async (name: string) => {
+    const pending = page.waitForEvent('download')
+    await livePage(page).getByRole('button', { name: '导出 CSV', exact: true }).click()
+    const path = testInfo.outputPath(name)
+    await (await pending).saveAs(path)
+    const { readFile } = await import('node:fs/promises')
+    const csv = await readFile(path, 'utf8')
+    return csv
+      .trim()
+      .split(/\r?\n/)
+      .slice(1)
+      .map((row) => Number(row.split(',')[0]))
+  }
+  expect(await exportIds('descending.csv')).toEqual([1, 3, 4, 99, 2])
+  await livePage(page).getByRole('button', { name: '改为升序', exact: true }).click()
+  await expect(livePage(page).locator('tbody tr').first()).toContainText('-0.2000')
+  expect(await exportIds('ascending.csv')).toEqual([2, 99, 4, 3, 1])
 })

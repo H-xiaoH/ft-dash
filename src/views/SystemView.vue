@@ -16,11 +16,11 @@ const settings = useSettingsStore()
 
 const stopConfirm = ref(false)
 
-function meterTone(value: number | null): string {
+function meterColor(value: number | null): string {
   if (value === null) return ''
-  if (value >= 90) return 'meter__fill--bad'
-  if (value >= 70) return 'meter__fill--warn'
-  return 'meter__fill--good'
+  if (value >= 90) return 'error'
+  if (value >= 70) return 'warning'
+  return 'success'
 }
 
 // Same threshold that triggers the alert notification.
@@ -51,217 +51,240 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
 </script>
 
 <template>
-  <div class="stack">
-    <div class="metric-grid">
-      <MetricTile
-        :label="t('system.cpu')"
-        :value="bot.sysinfo?.cpu_avg ?? null"
-        kind="percent"
-        :digits="1"
-      >
-        <div class="meter" style="margin-top: 6px">
-          <div
-            class="meter__fill"
-            :class="meterTone(bot.sysinfo?.cpu_avg ?? null)"
-            :style="{ transform: `scaleX(${(bot.sysinfo?.cpu_avg ?? 0) / 100})` }"
-          />
-        </div>
-      </MetricTile>
-      <MetricTile
-        :label="t('system.ram')"
-        :value="bot.sysinfo?.ram_pct ?? null"
-        kind="percent"
-        :digits="1"
-      >
-        <div class="meter" style="margin-top: 6px">
-          <div
-            class="meter__fill"
-            :class="meterTone(bot.sysinfo?.ram_pct ?? null)"
-            :style="{ transform: `scaleX(${(bot.sysinfo?.ram_pct ?? 0) / 100})` }"
-          />
-        </div>
-      </MetricTile>
-      <MetricTile
-        :label="t('system.loadAvg')"
-        :value="loadAverage"
-        kind="text"
-        small
-        :sub="`${t('system.cores')} ${bot.sysinfo?.cpu_count ?? '—'}`"
-      />
-      <MetricTile
-        :label="t('system.uptime')"
-        :value="format.duration(uptime)"
-        kind="text"
-        small
-        :sub="format.dateTime(bot.health?.bot_startup ?? null)"
-      />
-      <MetricTile
-        :label="t('system.heartbeatAge')"
-        :value="format.duration(bot.heartbeatAgeMs)"
-        kind="text"
-        small
-        :class="{ 'metric--warn': heartbeatLate }"
-        :sub="format.dateTime(bot.health?.last_process ?? null)"
-      />
-      <MetricTile
-        :label="t('system.latency')"
-        :value="bot.latencyMs !== null ? `${bot.latencyMs} ms` : '—'"
-        kind="text"
-        small
-        :sub="`${t('system.polling')} ${bot.pollIntervalSeconds}s`"
-      />
-    </div>
+  <div class="d-flex flex-column ga-4">
+    <VRow dense class="metric-grid">
+      <VCol cols="6" sm="4" lg="2"
+        ><MetricTile
+          :label="t('system.cpu')"
+          :value="bot.sysinfo?.cpu_avg ?? null"
+          kind="percent"
+          :digits="1"
+        >
+          <VProgressLinear
+            :model-value="bot.sysinfo?.cpu_avg ?? 0"
+            :color="meterColor(bot.sysinfo?.cpu_avg ?? null)"
+            :height="6"
+            rounded
+            class="mt-2"
+            :aria-label="t('system.cpu')"
+          /> </MetricTile
+      ></VCol>
+      <VCol cols="6" sm="4" lg="2"
+        ><MetricTile
+          :label="t('system.ram')"
+          :value="bot.sysinfo?.ram_pct ?? null"
+          kind="percent"
+          :digits="1"
+        >
+          <VProgressLinear
+            :model-value="bot.sysinfo?.ram_pct ?? 0"
+            :color="meterColor(bot.sysinfo?.ram_pct ?? null)"
+            :height="6"
+            rounded
+            class="mt-2"
+            :aria-label="t('system.ram')"
+          /> </MetricTile
+      ></VCol>
+      <VCol cols="6" sm="4" lg="2"
+        ><MetricTile
+          :label="t('system.loadAvg')"
+          :value="loadAverage"
+          kind="text"
+          small
+          :sub="`${t('system.cores')} ${bot.sysinfo?.cpu_count ?? '—'}`"
+      /></VCol>
+      <VCol cols="6" sm="4" lg="2"
+        ><MetricTile
+          :label="t('system.uptime')"
+          :value="format.duration(uptime)"
+          kind="text"
+          small
+          :sub="format.dateTime(bot.health?.bot_startup ?? null)"
+      /></VCol>
+      <VCol cols="6" sm="4" lg="2"
+        ><MetricTile
+          :label="t('system.heartbeatAge')"
+          :value="format.duration(bot.heartbeatAgeMs)"
+          kind="text"
+          small
+          :class="{ 'metric--warn': heartbeatLate || bot.healthRequestFailed }"
+          :sub="
+            bot.healthRequestFailed
+              ? t('system.heartbeatRequestFailed')
+              : format.dateTime(bot.health?.last_process ?? null)
+          "
+      /></VCol>
+      <VCol cols="6" sm="4" lg="2"
+        ><MetricTile
+          :label="t('system.latency')"
+          :value="bot.latencyMs !== null ? `${bot.latencyMs} ms` : '—'"
+          kind="text"
+          small
+          :sub="`${t('system.polling')} ${bot.pollIntervalSeconds}s`"
+      /></VCol>
+    </VRow>
 
-    <div class="grid-2">
+    <VRow dense class="grid-2">
       <!-- Moved here from the overview; uptime itself is already in the tiles above. -->
-      <section class="panel">
-        <div class="panel__head">
-          <span class="panel__title">{{ t('system.health') }}</span>
-        </div>
-        <div class="panel__body">
-          <dl class="dl">
-            <dt>{{ t('system.botStartup') }}</dt>
-            <dd>{{ format.dateTime(bot.health?.bot_startup ?? null) }}</dd>
-            <dt>{{ t('system.lastProcess') }}</dt>
-            <dd>{{ format.dateTime(bot.health?.last_process ?? null) }}</dd>
-            <dt>{{ t('system.uptime') }}</dt>
-            <dd>{{ format.duration(uptime) }}</dd>
-          </dl>
-        </div>
-      </section>
+      <VCol cols="12" md="6"
+        ><VCard tag="section" class="panel">
+          <VCardItem class="panel__head">
+            <VCardTitle tag="span" class="panel__title">{{ t('system.health') }}</VCardTitle>
+          </VCardItem>
+          <VCardText class="panel__body">
+            <dl class="dl">
+              <dt>{{ t('system.botStartup') }}</dt>
+              <dd>{{ format.dateTime(bot.health?.bot_startup ?? null) }}</dd>
+              <dt>{{ t('system.lastProcess') }}</dt>
+              <dd>{{ format.dateTime(bot.health?.last_process ?? null) }}</dd>
+              <dt>{{ t('system.uptime') }}</dt>
+              <dd>{{ format.duration(uptime) }}</dd>
+            </dl>
+          </VCardText>
+        </VCard></VCol
+      >
 
-      <section class="panel">
-        <div class="panel__head">
-          <span class="panel__title">{{ t('system.config') }}</span>
-        </div>
-        <div class="panel__body">
-          <dl class="dl">
-            <dt>{{ t('system.version') }}</dt>
-            <dd>{{ config?.version ?? '—' }}</dd>
-            <dt>{{ t('system.apiVersion') }}</dt>
-            <dd>{{ config?.api_version ?? '—' }}</dd>
-            <dt>{{ t('system.strategy') }}</dt>
-            <dd>{{ config?.strategy ?? '—' }}</dd>
-            <dt>{{ t('system.exchange') }}</dt>
-            <dd>{{ config?.exchange ?? '—' }}</dd>
-            <dt>{{ t('system.timeframe') }}</dt>
-            <dd>{{ config?.timeframe ?? '—' }}</dd>
-            <dt>{{ t('system.tradingMode') }}</dt>
-            <dd>{{ config?.trading_mode ?? '—' }}</dd>
-            <dt>{{ t('system.marginMode') }}</dt>
-            <dd>{{ config?.margin_mode ?? '—' }}</dd>
-            <dt>{{ t('system.stakeCurrency') }}</dt>
-            <dd>{{ config?.stake_currency ?? '—' }}</dd>
-            <dt>{{ t('system.stakeAmount') }}</dt>
-            <dd>
-              {{
-                typeof config?.stake_amount === 'number'
-                  ? format.number(config.stake_amount, 2)
-                  : (config?.stake_amount ?? '—')
-              }}
-            </dd>
-            <dt>{{ t('system.maxOpenTrades') }}</dt>
-            <dd>{{ config?.max_open_trades ?? '—' }}</dd>
-            <dt>{{ t('system.stoploss') }}</dt>
-            <dd>
-              {{
-                format.percent(
-                  (config?.stoploss ?? null) === null ? null : (config?.stoploss ?? 0) * 100,
-                )
-              }}
-            </dd>
-            <dt>{{ t('system.trailingStop') }}</dt>
-            <dd>{{ config?.trailing_stop ? t('common.on') : t('common.off') }}</dd>
-            <dt>{{ t('system.shortAllowed') }}</dt>
-            <dd>{{ config?.short_allowed ? t('common.on') : t('common.off') }}</dd>
-            <dt>{{ t('system.forceEntryEnabled') }}</dt>
-            <dd>{{ config?.force_entry_enable ? t('common.on') : t('common.off') }}</dd>
-            <dt>{{ t('system.positionAdjustment') }}</dt>
-            <dd>{{ config?.position_adjustment_enable ? t('common.on') : t('common.off') }}</dd>
-          </dl>
-        </div>
-      </section>
+      <VCol cols="12" md="6"
+        ><VCard tag="section" class="panel">
+          <VCardItem class="panel__head">
+            <VCardTitle tag="span" class="panel__title">{{ t('system.config') }}</VCardTitle>
+          </VCardItem>
+          <VCardText class="panel__body">
+            <dl class="dl">
+              <dt>{{ t('system.version') }}</dt>
+              <dd>{{ config?.version ?? '—' }}</dd>
+              <dt>{{ t('system.apiVersion') }}</dt>
+              <dd>{{ config?.api_version ?? '—' }}</dd>
+              <dt>{{ t('system.strategy') }}</dt>
+              <dd>{{ config?.strategy ?? '—' }}</dd>
+              <dt>{{ t('system.exchange') }}</dt>
+              <dd>{{ config?.exchange ?? '—' }}</dd>
+              <dt>{{ t('system.timeframe') }}</dt>
+              <dd>{{ config?.timeframe ?? '—' }}</dd>
+              <dt>{{ t('system.tradingMode') }}</dt>
+              <dd>{{ config?.trading_mode ?? '—' }}</dd>
+              <dt>{{ t('system.marginMode') }}</dt>
+              <dd>{{ config?.margin_mode ?? '—' }}</dd>
+              <dt>{{ t('system.stakeCurrency') }}</dt>
+              <dd>{{ config?.stake_currency ?? '—' }}</dd>
+              <dt>{{ t('system.stakeAmount') }}</dt>
+              <dd>
+                {{
+                  typeof config?.stake_amount === 'number'
+                    ? format.number(config.stake_amount, 2)
+                    : (config?.stake_amount ?? '—')
+                }}
+              </dd>
+              <dt>{{ t('system.maxOpenTrades') }}</dt>
+              <dd>{{ config?.max_open_trades ?? '—' }}</dd>
+              <dt>{{ t('system.stoploss') }}</dt>
+              <dd>
+                {{
+                  format.percent(
+                    (config?.stoploss ?? null) === null ? null : (config?.stoploss ?? 0) * 100,
+                  )
+                }}
+              </dd>
+              <dt>{{ t('system.trailingStop') }}</dt>
+              <dd>{{ config?.trailing_stop ? t('common.on') : t('common.off') }}</dd>
+              <dt>{{ t('system.shortAllowed') }}</dt>
+              <dd>{{ config?.short_allowed ? t('common.on') : t('common.off') }}</dd>
+              <dt>{{ t('system.forceEntryEnabled') }}</dt>
+              <dd>{{ config?.force_entry_enable ? t('common.on') : t('common.off') }}</dd>
+              <dt>{{ t('system.positionAdjustment') }}</dt>
+              <dd>{{ config?.position_adjustment_enable ? t('common.on') : t('common.off') }}</dd>
+            </dl>
+          </VCardText>
+        </VCard></VCol
+      >
 
-      <section class="panel">
-        <div class="panel__head">
-          <span class="panel__title">{{ t('system.connection') }}</span>
-        </div>
-        <div class="panel__body">
-          <dl class="dl">
-            <dt>{{ t('system.endpoint') }}</dt>
-            <dd>{{ settings.baseUrl || '—' }}</dd>
-            <dt>{{ t('system.latency') }}</dt>
-            <dd>{{ bot.latencyMs !== null ? `${bot.latencyMs} ms` : '—' }}</dd>
-            <dt>{{ t('system.lastFetch') }}</dt>
-            <dd>{{ format.dateTime(bot.lastFetchAt) }}</dd>
-          </dl>
+      <VCol cols="12" md="6"
+        ><VCard tag="section" class="panel">
+          <VCardItem class="panel__head">
+            <VCardTitle tag="span" class="panel__title">{{ t('system.connection') }}</VCardTitle>
+          </VCardItem>
+          <VCardText class="panel__body">
+            <dl class="dl">
+              <dt>{{ t('system.endpoint') }}</dt>
+              <dd>{{ settings.baseUrl || '—' }}</dd>
+              <dt>{{ t('system.latency') }}</dt>
+              <dd>{{ bot.latencyMs !== null ? `${bot.latencyMs} ms` : '—' }}</dd>
+              <dt>{{ t('system.lastFetch') }}</dt>
+              <dd>{{ format.dateTime(bot.lastFetchAt) }}</dd>
+            </dl>
 
-          <div v-if="bot.writesAllowed" class="row row--wrap" style="margin-top: var(--sp-4)">
-            <button
-              type="button"
-              class="btn"
-              :disabled="bot.actionPending !== null"
-              @click="runSimple(() => bot.pauseEntries(), t('actions.pause'))"
+            <div
+              v-if="bot.writesAllowed || bot.canResume"
+              class="d-flex align-center ga-2 flex-wrap"
+              style="margin-top: var(--sp-4)"
             >
-              <AppIcon name="pause" />
-              {{ t('actions.pause') }}
-            </button>
-            <button
-              type="button"
-              class="btn"
-              :disabled="bot.actionPending !== null"
-              @click="runSimple(() => bot.start(), t('actions.resume'))"
-            >
-              <AppIcon name="check" />
-              {{ t('actions.resume') }}
-            </button>
-            <button
-              type="button"
-              class="btn"
-              :disabled="bot.actionPending !== null"
-              @click="runSimple(() => bot.reloadConfig(), t('actions.reloadConfig'))"
-            >
-              <AppIcon name="refresh" />
-              {{ t('actions.reloadConfig') }}
-            </button>
-            <button
-              type="button"
-              class="btn btn--danger"
-              :disabled="bot.actionPending !== null"
-              @click="stopConfirm = true"
-            >
-              <AppIcon name="power" />
-              {{ t('actions.stop') }}
-            </button>
-          </div>
-          <p v-else class="small muted" style="margin-top: var(--sp-4)">
-            {{ t('actions.controlsShortHint') }}
-          </p>
-        </div>
-      </section>
-    </div>
+              <VBtn
+                v-if="bot.writesAllowed"
+                type="button"
+                :disabled="bot.actionPending !== null"
+                @click="runSimple(() => bot.pauseEntries(), t('actions.pause'))"
+              >
+                <AppIcon name="pause" />
+                {{ t('actions.pause') }}
+              </VBtn>
+              <VBtn
+                v-if="bot.canResume"
+                type="button"
+                :disabled="bot.actionPending !== null"
+                @click="runSimple(() => bot.start(), t('actions.resume'))"
+              >
+                <AppIcon name="check" />
+                {{ t('actions.resume') }}
+              </VBtn>
+              <VBtn
+                v-if="bot.writesAllowed"
+                type="button"
+                :disabled="bot.actionPending !== null"
+                @click="runSimple(() => bot.reloadConfig(), t('actions.reloadConfig'))"
+              >
+                <AppIcon name="refresh" />
+                {{ t('actions.reloadConfig') }}
+              </VBtn>
+              <VBtn
+                v-if="bot.writesAllowed"
+                color="error"
+                type="button"
+                :disabled="bot.actionPending !== null"
+                @click="stopConfirm = true"
+              >
+                <AppIcon name="power" />
+                {{ t('actions.stop') }}
+              </VBtn>
+            </div>
+            <p v-else class="small muted" style="margin-top: var(--sp-4)">
+              {{ t('actions.controlsShortHint') }}
+            </p>
+          </VCardText>
+        </VCard></VCol
+      >
+    </VRow>
 
-    <section v-if="bot.sysinfo" class="panel">
-      <div class="panel__head">
-        <span class="panel__title">{{ t('system.cpu') }}</span>
+    <VCard v-if="bot.sysinfo" tag="section" class="panel">
+      <VCardItem class="panel__head">
+        <VCardTitle tag="span" class="panel__title">{{ t('system.cpu') }}</VCardTitle>
         <span class="panel__meta num">{{ bot.sysinfo.cpu_count }} {{ t('system.cores') }}</span>
-      </div>
-      <div class="panel__body">
+      </VCardItem>
+      <VCardText class="panel__body">
         <div class="cores">
           <div v-for="core in bot.sysinfo.cpu_load" :key="core.cpu" class="cores__item">
             <span class="small muted num">CPU {{ core.cpu }}</span>
-            <div class="meter">
-              <div
-                class="meter__fill"
-                :class="meterTone(core.pct)"
-                :style="{ transform: `scaleX(${core.pct / 100})` }"
-              />
-            </div>
+            <VProgressLinear
+              :model-value="core.pct"
+              :color="meterColor(core.pct)"
+              :height="6"
+              rounded
+              :aria-label="`CPU ${core.cpu}`"
+            />
             <span class="small num">{{ format.percent(core.pct, 0) }}</span>
           </div>
         </div>
-      </div>
-    </section>
+      </VCardText>
+    </VCard>
 
     <ConfirmDialog
       :open="stopConfirm"
@@ -277,7 +300,7 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
 </template>
 
 <style scoped>
-.metric--warn .metric__value {
+.metric--warn :deep(.metric__value) {
   color: var(--warn);
 }
 

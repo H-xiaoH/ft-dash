@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useMediaQuery, useResizeObserver } from '@vueuse/core'
 import { computed, ref, watchPostEffect } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { WIDE_LAYOUT_QUERY } from '@/lib/layout'
@@ -16,34 +17,24 @@ const equityMetric = ref<HTMLElement | null>(null)
 const latency = ref<HTMLElement | null>(null)
 const hideLatency = ref(false)
 
-watchPostEffect((onCleanup) => {
+const wide = useMediaQuery(WIDE_LAYOUT_QUERY)
+function updateLatency() {
   const area = metrics.value
   const equity = equityMetric.value
   const label = latency.value
   const actions = label?.parentElement
   if (!area || !equity || !label || !actions) return
-
-  const wide = window.matchMedia(WIDE_LAYOUT_QUERY)
-  const update = () => {
-    if (wide.matches) {
-      hideLatency.value = false
-      return
-    }
-    const gap = parseFloat(getComputedStyle(actions).columnGap) || 0
-    const latencyWidth = label.getBoundingClientRect().width + gap
-    const available = area.getBoundingClientRect().width + (hideLatency.value ? 0 : latencyWidth)
-    hideLatency.value = available < equity.getBoundingClientRect().width + latencyWidth
+  if (wide.value) {
+    hideLatency.value = false
+    return
   }
-
-  const observer = new ResizeObserver(update)
-  for (const element of [area, equity, label]) observer.observe(element)
-  wide.addEventListener('change', update)
-  update()
-  onCleanup(() => {
-    observer.disconnect()
-    wide.removeEventListener('change', update)
-  })
-})
+  const gap = parseFloat(getComputedStyle(actions).columnGap) || 0
+  const latencyWidth = label.getBoundingClientRect().width + gap
+  const available = area.getBoundingClientRect().width + (hideLatency.value ? 0 : latencyWidth)
+  hideLatency.value = available < equity.getBoundingClientRect().width + latencyWidth
+}
+useResizeObserver([metrics, equityMetric, latency], updateLatency)
+watchPostEffect(updateLatency)
 
 const status = computed(() => {
   // A cached backend state cannot override the current connection state.
@@ -69,6 +60,13 @@ const status = computed(() => {
   }
 })
 
+const statusColors: Record<string, string> = {
+  good: 'success',
+  warn: 'warning',
+  bad: 'error',
+  muted: 'secondary',
+}
+
 const equity = computed(() => bot.balance)
 const totalPnl = computed(() => bot.profit?.profit_all_coin ?? null)
 const totalPnlRatio = computed(() => bot.profit?.profit_all_ratio ?? null)
@@ -87,25 +85,36 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
 </script>
 
 <template>
-  <header class="strip">
+  <VToolbar class="strip" :height="56" color="surface">
     <div class="strip__state" :data-tone="status.tone">
-      <span
+      <VBadge
         :key="`${status.key}-${status.tone}-${bot.connection}-${heartbeatTimestamp}`"
+        dot
+        inline
+        :color="statusColors[status.tone]"
+        :style="{ color: `rgb(var(--v-theme-${statusColors[status.tone]}))` }"
         class="strip__pulse"
         :data-tone="status.tone"
       />
       <span class="strip__state-label">{{ t(status.key) }}</span>
-      <span v-if="bot.isLiveAccount" class="chip chip--bad">{{ t('connect.liveTrading') }}</span>
-      <span v-else-if="bot.showConfig?.dry_run === true" class="chip">{{
+      <VChip v-if="bot.isLiveAccount" size="x-small" variant="tonal" color="error">{{
+        t('connect.liveTrading')
+      }}</VChip>
+      <VChip v-else-if="bot.showConfig?.dry_run === true" size="x-small" variant="tonal">{{
         t('connect.dryRun')
-      }}</span>
+      }}</VChip>
     </div>
 
-    <div ref="metrics" class="strip__metrics">
+    <div ref="metrics" class="strip__metrics" tabindex="0">
       <div ref="equityMetric" class="strip__metric">
         <span class="strip__metric-label">{{ t('kpi.equity') }}</span>
         <span class="num strip__metric-value">
-          {{ format.money(equity?.total ?? null, equity?.stake ?? bot.stakeCurrency) }}
+          {{
+            format.money(
+              equity?.total_bot ?? equity?.total ?? null,
+              equity?.stake ?? bot.stakeCurrency,
+            )
+          }}
           <small :class="format.toneClass(totalPnlRatio)">
             {{ format.ratio(totalPnlRatio) }}
           </small>
@@ -124,7 +133,11 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
           >{{ openCount }}<small>/{{ maxOpen }}</small></span
         >
       </div>
-      <div class="strip__metric" :class="{ 'strip__metric--warn': heartbeatStale }">
+      <div
+        class="strip__metric"
+        :class="{ 'strip__metric--warn': heartbeatStale || bot.healthRequestFailed }"
+        :title="bot.healthRequestFailed ? t('system.heartbeatRequestFailed') : undefined"
+      >
         <span class="strip__metric-label">{{ t('dashboard.heartbeat') }}</span>
         <span class="num strip__metric-value">{{ heartbeat }}</span>
       </div>
@@ -139,32 +152,36 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
       >
         {{ bot.latencyMs }}ms
       </span>
-      <button
+      <VBtn
+        variant="text"
+        :icon="true"
         type="button"
-        class="btn btn--icon btn--ghost"
         :disabled="bot.refreshing"
         :title="t('common.refresh')"
         @click="emit('refresh')"
       >
         <AppIcon name="refresh" :class="{ 'is-spinning': bot.refreshing }" />
-      </button>
+      </VBtn>
     </div>
-  </header>
+  </VToolbar>
 </template>
 
 <style scoped>
 .strip {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-4);
   padding: 0 var(--sp-4);
-  min-height: var(--topbar-h);
+
   background: var(--ink-850);
   border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
   z-index: 20;
   padding-top: env(safe-area-inset-top, 0px);
+  height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px)) !important;
+}
+
+.strip :deep(.v-toolbar__content) {
+  gap: var(--sp-4);
+  overflow: visible;
 }
 
 .strip__state {
@@ -180,24 +197,11 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
 }
 
 .strip__pulse {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--text-3);
-  animation: beat 900ms ease-out;
   flex: none;
 }
-
-.strip__pulse[data-tone='good'] {
-  background: var(--long);
-}
-
-.strip__pulse[data-tone='warn'] {
-  background: var(--warn);
-}
-
-.strip__pulse[data-tone='bad'] {
-  background: var(--short);
+.strip__pulse :deep(.v-badge__badge) {
+  animation: beat 900ms ease-out;
+  color: inherit !important;
 }
 
 @keyframes beat {

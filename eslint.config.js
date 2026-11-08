@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { URL } from 'node:url'
 import js from '@eslint/js'
 import pluginVue from 'eslint-plugin-vue'
 import tseslint from 'typescript-eslint'
@@ -24,7 +26,19 @@ export default tseslint.config(
     },
     rules: {
       // A component the template uses but the script never imports renders as nothing.
-      'vue/no-undef-components': 'error',
+      'vue/no-undef-components': [
+        'error',
+        {
+          ignorePatterns: Object.keys(
+            JSON.parse(
+              readFileSync(
+                new URL('./node_modules/vuetify/dist/json/importMap.json', import.meta.url),
+                'utf8',
+              ),
+            ).components,
+          ),
+        },
+      ],
     },
   },
   {

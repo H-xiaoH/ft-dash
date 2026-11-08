@@ -38,6 +38,20 @@ describe('interface limits', () => {
     expect(reloaded.pairTablePageSize).toBe(25)
   })
 
+  it('applies and saves the polling interval only when the input settles', () => {
+    const settings = useSettingsStore()
+    expect(settings.pollIntervalSeconds).toBe(1)
+    settings.pollInterval = 5
+    expect(settings.pollIntervalSeconds).toBe(1)
+    expect(settings.commitCount('pollInterval')).toBe(5)
+    expect(settings.pollIntervalSeconds).toBe(5)
+
+    settings.pollInterval = 2.5
+    expect(settings.commitCount('pollInterval')).toBe(5)
+    setActivePinia(createPinia())
+    expect(useSettingsStore().pollIntervalSeconds).toBe(5)
+  })
+
   it('clamps what is set at the moment it is read', () => {
     const settings = useSettingsStore()
     settings.dashboardOpenLimit = 0

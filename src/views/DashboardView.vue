@@ -1,19 +1,15 @@
 <script setup lang="ts">
-import CollapseTransition from '@/components/CollapseTransition.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
-import BarChart from '@/components/BarChart.vue'
-import type { BarItem } from '@/components/charts'
+import { useRoute, useRouter } from 'vue-router'
+import PeriodChart from '@/components/PeriodChart.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import MetricTile from '@/components/MetricTile.vue'
 import SideBadge from '@/components/SideBadge.vue'
-import Sparkline from '@/components/Sparkline.vue'
 import { useFormat } from '@/composables/useFormat'
 import { pushToast } from '@/composables/useToast'
 import { useChartHeight } from '@/composables/useChartHeight'
-import { useSegBlock } from '@/composables/useSegBlock'
 import { isStandalone, navigatePage } from '@/lib/navigation'
 import { hideFreqtradeSentinel, toIsoDate } from '@/lib/format'
 import type { Trade } from '@/lib/types'
@@ -27,6 +23,7 @@ const format = useFormat()
 const bot = useBotStore()
 const settings = useSettingsStore()
 const router = useRouter()
+const route = useRoute()
 
 const exitTarget = ref<Trade | null>(null)
 /** Deep-links the overview panels into the matching trades tab. */
@@ -50,11 +47,6 @@ async function openOverviewTrade(trade: Trade, filter: 'open' | 'closed'): Promi
 }
 const period = ref<Period>('daily')
 /** The block behind the period tabs, which slides to whichever one is active. */
-const periodSeg = ref<HTMLElement | null>(null)
-const { blockStyle: periodBlockStyle, blockReady: periodBlockReady } = useSegBlock(
-  periodSeg,
-  () => period.value,
-)
 const periodChartHeight = useChartHeight(140, 0.19, 220)
 /** The period tables list exactly as many rows as the chart draws bars. */
 const PERIOD_ROWS = 30
@@ -79,32 +71,11 @@ const todayPnl = computed(() => {
   return row ? row.abs_profit : null
 })
 
-const cumulative = computed(() => {
-  let running = 0
-  return dailySeries.value.map((entry) => {
-    running += entry.abs_profit
-    return running
-  })
-})
-
 const periodData = computed(() => {
   const source =
     period.value === 'daily' ? bot.daily : period.value === 'weekly' ? bot.weekly : bot.monthly
   return source?.data ?? []
 })
-
-const periodBars = computed<BarItem[]>(() =>
-  [...periodData.value]
-    .reverse()
-    .slice(-30)
-    .map((entry) => ({
-      label: entry.date.slice(5),
-      tooltip: format.day(entry.date),
-      value: entry.abs_profit,
-      display: format.signedMoney(entry.abs_profit, stake.value),
-      sub: `${entry.trade_count} ${t('stats.tradeCount')}`,
-    })),
-)
 
 function durationOf(trade: Trade): number | null {
   const open = format.timestamp(trade.open_timestamp)
@@ -124,95 +95,85 @@ async function confirmExit() {
 </script>
 
 <template>
-  <div class="stack">
-    <div class="metric-grid">
-      <MetricTile
-        :label="t('kpi.equity')"
-        :value="bot.balance?.total ?? null"
-        kind="money"
-        :currency="bot.balance?.stake ?? stake"
-      >
-        <Sparkline :values="cumulative.slice(-30)" :height="26" />
-      </MetricTile>
-      <MetricTile
-        :label="t('kpi.openPnl')"
-        :value="(bot.profit?.profit_all_coin ?? 0) - (bot.profit?.profit_closed_coin ?? 0)"
-        kind="money"
-        :currency="stake"
-        tone="auto"
-        signed
-        :sub="t('kpi.unrealized')"
-      />
-      <MetricTile
-        :label="t('kpi.totalPnl')"
-        :value="bot.profit?.profit_all_coin ?? null"
-        kind="money"
-        :currency="stake"
-        tone="auto"
-        signed
-        :sub="format.ratio(bot.profit?.profit_all_ratio ?? null)"
-      />
-      <MetricTile
-        :label="t('kpi.todayPnl')"
-        :value="todayPnl"
-        kind="money"
-        :currency="stake"
-        tone="auto"
-        signed
-      />
-      <MetricTile
-        :label="t('kpi.trades')"
-        :value="bot.profit?.trade_count ?? null"
-        kind="number"
-        :digits="0"
-        :sub="`${bot.profit?.winning_trades ?? 0} / ${bot.profit?.losing_trades ?? 0}`"
-      />
-      <MetricTile
-        :label="t('kpi.profitFactor')"
-        :value="hideFreqtradeSentinel(bot.profit?.profit_factor ?? null)"
-        kind="number"
-      />
-    </div>
+  <div class="d-flex flex-column ga-4">
+    <VRow dense class="metric-grid">
+      <VCol cols="6" sm="4" lg="2"
+        ><MetricTile
+          :label="t('kpi.equity')"
+          :value="bot.balance?.total_bot ?? bot.balance?.total ?? null"
+          kind="money"
+          :currency="bot.balance?.stake ?? stake"
+      /></VCol>
+      <VCol cols="6" sm="4" lg="2"
+        ><MetricTile
+          :label="t('kpi.openPnl')"
+          :value="(bot.profit?.profit_all_coin ?? 0) - (bot.profit?.profit_closed_coin ?? 0)"
+          kind="money"
+          :currency="stake"
+          tone="auto"
+          signed
+      /></VCol>
+      <VCol cols="6" sm="4" lg="2"
+        ><MetricTile
+          :label="t('kpi.totalPnl')"
+          :value="bot.profit?.profit_all_coin ?? null"
+          kind="money"
+          :currency="stake"
+          tone="auto"
+          signed
+      /></VCol>
+      <VCol cols="6" sm="4" lg="2"
+        ><MetricTile
+          :label="t('kpi.todayPnl')"
+          :value="todayPnl"
+          kind="money"
+          :currency="stake"
+          tone="auto"
+          signed
+      /></VCol>
+      <VCol cols="6" sm="4" lg="2"
+        ><MetricTile
+          :label="t('kpi.trades')"
+          :value="bot.profit?.trade_count ?? null"
+          kind="number"
+          :digits="0"
+      /></VCol>
+      <VCol cols="6" sm="4" lg="2"
+        ><MetricTile
+          :label="t('kpi.profitFactor')"
+          :value="hideFreqtradeSentinel(bot.profit?.profit_factor ?? null)"
+          kind="number"
+      /></VCol>
+    </VRow>
 
-    <div class="stack">
-      <section class="panel">
-        <div class="panel__head">
-          <span class="panel__title">{{ t('stats.period') }}</span>
-          <div ref="periodSeg" class="seg">
-            <button
-              type="button"
-              class="seg__item"
-              :aria-pressed="period === 'daily'"
-              @click="period = 'daily'"
-            >
+    <div class="d-flex flex-column ga-4">
+      <VCard tag="section" class="panel">
+        <VCardItem class="panel__head">
+          <VCardTitle tag="span" class="panel__title">{{ t('stats.period') }}</VCardTitle>
+          <VBtnToggle v-model="period" mandatory divided class="page-tabs">
+            <VBtn type="button" variant="outlined" :aria-pressed="period === 'daily'" value="daily">
               {{ t('stats.daily') }}
-            </button>
-            <button
+            </VBtn>
+            <VBtn
               type="button"
-              class="seg__item"
+              variant="outlined"
               :aria-pressed="period === 'weekly'"
-              @click="period = 'weekly'"
+              value="weekly"
             >
               {{ t('stats.weekly') }}
-            </button>
-            <button
+            </VBtn>
+            <VBtn
               type="button"
-              class="seg__item"
+              variant="outlined"
               :aria-pressed="period === 'monthly'"
-              @click="period = 'monthly'"
+              value="monthly"
             >
               {{ t('stats.monthly') }}
-            </button>
-            <span
-              class="seg__block"
-              :class="{ 'is-ready': periodBlockReady }"
-              :style="periodBlockStyle"
-            />
-          </div>
+            </VBtn>
+          </VBtnToggle>
           <div class="panel__actions">
-            <button
+            <VBtn
               type="button"
-              class="btn btn--sm"
               :aria-expanded="periodRowsOpen"
               :aria-label="t(periodRowsOpen ? 'stats.hidePeriods' : 'stats.showPeriods')"
               :title="t(periodRowsOpen ? 'stats.hidePeriods' : 'stats.showPeriods')"
@@ -220,25 +181,28 @@ async function confirmExit() {
             >
               <AppIcon :name="periodRowsOpen ? 'chevronUp' : 'chevronDown'" />
               {{ t(periodRowsOpen ? 'stats.hidePeriods' : 'stats.showPeriods') }}
-            </button>
+            </VBtn>
           </div>
-        </div>
-        <div class="panel__body">
-          <BarChart
-            v-if="periodBars.length"
-            :items="periodBars"
+        </VCardItem>
+        <VCardText class="panel__body">
+          <PeriodChart
+            v-if="periodData.length"
+            :entries="periodData"
+            :history="bot.historicBalance"
+            :current-equity="bot.balance?.total_bot ?? bot.balance?.total ?? null"
+            :period="period"
+            :stake="stake"
             :height="periodChartHeight"
-            :axis-format="(value: number) => format.money(value, '', 2)"
           />
-          <p v-else class="empty">{{ t('stats.noData') }}</p>
-        </div>
-        <CollapseTransition>
-          <div
+          <VEmptyState v-else :text="t('stats.noData')" class="pa-6" />
+        </VCardText>
+        <VExpandTransition>
+          <VCardText
             v-if="periodRowsOpen"
             class="panel__body panel__body--flush responsive-table responsive-table--short"
           >
             <div class="table-wrap u-desktop-only">
-              <table class="table">
+              <VTable class="table">
                 <thead>
                   <tr>
                     <th scope="col">{{ t('stats.date') }}</th>
@@ -261,43 +225,52 @@ async function confirmExit() {
                     <td class="num">{{ format.money(entry.starting_balance, stake) }}</td>
                   </tr>
                 </tbody>
-              </table>
+              </VTable>
             </div>
 
-            <ul class="cards u-mobile-only">
-              <li v-for="entry in periodData.slice(0, PERIOD_ROWS)" :key="entry.date" class="card">
-                <div class="card__row">
-                  <span class="num">{{ format.day(entry.date) }}</span>
-                  <span class="spacer" />
-                  <span class="num" :class="format.toneClass(entry.abs_profit)">
-                    {{ format.signedMoney(entry.abs_profit, stake) }}
-                  </span>
-                </div>
-                <div class="card__row small muted">
-                  <span>{{ format.ratio(entry.rel_profit) }}</span>
-                  <span>{{ t('stats.tradeCount') }} {{ entry.trade_count }}</span>
-                  <span class="spacer" />
-                  <span>{{ format.money(entry.starting_balance, stake) }}</span>
-                </div>
-              </li>
-            </ul>
-          </div>
-        </CollapseTransition>
-      </section>
+            <VList role="list" class="period-details u-mobile-only" lines="two">
+              <VListItem
+                v-for="entry in periodData.slice(0, PERIOD_ROWS)"
+                :key="entry.date"
+                role="listitem"
+                class="border-b"
+              >
+                <template #title
+                  ><span class="num">{{ format.day(entry.date) }}</span></template
+                >
+                <template #append
+                  ><span class="num" :class="format.toneClass(entry.abs_profit)">{{
+                    format.signedMoney(entry.abs_profit, stake)
+                  }}</span></template
+                >
+                <template #subtitle
+                  >{{ format.ratio(entry.rel_profit) }} · {{ entry.trade_count }}
+                  {{ t('stats.tradeCount') }} ·
+                  {{ format.money(entry.starting_balance, stake) }}</template
+                >
+              </VListItem>
+            </VList>
+          </VCardText>
+        </VExpandTransition>
+      </VCard>
 
-      <section class="panel">
-        <div class="panel__head">
-          <span class="panel__title">{{ t('kpi.openTrades') }}</span>
-          <span class="chip">{{ bot.openTrades.length }}</span>
+      <VCard tag="section" class="panel">
+        <VCardItem class="panel__head">
+          <VCardTitle tag="span" class="panel__title">{{ t('kpi.openTrades') }}</VCardTitle>
+          <VChip size="x-small" variant="tonal">{{ bot.openTrades.length }}</VChip>
           <div class="panel__actions">
-            <button type="button" class="btn btn--sm" @click="openTradesTab('open')">
+            <VBtn type="button" @click="openTradesTab('open')">
               <AppIcon name="chevronRight" />
               {{ t('dashboard.viewAll') }}
-            </button>
+            </VBtn>
           </div>
-        </div>
-        <div class="panel__body panel__body--flush">
-          <div v-if="!bot.openTrades.length" class="empty">{{ t('dashboard.noPositions') }}</div>
+        </VCardItem>
+        <VCardText class="panel__body panel__body--flush">
+          <VEmptyState
+            v-if="!bot.openTrades.length"
+            :text="t('dashboard.noPositions')"
+            class="pa-6"
+          />
           <!-- Scrolls sideways on phones: give keyboard users a focus stop (WCAG 2.1.1). -->
           <div
             v-else
@@ -306,16 +279,19 @@ async function confirmExit() {
             role="region"
             :aria-label="t('kpi.openTrades')"
           >
-            <table class="table table--clickable">
+            <VTable
+              class="table table--clickable ov-open-table"
+              :class="{ 'ov-open-table--controls': bot.writesAllowed }"
+            >
               <thead>
                 <tr>
                   <th scope="col">{{ t('trades.pair') }}</th>
-                  <th scope="col" class="ov-side side-col">{{ t('trades.side') }}</th>
                   <th scope="col" class="num ov-entry">{{ t('trades.entryPrice') }}</th>
                   <th scope="col" class="num ov-current">{{ t('trades.currentPrice') }}</th>
                   <th scope="col" class="num ov-stake">{{ t('trades.stake') }}</th>
                   <th scope="col" class="num">{{ t('kpi.unrealized') }}</th>
                   <th scope="col" class="num">{{ t('trades.duration') }}</th>
+                  <th scope="col" class="num ov-open-date">{{ t('trades.openDate') }}</th>
                   <th v-if="bot.writesAllowed" scope="col" />
                 </tr>
               </thead>
@@ -331,17 +307,20 @@ async function confirmExit() {
                         class="table__side"
                         :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
                       />
-                      <span class="num">{{ trade.pair }}</span>
-                      <SideBadge class="ov-side-inline" :is-short="trade.is_short" icon-only />
-                      <span
-                        v-if="trade.leverage && trade.leverage > 1"
-                        class="chip overview__leverage"
+                      <VBtn
+                        type="button"
+                        class="num table__pair-action"
+                        variant="text"
+                        color="on-surface"
+                        height="auto"
+                        rounded="0"
+                        @click.stop="openOverviewTrade(trade, 'open')"
                       >
-                        {{ trade.leverage }}x
-                      </span>
+                        {{ trade.pair }}
+                      </VBtn>
+                      <SideBadge :is-short="trade.is_short" icon-only />
                     </div>
                   </td>
-                  <td class="ov-side side-col"><SideBadge :is-short="trade.is_short" /></td>
                   <td class="num ov-entry">{{ format.price(trade.open_rate) }}</td>
                   <td class="num ov-current">
                     {{ format.price(trade.current_rate ?? trade.open_rate) }}
@@ -352,35 +331,38 @@ async function confirmExit() {
                     <div class="small muted">{{ format.ratio(trade.profit_ratio) }}</div>
                   </td>
                   <td class="num">{{ format.duration(durationOf(trade)) }}</td>
+                  <td class="num ov-open-date">
+                    {{ format.dateTimeParts(trade.open_timestamp).date }}
+                  </td>
                   <td v-if="bot.writesAllowed">
-                    <button
-                      type="button"
-                      class="btn btn--sm btn--danger"
-                      @click.stop="exitTarget = trade"
-                    >
+                    <VBtn color="error" type="button" @click.stop="exitTarget = trade">
                       <AppIcon name="logout" />
                       {{ t('actions.forceExit') }}
-                    </button>
+                    </VBtn>
                   </td>
                 </tr>
               </tbody>
-            </table>
+            </VTable>
           </div>
-        </div>
-      </section>
+        </VCardText>
+      </VCard>
 
-      <section class="panel">
-        <div class="panel__head">
-          <span class="panel__title">{{ t('dashboard.recentTrades') }}</span>
+      <VCard tag="section" class="panel">
+        <VCardItem class="panel__head">
+          <VCardTitle tag="span" class="panel__title">{{ t('dashboard.recentTrades') }}</VCardTitle>
           <div class="panel__actions">
-            <button type="button" class="btn btn--sm" @click="openTradesTab('closed')">
+            <VBtn type="button" @click="openTradesTab('closed')">
               <AppIcon name="chevronRight" />
               {{ t('dashboard.viewAll') }}
-            </button>
+            </VBtn>
           </div>
-        </div>
-        <div class="panel__body panel__body--flush">
-          <div v-if="!bot.closedByRecency.length" class="empty">{{ t('trades.noClosed') }}</div>
+        </VCardItem>
+        <VCardText class="panel__body panel__body--flush">
+          <VEmptyState
+            v-if="!bot.closedByRecency.length"
+            :text="t('trades.noClosed')"
+            class="pa-6"
+          />
           <!-- Scrolls sideways on phones: give keyboard users a focus stop (WCAG 2.1.1). -->
           <div
             v-else
@@ -389,14 +371,15 @@ async function confirmExit() {
             role="region"
             :aria-label="t('dashboard.recentTrades')"
           >
-            <table class="table table--clickable">
+            <VTable class="table table--clickable">
               <thead>
                 <tr>
                   <th scope="col">{{ t('trades.pair') }}</th>
-                  <th scope="col" class="ov-side side-col">{{ t('trades.side') }}</th>
                   <th scope="col" class="num">{{ t('trades.profit') }}</th>
                   <th scope="col" class="num ov-exit">{{ t('trades.exitPrice') }}</th>
                   <th scope="col" class="num">{{ t('trades.duration') }}</th>
+                  <th scope="col" class="num ov-closed-open-date">{{ t('trades.openDate') }}</th>
+                  <th scope="col" class="num ov-close-date">{{ t('trades.closeDate') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -411,27 +394,42 @@ async function confirmExit() {
                         class="table__side"
                         :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
                       />
-                      <span class="num">{{ trade.pair }}</span>
-                      <SideBadge class="ov-side-inline" :is-short="trade.is_short" icon-only />
+                      <VBtn
+                        type="button"
+                        class="num table__pair-action"
+                        variant="text"
+                        color="on-surface"
+                        height="auto"
+                        rounded="0"
+                        @click.stop="openOverviewTrade(trade, 'closed')"
+                      >
+                        {{ trade.pair }}
+                      </VBtn>
+                      <SideBadge :is-short="trade.is_short" icon-only />
                     </div>
                   </td>
-                  <td class="ov-side side-col"><SideBadge :is-short="trade.is_short" /></td>
                   <td class="num" :class="format.toneClass(trade.profit_ratio)">
                     {{ format.signedMoney(trade.profit_abs ?? 0, stake) }}
                     <div class="small muted">{{ format.ratio(trade.profit_ratio) }}</div>
                   </td>
                   <td class="num ov-exit">{{ format.price(trade.close_rate ?? null) }}</td>
                   <td class="num">{{ format.duration(durationOf(trade)) }}</td>
+                  <td class="num ov-closed-open-date">
+                    {{ format.dateTimeParts(trade.open_timestamp).date }}
+                  </td>
+                  <td class="num ov-close-date">
+                    {{ format.dateTimeParts(trade.close_timestamp ?? null).date }}
+                  </td>
                 </tr>
               </tbody>
-            </table>
+            </VTable>
           </div>
-        </div>
-      </section>
+        </VCardText>
+      </VCard>
     </div>
 
     <ConfirmDialog
-      :open="exitTarget !== null"
+      :open="route.name === 'dashboard' && exitTarget !== null"
       tone="danger"
       :title="bot.labelWithBot(t('actions.forceExit'))"
       :body="t('actions.forceExitHint')"
@@ -445,6 +443,10 @@ async function confirmExit() {
 </template>
 
 <style scoped>
+.period-details :deep(.v-list-item-subtitle) {
+  -webkit-line-clamp: unset;
+  white-space: normal;
+}
 /*
  * Which columns the two overview tables carry follows the room they actually have, not the
  * window: a fixed breakpoint drops data that would have fitted, and keeps data that does not.
@@ -455,11 +457,13 @@ async function confirmExit() {
   container-type: inline-size;
 }
 
-.ov-side,
 .ov-entry,
 .ov-current,
 .ov-stake,
-.ov-exit {
+.ov-exit,
+.ov-open-date,
+.ov-closed-open-date,
+.ov-close-date {
   display: none;
 }
 
@@ -482,53 +486,24 @@ async function confirmExit() {
   }
 }
 
-/* From here the direction has a column of its own, so the pair cell drops its badge. */
-@container (min-width: 820px) {
-  .ov-side {
+@container (min-width: 760px) {
+  .ov-close-date {
     display: table-cell;
   }
-
-  .ov-side-inline {
-    display: none;
+}
+@container (min-width: 960px) {
+  .ov-closed-open-date {
+    display: table-cell;
   }
 }
-
-/* Safari 15.5 has no container queries; use the viewport minus the shell gutters. */
-@supports not (container-type: inline-size) {
-  @media (min-width: 518px) {
-    .ov-stake {
-      display: table-cell;
-    }
-  }
-  @media (min-width: 628px) {
-    .ov-entry {
-      display: table-cell;
-    }
-  }
-  @media (min-width: 824px) {
-    .ov-current,
-    .ov-exit {
-      display: table-cell;
-    }
-  }
-  @media (min-width: 944px) {
-    .ov-side {
-      display: table-cell;
-    }
-    .ov-side-inline {
-      display: none;
-    }
+@container (min-width: 1120px) {
+  .ov-open-table:not(.ov-open-table--controls) .ov-open-date {
+    display: table-cell;
   }
 }
-
-/*
- * The overview drops the leverage chip on phones, where the pair cell already carries the
- * badge. Scoped rather than `u-hide-sm`: that helper switches to `table-cell`, which is right
- * for a column and wrong for a chip.
- */
-@media not all and (min-width: 720px) {
-  .overview__leverage {
-    display: none;
+@container (min-width: 1280px) {
+  .ov-open-date {
+    display: table-cell;
   }
 }
 </style>

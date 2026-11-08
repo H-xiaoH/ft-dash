@@ -1,5 +1,4 @@
-import { mount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 import FilterMenu from '@/components/FilterMenu.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
@@ -16,7 +15,7 @@ function mountTracked(...args: Parameters<typeof mount>): ReturnType<typeof moun
 
 /** The filter popup is teleported to <body>, so it is queried from the document. */
 function popupItems(): HTMLElement[] {
-  return [...document.querySelectorAll<HTMLElement>('.filter-menu__item')]
+  return [...document.querySelectorAll<HTMLElement>('.v-overlay--active [role="option"]')]
 }
 
 afterEach(() => {
@@ -32,7 +31,7 @@ describe('SearchToggle', () => {
     await wrapper.find('button').trigger('click')
     const input = wrapper.find('input')
     expect(input.exists()).toBe(true)
-    expect(input.attributes('placeholder')).toBe('Find')
+    expect(wrapper.find('label').text()).toContain('Find')
   })
 
   it('emits the typed term and clears it when collapsed', async () => {
@@ -41,7 +40,7 @@ describe('SearchToggle', () => {
     await wrapper.find('input').setValue('btc')
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['btc'])
 
-    await wrapper.find('.search-toggle__close').trigger('click')
+    await wrapper.find('.v-field__clearable [role="button"]').trigger('click')
     expect(wrapper.find('input').exists()).toBe(false)
     // Closing must not leave an invisible filter behind.
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([''])
@@ -81,19 +80,26 @@ describe('FilterMenu', () => {
     })
     await wrapper.find('.filter-menu__button').trigger('click')
     popupItems()[1].click()
-    await nextTick()
+    await flushPromises()
 
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['win'])
     expect(popupItems()).toHaveLength(0)
   })
 
-  it('closes when the backdrop is clicked', async () => {
-    const wrapper = mountTracked(FilterMenu, { props: { options }, global })
-    await wrapper.find('.filter-menu__button').trigger('click')
-    expect(document.querySelector('.filter-menu__list')).not.toBeNull()
-    ;(document.querySelector('.filter-menu__backdrop') as HTMLElement).click()
-    await nextTick()
-    expect(document.querySelector('.filter-menu__list')).toBeNull()
+  it('exposes the selected option and closes on an outside click', async () => {
+    const wrapper = mountTracked(FilterMenu, {
+      attachTo: document.body,
+      props: { modelValue: 'win', options },
+      global,
+    })
+    await wrapper.get('.filter-menu__button').trigger('click')
+    await flushPromises()
+    expect(popupItems()[1].getAttribute('aria-selected')).toBe('true')
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await flushPromises()
+    expect(popupItems()).toHaveLength(0)
   })
 
   it('filters searchable options by label, value, and search alias', async () => {
@@ -112,16 +118,16 @@ describe('FilterMenu', () => {
     })
 
     await wrapper.find('.filter-menu__button').trigger('click')
-    const input = document.querySelector<HTMLInputElement>('.filter-menu__input')!
+    const input = document.querySelector<HTMLInputElement>('.filter-menu__list input')!
 
     input.value = 'tz-tokyo'
     input.dispatchEvent(new Event('input', { bubbles: true }))
-    await nextTick()
+    await flushPromises()
     expect(popupItems().map((item) => item.textContent)).toEqual(['Tokyo'])
 
     input.value = 'Asia/Shanghai'
     input.dispatchEvent(new Event('input', { bubbles: true }))
-    await nextTick()
+    await flushPromises()
     expect(popupItems().map((item) => item.textContent)).toEqual(['Follow browser'])
   })
 
@@ -132,23 +138,31 @@ describe('FilterMenu', () => {
     })
 
     await wrapper.find('.filter-menu__button').trigger('click')
-    const input = document.querySelector<HTMLInputElement>('.filter-menu__input')!
+    const input = document.querySelector<HTMLInputElement>('.filter-menu__list input')!
     input.value = 'nowhere'
     input.dispatchEvent(new Event('input', { bubbles: true }))
-    await nextTick()
+    await flushPromises()
 
     expect(popupItems()).toHaveLength(0)
-    expect(document.querySelector('.filter-menu__empty')).not.toBeNull()
+    expect(document.querySelector('.filter-menu__list .v-empty-state')).not.toBeNull()
 
-    ;(document.querySelector('.filter-menu__reset') as HTMLElement).click()
-    await nextTick()
+    ;(
+      document.querySelector(
+        '.filter-menu__list .v-field__clearable [role="button"]',
+      ) as HTMLElement
+    ).click()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await flushPromises()
     expect(popupItems()).toHaveLength(options.length)
-    expect(document.querySelector('.filter-menu__empty')).toBeNull()
+    expect(document.querySelector('.filter-menu__list .v-empty-state')).toBeNull()
 
     popupItems()[0].click()
-    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    await flushPromises()
     await wrapper.find('.filter-menu__button').trigger('click')
-    expect(document.querySelector<HTMLInputElement>('.filter-menu__input')!.value).toBe('')
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    await flushPromises()
+    expect(document.querySelector<HTMLInputElement>('.filter-menu__list input')!.value).toBe('')
     expect(popupItems()).toHaveLength(options.length)
   })
 })

@@ -103,6 +103,11 @@ describe('FreqtradeApi', () => {
     await api.login()
     await api.ping()
 
+    const [, loginInit] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(loginInit.body).toBeUndefined()
+    expect((loginInit.headers as Record<string, string>).Authorization).toBe(
+      `Basic ${btoa('apiuser:secret')}`,
+    )
     const [, secondInit] = fetchMock.mock.calls[1] as [string, RequestInit]
     expect((secondInit.headers as Record<string, string>).Authorization).toBe('Bearer jwt-token')
   })

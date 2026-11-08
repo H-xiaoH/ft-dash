@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import BotList from '@/components/BotList.vue'
 import { i18n } from '@/i18n'
+import Sortable from 'sortablejs'
 import type { Bot } from '@/lib/bots'
 
 const bots: Bot[] = ['first', 'second', 'third'].map((id) => ({
@@ -34,45 +35,22 @@ describe('backend reorder handle', () => {
     vi.restoreAllMocks()
   })
 
-  it('previews only after a long press, commits once on release, and supports keyboard ordering', async () => {
+  it('delegates long-press drag to Sortable and commits the resulting order once', async () => {
     const wrapper = setup()
-    try {
-      const handle = wrapper.get('.bots__drag').element
-      const container = wrapper.get('ul').element
-      Object.assign(container, {
-        setPointerCapture: vi.fn(),
-        hasPointerCapture: () => true,
-        releasePointerCapture: vi.fn(),
-      })
-      const target = wrapper.get('[data-bot-id="third"]').element
-      Object.defineProperty(document, 'elementFromPoint', {
-        configurable: true,
-        value: vi.fn(() => target),
-      })
-      pointer(handle, 'pointerdown')
-      expect(container.setPointerCapture).toHaveBeenCalledWith(1)
-      await vi.advanceTimersByTimeAsync(349)
-      expect(wrapper.find('.is-dragging').exists()).toBe(false)
-      await vi.advanceTimersByTimeAsync(1)
-      expect(wrapper.find('.is-dragging').exists()).toBe(true)
-      pointer(handle, 'pointermove', 100)
-      await wrapper.vm.$nextTick()
-      expect(wrapper.findAll('.bots__name').map((el) => el.text())).toEqual([
-        'second',
-        'third',
-        'first',
-      ])
-      expect(wrapper.emitted('reorder')).toBeUndefined()
-      expect(wrapper.get('ul').element).toBe(container)
-      pointer(handle, 'pointerup', 100)
-      pointer(container, 'lostpointercapture')
-      await wrapper.vm.$nextTick()
-      expect(wrapper.emitted('reorder')).toEqual([[['second', 'third', 'first']]])
-      await wrapper.get('.bots__drag').trigger('keydown', { key: 'ArrowDown' })
-      expect(wrapper.emitted('reorder')?.at(-1)).toEqual([['second', 'first', 'third']])
-    } finally {
-      wrapper.unmount()
-    }
+    const sortable = Sortable.get(wrapper.get('ul').element)!
+    expect(sortable.option('forceFallback')).toBe(true)
+    expect(sortable.option('delay')).toBe(350)
+    expect(sortable.option('touchStartThreshold')).toBeGreaterThanOrEqual(1)
+    expect(sortable.option('handle')).toBe('.bots__drag')
+    const item = wrapper.get('[data-bot-id="first"]').element as HTMLElement
+    sortable.sort(['second', 'third', 'first'])
+    expect(wrapper.emitted('reorder')).toBeUndefined()
+    const onEnd = sortable.option('onEnd')!
+    onEnd.call(sortable, { item } as import('sortablejs').SortableEvent)
+    expect(wrapper.emitted('reorder')).toEqual([[['second', 'third', 'first']]])
+    expect(sortable.toArray()).toEqual(['first', 'second', 'third'])
+    await wrapper.get('.bots__drag').trigger('keydown', { key: 'ArrowDown' })
+    expect(wrapper.emitted('reorder')?.at(-1)).toEqual([['second', 'first', 'third']])
   })
 
   it('keeps focus on the same backend handle after keyboard movement', async () => {

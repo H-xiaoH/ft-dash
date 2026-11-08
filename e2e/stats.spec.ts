@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { RESPONSES, connect, livePage, mockApi, segBlockMatches } from './support/fixtures'
+import { RESPONSES, connect, livePage, mockApi, selectionMatches } from './support/fixtures'
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
@@ -21,25 +21,25 @@ test('the pair table shows ten pairs a page', async ({ page }) => {
 
   await expect(rows).toHaveCount(10)
   await expect(pager).toContainText('显示 10 / 12')
-  await expect(pager).toContainText('第 1 / 2 页')
+  await expect(pager.locator('[aria-current="true"]')).toHaveText('1')
 
-  await pager.locator('button', { hasText: '下一页' }).click()
+  await pager.getByRole('button', { name: '下一页' }).click()
   await expect(rows).toHaveCount(2)
-  await expect(pager).toContainText('第 2 / 2 页')
-  await expect(pager.locator('button', { hasText: '下一页' })).toBeDisabled()
+  await expect(pager.locator('[aria-current="true"]')).toHaveText('2')
+  await expect(pager.getByRole('button', { name: '下一页' })).toBeDisabled()
 
   // Resizing changes the presentation while keeping the same page of results.
   await page.setViewportSize({ width: 800, height: 900 })
   await expect(rows.first()).toBeVisible()
-  await expect(pager).toContainText('第 2 / 2 页')
+  await expect(pager.locator('[aria-current="true"]')).toHaveText('2')
   await page.setViewportSize({ width: 1280, height: 900 })
   await expect(rows.first()).toBeVisible()
-  await expect(pager).toContainText('第 2 / 2 页')
+  await expect(pager.locator('[aria-current="true"]')).toHaveText('2')
 
   // Sorting is the operator's own move, so it starts the table over at page one.
   await table.locator('.filter-menu__button', { hasText: '排序' }).click()
-  await page.locator('.filter-menu__item', { hasText: /^笔数$/ }).click()
-  await expect(pager).toContainText('第 1 / 2 页')
+  await page.locator('.v-overlay--active [role=option]', { hasText: /^笔数$/ }).click()
+  await expect(pager.locator('[aria-current="true"]')).toHaveText('1')
   await expect(rows).toHaveCount(10)
 })
 
@@ -61,17 +61,17 @@ test('the pair table pages by the size set in Settings', async ({ page }) => {
   const pager = table.locator('.panel__pager')
 
   await expect(rows).toHaveCount(5)
-  await expect(pager).toContainText('第 1 / 3 页')
+  await expect(pager.locator('[aria-current="true"]')).toHaveText('1')
 })
 
 test('each risk tile opens the explanation for that ratio alone', async ({ page }) => {
-  const sharpe = livePage(page).locator('.metric--button', { hasText: '夏普' }).first()
+  const sharpe = livePage(page).locator('button.metric', { hasText: '夏普' }).first()
   await expect(sharpe).toHaveAttribute('aria-label', /夏普.*查看说明/)
 
   await sharpe.click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
-  await expect(dialog.locator('.dialog__title')).toHaveText('夏普（Sharpe）')
+  await expect(dialog.locator('.v-card-title, .v-card-item__title')).toHaveText('夏普（Sharpe）')
   await expect(dialog).toContainText('界面参考分档：低于 0 标红，0 至低于 1 标黄，1 及以上标绿。')
   // Only its own ratio: no SQN, Sortino or Calmar text in here.
   await expect(dialog).not.toContainText('SQN')
@@ -84,8 +84,9 @@ test('each risk tile opens the explanation for that ratio alone', async ({ page 
   expect(await sharpe.evaluate((el) => getComputedStyle(el).borderLeftWidth)).toBe('0px')
 
   // Escape closes it and hands focus back to the tile that opened it.
+  await expect(dialog.locator('[class*="-enter-active"]')).toHaveCount(0)
   await page.keyboard.press('Escape')
-  await expect(dialog).toBeHidden()
+  await expect(page.locator('.v-dialog .v-overlay__content')).toBeHidden()
   await expect(sharpe).toBeFocused()
 
   for (const [tile, title, text, bands] of [
@@ -102,17 +103,20 @@ test('each risk tile opens the explanation for that ratio alone', async ({ page 
       '低于 0 标红，0 至低于 1 标黄，1 及以上标绿',
     ],
   ]) {
-    await livePage(page).locator('.metric--button', { hasText: tile }).first().click()
-    await expect(dialog.locator('.dialog__title')).toHaveText(title!)
+    await livePage(page).locator('button.metric', { hasText: tile }).first().click()
+    await expect(dialog.locator('.v-card-title, .v-card-item__title')).toHaveText(title!)
     await expect(dialog).toContainText(text!)
     await expect(dialog).toContainText(bands!)
+    await expect(dialog.locator('[class*="-enter-active"]')).toHaveCount(0)
     await page.keyboard.press('Escape')
-    await expect(dialog).toBeHidden()
+    await expect(page.locator('.v-dialog .v-overlay__content')).toBeHidden()
   }
 
   // Another tile opens its own text, and a click on the backdrop closes it.
-  await livePage(page).locator('.metric--button', { hasText: 'Calmar' }).first().click()
-  await expect(dialog.locator('.dialog__title')).toHaveText('Calmar（收益回撤比）')
+  await livePage(page).locator('button.metric', { hasText: 'Calmar' }).first().click()
+  await expect(dialog.locator('.v-card-title, .v-card-item__title')).toHaveText(
+    'Calmar（收益回撤比）',
+  )
   await expect(dialog).toContainText('最大回撤越小，读数通常越高')
   await expect(dialog).not.toContainText('夏普')
   await page.mouse.click(8, 8)
@@ -121,12 +125,14 @@ test('each risk tile opens the explanation for that ratio alone', async ({ page 
 
 test('the period block slides to the period you pick', async ({ page }) => {
   await page.goto('/#/')
-  const seg = livePage(page).locator('.seg')
-  await expect.poll(() => segBlockMatches(seg)).toBe(true)
+  const seg = livePage(page).locator('.v-btn-toggle')
+  await expect.poll(() => selectionMatches(seg)).toBe(true)
 
-  await livePage(page).locator('.seg__item', { hasText: '每月' }).click()
-  await expect(livePage(page).locator('.seg__item[aria-pressed="true"]')).toContainText('每月')
-  await expect.poll(() => segBlockMatches(seg)).toBe(true)
+  await livePage(page).locator('.v-btn-toggle .v-btn', { hasText: '每月' }).click()
+  await expect(livePage(page).locator('.v-btn-toggle .v-btn[aria-pressed="true"]')).toContainText(
+    '每月',
+  )
+  await expect.poll(() => selectionMatches(seg)).toBe(true)
 })
 
 test('pair table derives win rate, fees, volume and last close from the trades', async ({
@@ -151,35 +157,27 @@ test('pair table derives win rate, fees, volume and last close from the trades',
   await expect(firstRow).toContainText('AAA/USDT')
   await expect(firstRow).toContainText('50.00%')
   await expect(firstRow).toContainText('0.0200 USDT')
+  // The latest AAA close is 08:00 UTC. The browser and default display zone are in Shanghai.
+  await expect(firstRow.locator('td').last()).toContainText('16:00')
 })
 
 test('durations panel and KPI tiles render', async ({ page }) => {
   const stats = livePage(page)
   await expect(stats.locator('.panel__title')).toHaveText(['交易对表现', '持仓时长'])
-  // The tile band is framed on all four sides: the grid draws the top and left hairlines,
-  // the tiles draw right and bottom.
-  const grid = stats.locator('.metric-grid').first()
-  await expect(grid).toHaveCSS('border-top-width', '1px')
-  await expect(grid).toHaveCSS('border-left-width', '1px')
-  await expect(stats.locator('.metric-grid > .metric').first()).toHaveCSS(
-    'border-right-width',
-    '1px',
-  )
-  await expect(stats.locator('.metric-grid > .metric').first()).toHaveCSS(
-    'border-bottom-width',
-    '1px',
-  )
+  await expect(stats.locator('dd').first()).toHaveText('1小时')
+  await expect(stats.locator('.v-row .metric').first()).toBeVisible()
+  await expect(stats.locator('.v-row .metric').first()).toHaveClass(/v-card/)
   // The removed tiles stay gone, and the remaining KPIs are still there.
-  await expect(stats.locator('.metric__label', { hasText: '盈利 / 亏损' })).toHaveCount(1)
-  await expect(stats.locator('.metric__label', { hasText: '已平仓盈亏' })).toHaveCount(1)
-  await expect(stats.locator('.metric__label', { hasText: '最佳交易对' })).toHaveCount(0)
+  await expect(stats.locator('.v-card-subtitle', { hasText: '盈利 / 亏损' })).toHaveCount(1)
+  await expect(stats.locator('.v-card-subtitle', { hasText: '已平仓盈亏' })).toHaveCount(1)
+  await expect(stats.locator('.v-card-subtitle', { hasText: '最佳交易对' })).toHaveCount(0)
   // The account-level tiles stay removed; the pair column is a different thing.
-  await expect(stats.locator('.metric__label', { hasText: '总盈亏' })).toHaveCount(0)
+  await expect(stats.locator('.v-card-subtitle', { hasText: '总盈亏' })).toHaveCount(0)
 })
 
 test('the overview period chart and details render', async ({ page }) => {
   await page.goto('/#/')
-  await expect(livePage(page).locator('.chart__tick').first()).toBeVisible()
+  await expect(livePage(page).locator('.period-chart canvas').first()).toBeVisible()
   // The period detail is folded away until asked for; it opens from the panel head.
   const period = livePage(page).locator('.panel', {
     has: page.locator('.panel__title', { hasText: '周期' }),
@@ -205,13 +203,13 @@ test('pair performance sorts through the toolbar on desktop and mobile', async (
   const ascending = table.getByRole('button', { name: '改为升序' })
   await expect(table.locator('thead button')).toHaveCount(0)
   await expect(menu).toHaveCSS('border-right-width', '0px')
-  await expect(ascending).toHaveCSS('border-left-width', '1px')
+  await expect(table.locator('.sort-group .v-divider')).toHaveCSS('border-right-width', '1px')
   await ascending.click()
   await expect(table.locator('tbody tr').first()).toContainText('CCC/USDT')
 
   await page.setViewportSize({ width: 360, height: 844 })
   await menu.click()
-  await page.locator('.filter-menu__item', { hasText: /^交易对$/ }).click()
+  await page.locator('.v-overlay--active [role=option]', { hasText: /^交易对$/ }).click()
   await expect(table.locator('tbody tr').first()).toContainText('AAA/USDT')
   await table.getByRole('button', { name: '改为降序' }).click()
   await expect(table.locator('tbody tr').first()).toContainText('CCC/USDT')
@@ -221,7 +219,7 @@ test('pair performance sorts through the toolbar on desktop and mobile', async (
 const tile = (page: Page, label: string) =>
   livePage(page)
     .locator('.metric')
-    .filter({ has: page.locator('.metric__label', { hasText: label }) })
+    .filter({ has: page.locator('.v-card-subtitle', { hasText: label }) })
 
 test('win/loss counts and risk ratios are colour-coded', async ({ page }) => {
   await expect(tile(page, '盈利 / 亏损').locator('.u-pos')).toHaveText('3')
@@ -245,11 +243,19 @@ test('win/loss counts and risk ratios are colour-coded', async ({ page }) => {
 })
 
 test('a losing edge turns the win rate red and a weak ratio amber', async ({ page }) => {
+  await page.route('**/api/v1/stats', (route) =>
+    route.fulfill({
+      json: {
+        ...(RESPONSES.stats as Record<string, unknown>),
+        exit_reasons: { exit_signal: { wins: 1, losses: 3, draws: 4 } },
+      },
+    }),
+  )
   await page.route('**/api/v1/profit', (route) =>
     route.fulfill({
       json: {
         ...(RESPONSES.profit as Record<string, unknown>),
-        winning_trades: 1,
+        winning_trades: 5,
         losing_trades: 3,
         sharpe: 0.4,
         sortino: -0.2,
@@ -261,6 +267,7 @@ test('a losing edge turns the win rate red and a weak ratio amber', async ({ pag
   )
 
   await expect(tile(page, '胜率').locator('.metric__value')).toHaveClass(/u-neg/)
+  await expect(tile(page, '胜率').locator('.metric__value')).toHaveText('25.00%')
   await expect(tile(page, '夏普').locator('.metric__value')).toHaveClass(/u-warn/)
   await expect(tile(page, '索提诺').locator('.metric__value')).toHaveClass(/u-neg/)
   await expect(tile(page, 'SQN').locator('.metric__value')).toHaveClass(/u-pos/)

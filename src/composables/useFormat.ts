@@ -36,6 +36,7 @@ export interface Formatter {
   dateTimeParts: (value: Numberish) => DateTimeParts
   day: (value: Numberish) => string
   stamp: (value: Numberish) => string
+  chartTick: (value: Numberish, unit: 'year' | 'month' | 'day' | 'time') => string
   toneClass: (value: Numberish) => string
   toneOf: (value: Numberish) => 'good' | 'bad' | 'flat'
   timestamp: (value: Numberish) => number | null
@@ -49,6 +50,20 @@ export function useFormat(): Formatter {
   const current = computed(() => (locale.value === 'zh-CN' ? 'zh-CN' : 'en'))
   /** The zone the operator reads by, from the one setting the whole app agrees on. */
   const zone = computed(() => resolveZone(settings.timezone))
+  const chartTicks = computed(() => {
+    const options = { timeZone: zone.value }
+    return {
+      year: new Intl.DateTimeFormat(current.value, { ...options, year: 'numeric' }),
+      month: new Intl.DateTimeFormat(current.value, { ...options, month: 'short' }),
+      day: new Intl.DateTimeFormat(current.value, { ...options, month: '2-digit', day: '2-digit' }),
+      time: new Intl.DateTimeFormat(current.value, {
+        ...options,
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      }),
+    }
+  })
   const durationLabels = computed<DurationLabels>(() => ({
     day: t('duration.day'),
     hour: t('duration.hour'),
@@ -73,6 +88,10 @@ export function useFormat(): Formatter {
     dateTimeParts: (value) => formatDateTimeParts(value, current.value, '—', zone.value),
     day: (value) => formatDay(value, current.value),
     stamp: (value) => formatShortStamp(value, current.value, '—', zone.value),
+    chartTick: (value, unit) => {
+      const timestamp = parseTimestamp(value)
+      return timestamp === null ? '—' : chartTicks.value[unit].format(timestamp)
+    },
     toneClass: (value) => {
       const dir = direction(value)
       return dir > 0 ? 'u-pos' : dir < 0 ? 'u-neg' : 'u-flat'

@@ -1,5 +1,6 @@
-import { expect, test, type Page } from '@playwright/test'
-import { connect, heldSlot, livePage, mockApi } from './support/fixtures'
+import { expect, test } from '@playwright/test'
+import { connect, livePage, mockApi } from './support/fixtures'
+import { dragPage, settlePages, trackOffset } from './support/gestures'
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
@@ -8,631 +9,160 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('.shell')).toBeVisible()
 })
 
-const hash = (page: Page) => new URL(page.url()).hash
-
-test('the wheel scrolls the page and never switches pages', async ({ page }) => {
-  // The wheel is the page's, not the router's: it must never switch pages, whether the
-  // page still has room to scroll or is already pinned to an end.
+test('the wheel inside page content scrolls without changing routes', async ({ page }) => {
   await page.setViewportSize({ width: 1200, height: 320 })
-  await page.locator('.rail__item').nth(5).click()
-  await expect(livePage(page).locator('.panel__title').first()).toBeVisible()
-  await page.mouse.move(600, 300)
-
-  await page.evaluate(() => window.scrollTo(0, 150))
-  await page.mouse.wheel(0, 240)
-  await page.waitForTimeout(300)
-  expect(hash(page)).toBe('#/system')
-
-  await page.evaluate(() => window.scrollTo(0, 99_999))
-  await page.mouse.wheel(0, 240)
-  await page.waitForTimeout(300)
-  expect(hash(page)).toBe('#/system')
-
-  await page.evaluate(() => window.scrollTo(0, 0))
-  await page.mouse.wheel(0, -240)
-  await page.waitForTimeout(300)
-  expect(hash(page)).toBe('#/system')
-})
-
-/** Drives one touch of a drag; the tests always start, move, then end. */
-const touchAt = async (
-  page: Page,
-  type: 'touchstart' | 'touchmove' | 'touchend',
-  x: number,
-  y = 500,
-  selector = '.shell__body',
-) => {
-  if (type === 'touchstart') {
-    // Let the resize event settle before starting a new gesture after setViewportSize.
-    await page.evaluate(
-      () =>
-        new Promise<void>((resolve) =>
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-        ),
-    )
-  }
-  await page.evaluate(
-    ({ type, x, y, selector }) => {
-      const target = document.querySelector(selector) as Element
-      const point = new Touch({ identifier: 1, target, clientX: x, clientY: y })
-      target.dispatchEvent(
-        new TouchEvent(type, {
-          touches: type === 'touchend' ? [] : [point],
-          changedTouches: [point],
-          bubbles: true,
-          cancelable: true,
-        }),
-      )
-    },
-    { type, x, y, selector },
-  )
-}
-
-test('the page follows the finger and commits past a third of the screen', async ({ page }) => {
-  // A drag touches the transition machinery directly, so watch the console while it runs.
-  const errors: string[] = []
-  page.on('pageerror', (error) => errors.push(String(error)))
-  page.on('console', (message) => {
-    const text = message.text()
-    if (
-      message.type() === 'error' ||
-      text.includes('[Vue warn]') ||
-      text.includes('[Vue Router warn]')
-    )
-      errors.push(text)
-  })
-
-  await page.setViewportSize({ width: 390, height: 780 })
-  const neighbor = heldSlot(page, 1)
-  await expect(neighbor).toHaveCount(1)
-
-  await touchAt(page, 'touchstart', 330)
-  await touchAt(page, 'touchmove', 270)
-  await expect.poll(() => trackX(page)).toBe(-60)
-  // The next page peeks in from the right, one page beyond the one you are dragging.
-  await expect(neighbor).toBeVisible()
-  const peek = (await neighbor.boundingBox())!.x
-  expect(peek).toBeGreaterThan(0)
-  expect(peek).toBeLessThan(390)
-
-  await touchAt(page, 'touchmove', 150)
-  await expect.poll(() => trackX(page)).toBe(-180)
-  // Both pages travel with the finger, one for one.
-  expect(Math.round(peek - (await neighbor.boundingBox())!.x)).toBe(120)
-
-  /*
-   * Record the biggest offset the page's own root shows for the next few frames. The
-   * neighbour is already showing this page, so the swap must not displace it — clearing
-   * the handoff too early re-arms the slide and the page arrives a second time.
-   */
-  await page.evaluate(() => {
-    ;(window as unknown as { __worst?: number }).__worst = 0
-    const started = performance.now()
-    const tick = () => {
-      const root = document.querySelector('.page-track > *')
-      const transform = root ? getComputedStyle(root).transform : 'none'
-      if (transform !== 'none') {
-        const offset = Math.abs(new DOMMatrixReadOnly(transform).m41)
-        const worst = (window as unknown as { __worst?: number }).__worst ?? 0
-        ;(window as unknown as { __worst?: number }).__worst = Math.max(worst, offset)
-      }
-      if (performance.now() - started < 400) requestAnimationFrame(tick)
-    }
-    requestAnimationFrame(tick)
-  })
-  await touchAt(page, 'touchend', 150)
-
-  await expect.poll(() => hash(page)).toBe('#/trades')
-  // The neighbour was already showing this page, so the track lands back at rest.
-  await expect.poll(() => trackX(page)).toBe(0)
-  await expect(heldSlot(page, 0)).toHaveCount(0)
-  expect(await page.evaluate(() => (window as unknown as { __worst?: number }).__worst)).toBe(0)
-  expect(errors).toEqual([])
-})
-
-test('a short slow drag springs back without switching', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-  await page.locator('.tabbar__item').nth(1).click()
-  await expect.poll(() => hash(page)).toBe('#/trades')
-
-  await touchAt(page, 'touchstart', 330)
-  for (const x of [320, 312, 306, 302, 299]) {
-    await touchAt(page, 'touchmove', x)
-    await page.waitForTimeout(90)
-  }
-  expect(await trackX(page)).toBe(-31)
-  await touchAt(page, 'touchend', 299)
-
-  await page.waitForTimeout(400)
-  expect(hash(page)).toBe('#/trades')
-  expect(await trackX(page)).toBe(0)
-  await expect(heldSlot(page, 0)).toHaveCount(0)
-})
-
-test('the tab block lands on the tab you swiped to and never past it', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-  await page.locator('.tabbar__item').nth(2).click()
-  await expect.poll(() => hash(page)).toBe('#/stats')
-  const slots = await page
-    .locator('.tabbar__item')
-    .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().x)))
-
-  // Watch the block for the whole gesture: 统计 -> 市场.
-  await page.evaluate(() => {
-    const seen: number[] = []
-    ;(window as unknown as { __block?: number[] }).__block = seen
-    const started = performance.now()
-    const tick = () => {
-      seen.push(Math.round(document.querySelector('.tabbar__indicator')!.getBoundingClientRect().x))
-      if (performance.now() - started < 1200) requestAnimationFrame(tick)
-    }
-    requestAnimationFrame(tick)
-  })
-
-  await touchAt(page, 'touchstart', 330)
-  for (const x of [300, 260, 220, 180]) {
-    await touchAt(page, 'touchmove', x)
-    await page.waitForTimeout(45)
-  }
-  await touchAt(page, 'touchend', 150)
-
-  await expect.poll(() => hash(page)).toBe('#/market')
-  await page.waitForTimeout(500)
-
-  const seen = await page.evaluate(
-    () => (window as unknown as { __block?: number[] }).__block ?? [],
-  )
-  // The index moves and the drag travel drops in the same render, so the block stops on
-  // 市场 — counting both would send it a slot further, to 日志.
-  expect(Math.max(...seen)).toBeLessThanOrEqual(slots[3] + 2)
-  expect(seen.at(-1)).toBe(slots[3])
-  expect(slots[4]).toBeGreaterThan(slots[3])
-})
-
-test('a drag with nowhere to go resists and never switches', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-  // The first page has nothing before it, so dragging right only rubber-bands.
-  await touchAt(page, 'touchstart', 60)
-  await touchAt(page, 'touchmove', 180)
-  await expect.poll(() => trackX(page)).toBe(30)
-  await expect(heldSlot(page, 0)).toHaveCount(0)
-
-  await touchAt(page, 'touchend', 260)
-  await page.waitForTimeout(400)
-  expect(hash(page)).toBe('#/')
-  expect(await trackX(page)).toBe(0)
-})
-
-/** How lit a bottom-bar tab is, read off its painted colour: brighter means higher. */
-const tabLit = (page: Page, index: number) =>
-  page
-    .locator('.tabbar__item')
-    .nth(index)
-    .evaluate((el) => {
-      const channels = getComputedStyle(el)
-        .color.match(/[\d.]+/g)!
-        .slice(0, 3)
-      return channels.reduce((total, channel) => total + Number(channel), 0)
-    })
-
-const trackX = (page: Page) =>
-  page.locator('.page-track').evaluate((el) => {
-    const transform = getComputedStyle(el).transform
-    return transform === 'none' ? 0 : Math.round(new DOMMatrixReadOnly(transform).m41)
-  })
-
-test('a touch on the bar belongs to its tab, not to the pages', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-
-  /*
-   * The bar is a control strip, not a drag surface: a sideways shove that starts on it must
-   * leave the pages and the block where they were. Otherwise a tap on a tab could lose the
-   * gesture to a finger that wobbled, and the tab would do nothing at all.
-   */
-  const bar = (await page.locator('.tabbar').boundingBox())!
-  const y = Math.round(bar.y + bar.height / 2)
-  await touchAt(page, 'touchstart', 330, y, '.tabbar')
-  await touchAt(page, 'touchmove', 120, y, '.tabbar')
-
-  expect(await trackX(page)).toBe(0)
-  expect(await hash(page)).toBe('#/')
-
-  await touchAt(page, 'touchend', 120, y, '.tabbar')
-  await page.waitForTimeout(200)
-  expect(await hash(page)).toBe('#/')
-})
-
-test('a horizontal drag on a scrubbable chart stays with the chart', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-  await page.goto('/#/market')
-  /*
-   * Scoped to the candle chart on purpose: two `[data-scrub]` regions exist (this one and
-   * the overview's bar chart), and during the page transition the overview is still mounted.
-   * A bare `.first()` could latch onto that one and measure a node that is about to leave.
-   */
-  const chart = page.locator('.candles[data-scrub]')
-  await expect(chart).toBeVisible()
-
-  const box = (await chart.boundingBox())!
-  const selector = '.candles[data-scrub]'
-  await touchAt(
-    page,
-    'touchstart',
-    Math.round(box.x + box.width * 0.7),
-    Math.round(box.y + 40),
-    selector,
-  )
-  await touchAt(
-    page,
-    'touchmove',
-    Math.round(box.x + box.width * 0.3),
-    Math.round(box.y + 42),
-    selector,
-  )
-
-  expect(await trackX(page)).toBe(0)
-  await expect(heldSlot(page, 0)).toHaveCount(0)
-  await touchAt(
-    page,
-    'touchend',
-    Math.round(box.x + box.width * 0.3),
-    Math.round(box.y + 42),
-    selector,
-  )
-  await page.waitForTimeout(300)
-  expect(hash(page)).toBe('#/market')
-})
-
-test('the rail keeps no hover plate behind the sliding indicator', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 900 })
-  await page.goto('/#/trades')
-  const item = page.locator('.rail__item').nth(2)
-  await item.hover()
-  await expect(item).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-})
-
-test('the tab bar fades its icons and labels instead of snapping', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-  const item = page.locator('.tabbar__item').first()
-  // The icon is stroked with currentColor, so this one transition covers both.
-  await expect(item).toHaveCSS('transition-property', 'color')
-  await expect(item).toHaveCSS('transition-duration', '0.22s')
-})
-
-test('a page travels the way you navigated', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-  const host = page.locator('.page-host')
-  const travel = () =>
-    host.evaluate((el) => ({
-      enter: el.style.getPropertyValue('--page-enter'),
-      leave: el.style.getPropertyValue('--page-leave'),
-    }))
-
-  // Forward: the new page arrives from the right, the old one leaves to the left, and
-  // both travel a full page — the same motion the finger produces.
-  await page.locator('.tabbar__item').nth(3).click()
-  // Wait for the navigation to land first: the variables only say which way the *last*
-  // navigation went, so a second click while the first is still loading reads the old one.
-  await expect.poll(() => hash(page)).toBe('#/market')
-  // Unitless: the axis picks the distance — a page width on phones, a viewport on wide
-  // screens, where pages differ in height.
-  await expect.poll(travel).toEqual({ enter: '1', leave: '-1' })
-
-  // Backward: both flip, so the outgoing page never slides against your finger.
-  await page.locator('.tabbar__item').nth(1).click()
-  await expect.poll(() => hash(page)).toBe('#/trades')
-  await expect.poll(travel).toEqual({ enter: '-1', leave: '1' })
-
-  /*
-   * The direction has to live on the stable host. An inline custom property is baked in
-   * when an element renders, so a value carried by the page itself is read from the
-   * render that created it — which is how the leaving page ended up animating with the
-   * direction of the previous navigation.
-   */
-  const onPage = await page
-    .locator('.page-host > *')
-    .evaluate((el) => el.style.getPropertyValue('--page-enter'))
-  expect(onPage).toBe('')
-
-  await page.waitForTimeout(400)
-  await page.setViewportSize({ width: 1280, height: 900 })
-  await page.locator('.rail__item').nth(2).click()
-  await expect.poll(() => hash(page)).toBe('#/stats')
-  await page.waitForTimeout(400)
-
-  for (const [index, name, direction] of [
-    [4, 'logs', 1],
-    [2, 'stats', -1],
-  ] as const) {
-    await page.evaluate((direction) => {
-      const frames: { gap: number; x: number; y: number; opacity: number }[] = []
-      ;(window as unknown as { __verticalTravel: unknown }).__verticalTravel = frames
-      const started = performance.now()
-      const tick = () => {
-        const leaving = document.querySelector('.page-leave-active')
-        const entering = document.querySelector('.page-enter-active')
-        if (leaving && entering) {
-          const oldRect = leaving.getBoundingClientRect()
-          const newRect = entering.getBoundingClientRect()
-          const hostRect = document.querySelector('.page-host')!.getBoundingClientRect()
-          frames.push({
-            gap: direction === 1 ? newRect.top - oldRect.bottom : oldRect.top - newRect.bottom,
-            x: newRect.left - hostRect.left,
-            y: newRect.top - hostRect.top,
-            opacity: Number(getComputedStyle(leaving).opacity),
-          })
-        }
-        if (performance.now() - started < 700) requestAnimationFrame(tick)
-      }
-      requestAnimationFrame(tick)
-    }, direction)
-    await page.locator('.rail__item').nth(index).click()
-    await expect.poll(() => hash(page)).toBe(`#/${name}`)
-    await page.waitForTimeout(700)
-    const frames = await page.evaluate(
-      () =>
-        (
-          window as unknown as {
-            __verticalTravel: { gap: number; x: number; y: number; opacity: number }[]
-          }
-        ).__verticalTravel,
-    )
-    expect(frames.length).toBeGreaterThan(2)
-    expect(Math.max(...frames.map((frame) => Math.abs(frame.x)))).toBeLessThan(1)
-    expect(Math.max(...frames.map((frame) => frame.y * direction))).toBeGreaterThan(100)
-    expect(
-      Math.max(...frames.map((frame) => Math.abs(frame.gap))),
-      JSON.stringify(frames),
-    ).toBeLessThan(2)
-    expect(frames.every((frame) => frame.opacity === 1)).toBe(true)
-    expect(Math.abs(frames.at(-1)!.y)).toBeLessThan(60)
-  }
-})
-
-for (const [target, direction] of [
-  [1, 1],
-  [0, -1],
-] as const) {
-  test(`tapping a tab slides the pages the way a swipe does (${direction})`, async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 780 })
-    // Keep enough samples when native-device mirroring and browser workers share the CPU.
-    await page.addStyleTag({ content: '.page-host { --dur-slide: 400ms; }' })
-
-    if (direction === -1) {
-      await page.goto('/#/trades')
-      await expect(livePage(page).locator('.seg', { hasText: '全部交易' })).toBeVisible()
-      await expect(page.locator('.page-enter-active,.page-leave-active')).toHaveCount(0)
-    }
-
-    // Watch the two pages while the tap is handled: they must be in flight together, each
-    // travelling a full page. The old step animation moved one at a time and only 28px.
-    await page.evaluate((direction) => {
-      const frames: { leaving: number; entering: number; opacity: number; gap: number }[] = []
-      ;(window as unknown as { __frames?: unknown }).__frames = frames
-      const offset = (el: Element) => {
-        const transform = getComputedStyle(el).transform
-        return transform === 'none' ? 0 : Math.round(new DOMMatrixReadOnly(transform).m41)
-      }
-      /*
-       * The budget starts when the two pages first share the track, not when this recorder
-       * is installed: the tap is dispatched by the test runner, and how long that takes is
-       * not what this test is about. Recording stops once the outgoing page is gone.
-       */
-      let deadline = 0
-      const tick = () => {
-        const pages = [...document.querySelectorAll('.page-track > :not(.page-neighbor)')]
-        if (pages.length === 2) {
-          if (!deadline) deadline = performance.now() + 700
-          frames.push({
-            leaving: offset(pages[0]),
-            entering: offset(pages[1]),
-            opacity: Number(getComputedStyle(pages[0]!).opacity),
-            gap:
-              direction === 1
-                ? pages[1]!.getBoundingClientRect().left - pages[0]!.getBoundingClientRect().right
-                : pages[0]!.getBoundingClientRect().left - pages[1]!.getBoundingClientRect().right,
-          })
-        }
-        if (deadline && performance.now() > deadline) return
-        requestAnimationFrame(tick)
-      }
-      requestAnimationFrame(tick)
-    }, direction)
-
-    await page.locator('.tabbar__item').nth(target).click()
-    await expect.poll(() => hash(page)).toBe(target === 1 ? '#/trades' : '#/')
-    await page.waitForTimeout(900)
-
-    const frames = await page.evaluate(
-      () =>
-        (
-          window as unknown as {
-            __frames?: { leaving: number; entering: number; opacity: number; gap: number }[]
-          }
-        ).__frames ?? [],
-    )
-    // Both pages on screen at once: the old one heading left, the new one arriving from the right.
-    expect(frames.length).toBeGreaterThan(2)
-    expect(frames.every((frame) => frame.opacity === 1)).toBe(true)
-    expect(Math.max(...frames.map((frame) => Math.abs(frame.gap)))).toBeLessThan(2)
-    expect(
-      frames.some((frame) => frame.leaving * direction < -20 && frame.entering * direction > 20),
-    ).toBe(true)
-  })
-}
-
-/** Points the mouse at the middle of a rail item, where the wheel walks pages. */
-const railAt = async (page: Page, index: number) => {
-  const box = (await page.locator('.rail__item').nth(index).boundingBox())!
-  await page.mouse.move(Math.round(box.x + box.width / 2), Math.round(box.y + box.height / 2))
-}
-
-test('every other page is already on the track, and inert', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-
-  // Held from the start, so a drag or a wheel step never uncovers a page that is still
-  // loading: the six pages the router is not showing are all mounted.
-  await expect(page.locator('.page-neighbor')).toHaveCount(6)
-  await expect(page.locator('.page-neighbor[inert]')).toHaveCount(6)
-  await expect(page.locator('.page-track > :not(.page-neighbor)')).toHaveCount(1)
-
-  // Held, but out of reach: tabbing around the shell must not walk into a page that is
-  // off screen.
-  for (let press = 0; press < 25; press += 1) await page.keyboard.press('Tab')
-  const reached = await page.evaluate(
-    () => document.activeElement?.closest('.page-neighbor') !== null,
-  )
-  expect(reached).toBe(false)
-})
-
-test('a page swipe lights the bar as the block travels', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 780 })
-  const lit = (at: number) => tabLit(page, at)
-  const before = await Promise.all([0, 1, 2].map(lit))
-
-  // 总览 -> 交易: the block walks one tab, and the light walks with it while the finger
-  // is still down — it is the block's position that lights a tab, not the route.
-  await touchAt(page, 'touchstart', 330)
-  await touchAt(page, 'touchmove', 200)
-  await page.waitForTimeout(80)
-  const midway = await Promise.all([0, 1, 2].map(lit))
-  // Nothing has committed yet: this is the drag, not a route change.
-  expect(hash(page)).toBe('#/')
-  expect(midway[1]).toBeGreaterThan(before[1])
-
-  await touchAt(page, 'touchend', 60)
-  await expect.poll(() => hash(page)).toBe('#/trades')
-  const after = await Promise.all([0, 1, 2].map(lit))
-  // Landed: the light has moved one tab along.
-  expect(after[1]).toBeGreaterThan(after[0])
-  expect(after[0]).toBeCloseTo(before[1], 3)
-})
-
-test('the wheel over the rail walks a page per notch', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 900 })
-  await railAt(page, 0)
-
-  // One notch is one page, and the page behind the rail stays where it is.
-  await page.mouse.wheel(0, 100)
-  await expect.poll(() => hash(page)).toBe('#/trades')
-  await page.mouse.wheel(0, 100)
-  await expect.poll(() => hash(page)).toBe('#/stats')
-  await page.mouse.wheel(0, -100)
-  await expect.poll(() => hash(page)).toBe('#/trades')
-  expect(await page.evaluate(() => window.scrollY)).toBe(0)
-})
-
-test('a trackpad stream over the rail walks pages as it goes', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 900 })
-  await railAt(page, 0)
-
-  /*
-   * A trackpad does not send notches: it sends a stream of small deltas, which add up
-   * between events. Dispatched in the page so the stream is one continuous burst — what
-   * is under test is the arithmetic, not the input device.
-   */
-  const swipe = (events: number) =>
-    page.evaluate((count) => {
-      const rail = document.querySelector('.rail__item')!
-      for (let i = 0; i < count; i += 1) {
-        rail.dispatchEvent(
-          new WheelEvent('wheel', { deltaY: 18, deltaMode: 0, bubbles: true, cancelable: true }),
-        )
-      }
-    }, events)
-
-  await swipe(5)
-  await expect.poll(() => hash(page)).toBe('#/trades')
-  await swipe(5)
-  await expect.poll(() => hash(page)).toBe('#/stats')
-})
-
-test("the wheel off the rail stays the page's own scroll", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 600 })
-  await page.mouse.move(640, 300)
+  await page.goto('/#/system')
+  await settlePages(page)
+  await livePage(page).hover({ position: { x: 400, y: 150 } })
   await page.mouse.wheel(0, 400)
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
-  expect(hash(page)).toBe('#/')
+  await expect.poll(() => livePage(page).evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+  await expect(page).toHaveURL(/#\/system$/)
+  await livePage(page).evaluate((el) => {
+    el.scrollTop = el.scrollHeight
+  })
+  await page.mouse.wheel(0, 400)
+  await expect(page).toHaveURL(/#\/system$/)
 })
 
-test('landing on a page refreshes once, after the pages stop changing', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 900 })
-  /*
-   * `/performance` belongs to the analytics slice, which the poll asks for every twelfth
-   * tick — a tick that can land inside this window on a slow runner. Hiding the document
-   * stops the poll entirely, so the only `/performance` left is the walk's own refresh,
-   * which is what this test is about.
-   */
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
-  })
-  // The shell is mounted while the first connect refresh is still in flight. Wait for
-  // that refresh to finish before taking the baseline, or its performance request can
-  // arrive during the navigation below and look like a page-settle refresh.
-  await expect(page.locator('.strip__actions .btn--icon')).toBeEnabled()
-  await railAt(page, 0)
-  await page.evaluate(() => {
-    const performanceRequests: number[] = []
-    Object.defineProperty(window, '__performanceRequests', {
-      configurable: true,
-      value: performanceRequests,
-    })
-    const originalFetch = window.fetch.bind(window)
-    window.fetch = (input, init) => {
-      const url = input instanceof Request ? input.url : String(input)
-      if (url.includes('/performance')) performanceRequests.push(Date.now())
-      return originalFetch(input, init)
-    }
-  })
-  const lastWheelAt = await page.evaluate(() => {
-    const rail = document.querySelector('.rail__item')!
-    for (let i = 0; i < 3; i += 1) {
-      rail.dispatchEvent(
-        new WheelEvent('wheel', { deltaY: 100, deltaMode: 0, bubbles: true, cancelable: true }),
-      )
-    }
-    return Date.now()
-  })
-  await expect.poll(() => hash(page)).toBe('#/market')
-
-  /*
-   * Counted from the wheel, not from `before`: a request that the connect refresh already had
-   * in flight can land after the baseline and read as a second one. A `performance` from the
-   * slow poll cannot appear here at all — it belongs to the analytics slice, twelfth tick.
-   */
-  const sinceWheel = () =>
-    page.evaluate(
-      (from) =>
-        (window as unknown as { __performanceRequests: number[] }).__performanceRequests.filter(
-          (at) => at >= from,
-        ),
-      lastWheelAt,
-    )
-
-  // Nothing during the settle window, then exactly one: three pages, one refresh.
-  await expect.poll(async () => (await sinceWheel()).length).toBe(1)
-  const [performanceAt] = await sinceWheel()
-  expect(performanceAt).toBeGreaterThanOrEqual(lastWheelAt + 250)
-  await page.waitForTimeout(600)
-  expect((await sinceWheel()).length).toBe(1)
+test('a page follows the finger and commits a long swipe', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await settlePages(page)
+  const before = await trackOffset(page)
+  await dragPage(page, -220, false)
+  expect((await trackOffset(page)).x).toBeLessThan(before.x - 100)
+  const current = await page.locator('.swiper-slide').nth(0).boundingBox()
+  const next = await page.locator('.swiper-slide').nth(1).boundingBox()
+  expect(Math.abs(current!.x + current!.width - next!.x)).toBeLessThanOrEqual(1)
+  await page.mouse.up()
+  await expect(page).toHaveURL(/#\/trades$/)
+  await settlePages(page)
+  await expect(page.locator('.tabbar [aria-current="page"]')).toHaveAttribute('href', '#/trades')
 })
 
-test('rapid desktop selections finish on the latest page and release the transition', async ({
+test('a short slow drag returns to the current page', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await settlePages(page)
+  await dragPage(page, -30, false)
+  await page.waitForTimeout(350)
+  await page.mouse.up()
+  await settlePages(page)
+  await expect(page).toHaveURL(/#\/$/)
+  expect(Math.abs((await trackOffset(page)).x)).toBeLessThanOrEqual(1)
+})
+
+test('dragging beyond the first page resists without switching', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await dragPage(page, 120, false)
+  expect((await trackOffset(page)).x).toBeLessThan(120)
+  await page.mouse.up()
+  await settlePages(page)
+  await expect(page).toHaveURL(/#\/$/)
+})
+
+test('tab controls navigate without starting a page drag', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.locator('.tabbar a').nth(4).click()
+  await expect(page).toHaveURL(/#\/more$/)
+  await settlePages(page)
+  await livePage(page).getByRole('link', { name: '设置', exact: true }).click()
+  await expect(page).toHaveURL(/#\/settings$/)
+  await settlePages(page)
+  await expect(livePage(page)).toHaveAttribute('data-page', 'settings')
+  await expect(page.locator('.tabbar [aria-current="page"]')).toHaveCount(1)
+})
+
+test('chart dragging belongs to the chart rather than page navigation', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/#/market')
+  const plot = livePage(page).locator('.candles__plot')
+  await expect(plot.locator('canvas').first()).toBeVisible()
+  const box = (await plot.boundingBox())!
+  await page.mouse.move(box.x + box.width * 0.8, box.y + 80)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width * 0.2, box.y + 80, { steps: 12 })
+  await page.mouse.up()
+  await expect(page).toHaveURL(/#\/market$/)
+})
+
+for (const target of [1, 4]) {
+  test(`click navigation uses the same adjacent Swiper frames (${target})`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.locator('.tabbar a').nth(target).click()
+    await expect(page).toHaveURL(target === 1 ? /#\/trades$/ : /#\/more$/)
+    await settlePages(page)
+    const slide = (await page.locator('.swiper-slide-active').boundingBox())!
+    const frame = (await page.locator('.page-swiper').boundingBox())!
+    expect(Math.abs(slide.x - frame.x)).toBeLessThanOrEqual(1)
+    expect(Math.abs(slide.width - frame.width)).toBeLessThanOrEqual(1)
+    await expect(page.locator('.page-scroll[inert]')).toHaveCount(4)
+    await expect(livePage(page)).toHaveCount(1)
+  })
+}
+
+test('inactive pages remain inert and navigation preserves their scroll positions', async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1280, height: 900 })
-  await page.locator('.rail__item').nth(2).click()
-  await expect(page.locator('.page-enter-active')).toHaveCount(1)
-  await page.evaluate(() => {
-    const links = document.querySelectorAll<HTMLAnchorElement>('.rail__item')
-    links[4]!.click()
-    links[6]!.click()
+  await page.setViewportSize({ width: 1200, height: 400 })
+  await page.goto('/#/system')
+  await livePage(page).evaluate((el) => {
+    el.scrollTop = 120
   })
-  await expect.poll(() => hash(page)).toBe('#/settings')
-  await expect(page.locator('.page-enter-active, .page-leave-active')).toHaveCount(0)
-  expect(
-    await page.locator('.page-host').evaluate((el) => (el as HTMLElement).style.minHeight),
-  ).toBe('')
-  await page.locator('.rail__item').nth(1).click()
-  await expect.poll(() => hash(page)).toBe('#/trades')
+  const before = await livePage(page).evaluate((el) => el.scrollTop)
+  await page.locator('.rail a').nth(6).click()
+  await page.locator('.rail a').nth(5).click()
+  await settlePages(page)
+  expect(await livePage(page).evaluate((el) => el.scrollTop)).toBe(before)
+  await expect(page.locator('.page-scroll[inert]')).toHaveCount(6)
+})
+
+test('the wheel over the rail walks one page per accepted notch', async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 900 })
+  await page.locator('.rail').hover()
+  await page.mouse.wheel(0, 100)
+  await expect(page).toHaveURL(/#\/trades$/)
+  await page.waitForTimeout(360)
+  await page.mouse.wheel(0, 100)
+  await expect(page).toHaveURL(/#\/stats$/)
+})
+
+test('rapid desktop selections finish on the latest page', async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 900 })
+  await page.locator('.rail a').nth(6).click()
+  await page.locator('.rail a').nth(1).click()
+  await page.locator('.rail a').nth(3).click()
+  await expect(page).toHaveURL(/#\/market$/)
+  await settlePages(page)
+  await expect(livePage(page)).toHaveAttribute('data-page', 'market')
+  const slide = (await page.locator('.swiper-slide-active').boundingBox())!
+  const frame = (await page.locator('.page-swiper').boundingBox())!
+  expect(Math.abs(slide.y - frame.y)).toBeLessThanOrEqual(1)
+})
+
+test('a blocked intermediate page chunk does not block the loaded destination', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1200, height: 900 })
+  await settlePages(page)
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await page.route('**/assets/MarketView-*.js', async (route) => {
+    await gate
+    await route.continue()
+  })
+  try {
+    await page.locator('.rail a').nth(6).click()
+    await expect(page).toHaveURL(/#\/settings$/)
+    await expect(page.locator('.swiper-slide-active [data-page="settings"]')).toBeVisible()
+    await expect(livePage(page).locator('.settings__columns')).toBeVisible()
+    await livePage(page)
+      .locator('.v-input')
+      .filter({ has: page.getByRole('combobox', { name: '语言', exact: true }) })
+      .locator('.v-field')
+      .click()
+    await expect(page.getByRole('option', { name: 'English', exact: true })).toBeVisible()
+  } finally {
+    release()
+  }
 })

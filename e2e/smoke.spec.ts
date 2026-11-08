@@ -7,8 +7,8 @@ test.describe('connect screen', () => {
     await page.goto('/')
     await connect(page)
 
-    await expect(page.locator('.banner--bad')).toContainText('用户名或密码错误')
-    await expect(page.locator('.connect__card')).toBeVisible()
+    await expect(page.locator('.v-alert.text-error')).toContainText('用户名或密码错误')
+    await expect(page.locator('.connect .v-card')).toBeVisible()
     // The probe failed, so no bot was written down and no shell opened.
     expect(await page.evaluate(() => localStorage.getItem('ftdash.bots.v1'))).toBeNull()
 
@@ -17,7 +17,7 @@ test.describe('connect screen', () => {
     await page.locator('.connect__submit').click()
     await expect(page.locator('.shell')).toBeVisible()
     const stored = await page.evaluate(() => localStorage.getItem('ftdash.bots.v1'))
-    expect(JSON.parse(stored!)).toHaveLength(1)
+    expect(JSON.parse(stored!).bots).toHaveLength(1)
   })
 
   test('connects and shows live figures from the API', async ({ page }) => {
@@ -27,8 +27,8 @@ test.describe('connect screen', () => {
 
     await expect(page.locator('.shell')).toBeVisible()
     await expect(page.locator('.strip__state-label')).toHaveText('运行中')
-    await expect(page.locator('.strip__metric').first()).toContainText('100.00')
-    await expect(livePage(page).locator('.metric__label').first()).toHaveText('账户净值')
+    await expect(page.locator('.strip__metric').first()).toContainText('98.00')
+    await expect(livePage(page).locator('.v-card-subtitle').first()).toHaveText('账户净值')
   })
 
   test('the language menu is an emoji button that opens a highlighted picker', async ({ page }) => {
@@ -40,14 +40,18 @@ test.describe('connect screen', () => {
     await expect(trigger).toHaveText('🌐')
 
     await trigger.click()
-    const options = page.locator('.filter-menu__item')
+    const options = page.locator('.v-overlay--active [role=option]')
     await expect(options).toHaveText(['跟随系统', '简体中文', 'English'])
     // The current pick is the highlighted one, and the list says so to screen readers.
-    await expect(page.locator('.filter-menu__item.is-active')).toHaveText('跟随系统')
-    await expect(page.locator('.filter-menu__item[aria-selected="true"]')).toHaveText('跟随系统')
+    await expect(page.locator('.v-overlay--active [role=option].v-list-item--active')).toHaveText(
+      '跟随系统',
+    )
+    await expect(page.locator('.v-overlay--active [role=option][aria-selected="true"]')).toHaveText(
+      '跟随系统',
+    )
 
-    await page.locator('.filter-menu__item', { hasText: 'English' }).click()
-    await expect(page.locator('.connect__title')).toHaveText('Connect to your backend')
+    await page.locator('.v-overlay--active [role=option]', { hasText: 'English' }).click()
+    await expect(page.locator('.connect h1')).toHaveText('Connect to your backend')
     // The pick is stored as a preference, not as the language it resolved to.
     const stored = await page.evaluate(() =>
       JSON.parse(localStorage.getItem('ftdash.settings.v1') ?? '{}'),
@@ -89,8 +93,8 @@ test.describe('connect screen', () => {
     // The bot's password is rotated behind the app's back: every later call is a 401.
     api.setRejectAuth(true)
 
-    await expect(page.locator('.connect__card')).toBeVisible()
-    await expect(page.locator('.banner--bad')).toContainText('用户名或密码错误')
+    await expect(page.locator('.connect .v-card')).toBeVisible()
+    await expect(page.locator('.v-alert.text-error')).toContainText('用户名或密码错误')
     // The bot is still listed and the fields still say what to sign in to.
     await expect(page.locator('input[inputmode="url"]')).toHaveValue(API_BASE)
     await expect(page.locator('.global-notices')).toHaveCount(0)
@@ -103,9 +107,9 @@ test('log minimum level includes higher-severity lines and excludes debug', asyn
   await connect(page)
   await page.goto('/#/logs')
   const log = livePage(page)
-  const levels = log.locator('.logs__line .chip')
+  const levels = log.locator('.logs__line .v-chip')
   await expect(levels).toHaveText(['CRITICAL', 'ERROR', 'WARNING', 'INFO'])
-  await expect(log.locator('.logs__line', { hasText: 'Test debug' })).toHaveCount(0)
+  await expect(log.locator('.logs .v-list-item', { hasText: 'Test debug' })).toHaveCount(0)
 })
 
 test.describe('navigation', () => {
@@ -124,7 +128,9 @@ test.describe('navigation', () => {
     await connect(page)
 
     // Filtered: the "bot added" toast may still be counting down from the connect step.
-    await expect(page.locator('.toast', { hasText: '页面加载失败' })).toHaveCount(1)
+    await expect(
+      page.locator('.v-snackbar--active .v-snackbar__wrapper', { hasText: '页面加载失败' }),
+    ).toHaveCount(1)
   })
 
   test('every route renders its content without console errors', async ({ page, browserName }) => {
@@ -204,8 +210,8 @@ test.describe('navigation', () => {
     // Desktop: direction text, current price, and the leverage chip all present.
     await page.setViewportSize({ width: 1280, height: 900 })
     await expect(header('当前价')).toBeVisible()
-    await expect(openPanel.locator('.side__label').first()).toBeVisible()
-    await expect(openPanel.locator('.overview__leverage').first()).toBeVisible()
+    await expect(openPanel.locator('.side__label')).toHaveCount(0)
+    await expect(openPanel.locator('.overview__leverage')).toHaveCount(0)
 
     // Phone: the same cells are hidden (they stay in the DOM, so ask about visibility), and
     // only the direction arrow is left beside the pair.

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { pushToast } from '@/composables/useToast'
@@ -15,13 +15,22 @@ import { useSettingsStore } from '@/stores/settings'
 const { t } = useI18n()
 const settings = useSettingsStore()
 const confirming = ref(false)
+const switchValue = ref(settings.writesEnabled)
+watch(
+  () => settings.writesEnabled,
+  (value) => {
+    switchValue.value = value
+  },
+)
 
-function onToggle(event: Event) {
-  const wanted = (event.target as HTMLInputElement).checked
-  // The checkbox follows the store, not the click: enabling waits for the confirmation.
-  ;(event.target as HTMLInputElement).checked = settings.writesEnabled
+function onToggle(wanted: boolean | null) {
+  switchValue.value = !!wanted
   if (wanted) {
     confirming.value = true
+    // Restore the native checkbox after the requested state has rendered; access awaits confirmation.
+    void nextTick(() => {
+      switchValue.value = settings.writesEnabled
+    })
     return
   }
   settings.allowControls = false
@@ -37,14 +46,14 @@ function confirmEnable() {
 </script>
 
 <template>
-  <label class="switch">
-    <input type="checkbox" role="switch" :checked="settings.writesEnabled" @change="onToggle" />
-    <span class="switch__track" />
-    <span class="switch__text">
-      <span class="switch__title">{{ t('actions.title') }}</span>
-      <span class="switch__hint">{{ t('actions.controlsShortHint') }}</span>
-    </span>
-  </label>
+  <VSwitch :model-value="switchValue" @update:model-value="onToggle">
+    <template #label>
+      <span class="d-flex flex-column">
+        <span>{{ t('actions.title') }}</span>
+        <span class="text-caption text-medium-emphasis">{{ t('actions.controlsShortHint') }}</span>
+      </span>
+    </template>
+  </VSwitch>
 
   <ConfirmDialog
     :open="confirming"

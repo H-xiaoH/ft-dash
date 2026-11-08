@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
   await connect(page)
   await expect(page.locator('.shell')).toBeVisible()
   // The history arrives a moment after the shell: wait for the real count.
-  await expect(livePage(page).locator('.seg__item').nth(2)).toContainText('全部交易 46')
+  await expect(livePage(page).locator('.v-btn-toggle .v-btn').nth(2)).toContainText('全部交易 46')
 })
 
 test('long histories are paged at 20 rows per page', async ({ page }) => {
@@ -19,45 +19,50 @@ test('long histories are paged at 20 rows per page', async ({ page }) => {
   const pager = livePage(page).locator('.panel__pager')
 
   await expect(rows).toHaveCount(20)
-  await expect(pager).toContainText('第 1 / 3 页')
+  await expect(pager.locator('[aria-current="true"]')).toHaveText('1')
   await expect(pager.getByRole('button', { name: /加载更多/ })).toHaveCount(0)
 
-  await pager.locator('button', { hasText: '下一页' }).click()
+  await pager.getByRole('button', { name: '下一页' }).click()
   await expect(rows).toHaveCount(20)
-  await expect(pager).toContainText('第 2 / 3 页')
+  await expect(pager.locator('[aria-current="true"]')).toHaveText('2')
 
-  await pager.locator('button', { hasText: '下一页' }).click()
+  await pager.getByRole('button', { name: '下一页' }).click()
   // 45 closed trades plus the open position: 20 + 20 + 6.
   await expect(rows).toHaveCount(6)
-  await expect(pager).toContainText('第 3 / 3 页')
+  await expect(pager.locator('[aria-current="true"]')).toHaveText('3')
   // The last page disables "next" instead of looping around.
-  await expect(pager.locator('button', { hasText: '下一页' })).toBeDisabled()
+  await expect(pager.getByRole('button', { name: '下一页' })).toBeDisabled()
 
-  await pager.locator('button', { hasText: '上一页' }).click()
-  await expect(pager).toContainText('第 2 / 3 页')
+  await pager.getByRole('button', { name: '上一页' }).click()
+  await expect(pager.locator('[aria-current="true"]')).toHaveText('2')
 })
 
 test('changing the filter returns to the first page', async ({ page }) => {
   const pager = livePage(page).locator('.panel__pager')
-  await pager.locator('button', { hasText: '下一页' }).click()
-  await expect(pager).toContainText('第 2 / 3 页')
+  await pager.getByRole('button', { name: '下一页' }).click()
+  await expect(pager.locator('[aria-current="true"]')).toHaveText('2')
 
-  await livePage(page).locator('.seg__item', { hasText: '已平仓' }).click()
-  await expect(pager).toContainText('第 1 / 3 页')
+  const closed = livePage(page).locator('.v-btn-toggle .v-btn', { hasText: '已平仓' })
+  await closed.click()
+  await expect(closed).toHaveAttribute('aria-pressed', 'true')
+  await expect(livePage(page).locator('[data-filter-content]')).toHaveCount(1)
+  await expect(pager.locator('[aria-current="true"]')).toHaveText('1')
 })
 
 test('opening a trade detail keeps your place in the list', async ({ page }) => {
   // Phones tap cards instead of rows, which is where the jump-to-top was reported.
   await page.setViewportSize({ width: 390, height: 700 })
-  await page.evaluate(() => window.scrollTo(0, 1500))
+  await livePage(page).evaluate((el) => {
+    el.scrollTop = 1500
+  })
   await livePage(page).locator('tbody tr').nth(8).click()
 
-  await expect(page.locator('.overlay--drawer')).toBeVisible()
-  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+  await expect(page.locator('.trade-dialog')).toBeVisible()
+  expect(await livePage(page).evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
 })
 
 test('zero shows all loaded trades and survives a reload', async ({ page }) => {
-  await livePage(page).locator('.panel__pager button', { hasText: '下一页' }).click()
+  await livePage(page).locator('.panel__pager').getByRole('button', { name: '下一页' }).click()
   await page.locator('.rail__item').nth(6).click()
   const input = livePage(page).getByRole('spinbutton', { name: '交易每页条数', exact: true })
   await expect(input).toHaveAttribute('placeholder', '0 显示全部')
@@ -67,7 +72,9 @@ test('zero shows all loaded trades and survives a reload', async ({ page }) => {
   await expect(input).toHaveValue('0')
   await page.locator('.rail__item').nth(1).click()
   await expect(livePage(page).locator('table tbody tr')).toHaveCount(46)
-  await expect(livePage(page).locator('.panel__pager')).toContainText('第 1 / 1 页')
+  await expect(livePage(page).locator('.panel__pager').locator('[aria-current="true"]')).toHaveText(
+    '1',
+  )
   await page.reload()
   await expect(livePage(page).locator('table tbody tr')).toHaveCount(46)
   await page.locator('.rail__item').nth(6).click()
@@ -77,5 +84,7 @@ test('zero shows all loaded trades and survives a reload', async ({ page }) => {
   await restored.blur()
   await page.locator('.rail__item').nth(1).click()
   await expect(livePage(page).locator('table tbody tr')).toHaveCount(5)
-  await expect(livePage(page).locator('.panel__pager')).toContainText('第 1 / 10 页')
+  await expect(livePage(page).locator('.panel__pager').locator('[aria-current="true"]')).toHaveText(
+    '1',
+  )
 })

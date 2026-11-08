@@ -66,10 +66,14 @@ describe('status strip', () => {
     const wrapper = render()
     expect(
       wrapper
-        .findAll('.chip')
+        .findAll('.v-chip')
         .map((chip) => chip.text())
         .join(''),
     ).toBe(text)
     wrapper.unmount()
   })
+})
+
+it('keeps the horizontally scrollable metrics reachable by keyboard', () => {
+  expect(render().get('.strip__metrics').attributes('tabindex')).toBe('0')
 })

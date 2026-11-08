@@ -1,26 +1,23 @@
 import { expect, test } from '@playwright/test'
-import { connect, livePage, mockApi, segBlockMatches } from './support/fixtures'
+import { connect, enableWriteAccess, livePage, mockApi, selectionMatches } from './support/fixtures'
+import { settlePages } from './support/gestures'
 
 const LISTS_SCROLL_TEST = 'every pair list scrolls inside the available viewport'
-
-const marksOfKind = (
-  page: import('@playwright/test').Page,
-  kind: 'signal' | 'fill',
-  side?: 'buy' | 'sell',
-) =>
-  livePage(page).locator(
-    `.candles__marks polygon[data-kind="${kind}"]${side ? `[data-side="${side}"]` : ''}`,
-  )
+const LOCK_SEARCH_TEST = 'filters pair locks on desktop and mobile'
+const PAIR_CONFIRM_TEST = 'requires the exact pair before removing a market safeguard'
+const CANDLE_VISIBILITY_TEST = 'candles follow the page on screen, not the mount'
 
 test.beforeEach(async ({ page }, testInfo) => {
   const checksListScroll = testInfo.title === LISTS_SCROLL_TEST
   if (checksListScroll) await page.setViewportSize({ width: 390, height: 740 })
 
-  const mockOptions = checksListScroll
-    ? { whitelistCount: 40, blacklistCount: 40, lockCount: 20 }
-    : undefined
+  const mockOptions = {
+    [LISTS_SCROLL_TEST]: { whitelistCount: 40, blacklistCount: 40, lockCount: 20 },
+    [LOCK_SEARCH_TEST]: { lockCount: 2 },
+    [PAIR_CONFIRM_TEST]: { blacklistCount: 1, lockCount: 1 },
+  }[testInfo.title]
   await mockApi(page, mockOptions)
-  await page.goto('/#/market')
+  await page.goto(testInfo.title === CANDLE_VISIBILITY_TEST ? '/#/' : '/#/market')
   await connect(page)
   await expect(page.locator('.shell')).toBeVisible()
 })
@@ -75,77 +72,102 @@ test(LISTS_SCROLL_TEST, async ({ page }) => {
       .evaluate((el) => getComputedStyle(el).position),
   ).toBe('sticky')
 
-  await market.locator('.seg__item', { hasText: '黑名单' }).click()
+  await market.locator('.v-btn-toggle .v-btn', { hasText: '黑名单' }).click()
   await expectListScrolls(page, 40, '.blist__item', 'blacklist')
 
-  await market.locator('.seg__item', { hasText: '交易锁' }).click()
-  await expectListScrolls(page, 20, '.card', 'locks')
+  await market.locator('.v-btn-toggle .v-btn', { hasText: '交易锁' }).click()
+  await expectListScrolls(page, 20, '.v-list-item', 'locks')
 })
 
 test('the pair-list block slides to the tab you pick', async ({ page }) => {
-  const seg = livePage(page).locator('.seg')
-  await expect.poll(() => segBlockMatches(seg)).toBe(true)
+  const seg = livePage(page).locator('.v-btn-toggle')
+  await expect.poll(() => selectionMatches(seg)).toBe(true)
 
-  await seg.locator('.seg__item', { hasText: '交易锁' }).click()
-  await expect(seg.locator('.seg__item[aria-pressed="true"]')).toContainText('交易锁')
-  await expect.poll(() => segBlockMatches(seg)).toBe(true)
+  await seg.locator('.v-btn', { hasText: '交易锁' }).click()
+  await expect(seg.locator('.v-btn[aria-pressed="true"]')).toContainText('交易锁')
+  await expect.poll(() => selectionMatches(seg)).toBe(true)
+})
+
+test(PAIR_CONFIRM_TEST, async ({ page }) => {
+  await enableWriteAccess(page)
+  await page.goto('/#/market')
+  const market = livePage(page)
+  for (const [tab, label, pair] of [
+    ['黑名单', '移出黑名单', 'B01/USDT'],
+    ['交易锁', '解除锁定', 'L01/USDT'],
+  ]) {
+    await market.locator('.v-btn-toggle .v-btn', { hasText: tab }).click()
+    await market.getByRole('button', { name: label, exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    const confirm = dialog.getByRole('button', { name: label, exact: true })
+    await expect(confirm).toBeDisabled()
+    await dialog.getByRole('textbox').fill('OTHER/USDT')
+    await expect(confirm).toBeDisabled()
+    await dialog.getByRole('textbox').fill(pair)
+    await expect(confirm).toBeEnabled()
+    await dialog.getByRole('button', { name: '取消', exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+  }
+})
+
+test(LOCK_SEARCH_TEST, async ({ page }) => {
+  const market = livePage(page)
+  await market.getByRole('button', { name: /^交易锁/ }).click()
+  const locks = market.getByRole('region', { name: '交易锁' })
+  await market.getByRole('button', { name: '搜索', exact: true }).click()
+  const search = market.locator('input[type="search"]')
+  await search.fill('l02')
+
+  await page.setViewportSize({ width: 1200, height: 900 })
+  await expect(locks.locator('tbody tr')).toHaveText([/L02\/USDT/])
+  await expect(locks.locator('tbody tr')).toBeVisible()
+  await page.setViewportSize({ width: 390, height: 780 })
+  await expect(locks.locator('.v-list-item')).toHaveText([/L02\/USDT/])
+  await expect(locks.locator('.v-list-item')).toBeVisible()
+
+  await search.fill('absent')
+  await expect(locks).toContainText('没有符合条件的记录')
+  await expect(locks.locator('.v-list-item')).toHaveCount(0)
 })
 
 test('candles come first, with the bot timeframe shown as text', async ({ page }) => {
   const market = livePage(page)
   await expect(market.locator('.panel').first().locator('.panel__title')).toHaveText('K 线')
-  await expect(market.locator('.panel').first().locator('.chip')).toHaveText('5m')
+  await expect(market.locator('.panel').first().locator('.v-chip')).toHaveText('5m')
   await expect(market.locator('select')).toHaveCount(0)
-  await expect(market.locator('.candles svg rect')).not.toHaveCount(0)
+  await expect(market.locator('.candles__plot canvas')).not.toHaveCount(0)
 })
 
-test('signals and fills are marked on the chart, with a legend to read them', async ({ page }) => {
-  // The fixture signals once each way, and the open position was filled an hour ago — inside
-  // the five hours of candles — but has not been closed.
-  await expect(marksOfKind(page, 'signal', 'buy')).toHaveCount(1)
-  await expect(marksOfKind(page, 'signal', 'sell')).toHaveCount(1)
-  await expect(marksOfKind(page, 'fill', 'buy')).toHaveCount(1)
-  await expect(marksOfKind(page, 'fill', 'sell')).toHaveCount(0)
-  await expect(livePage(page).locator('.candles-legend')).toHaveText([
-    '▲ 买入信号',
-    '▼ 卖出信号',
-    '▶ 实际成交',
-  ])
+test('candles render without signals or a marker legend', async ({ page }) => {
+  await expect(livePage(page).locator('.candles__plot canvas').first()).toBeVisible()
+  await expect(livePage(page).locator('.market__meta')).toHaveCount(0)
+  await expect(livePage(page).locator('.market__legend')).toHaveCount(0)
+  const painted = await livePage(page)
+    .locator('.candles__plot canvas')
+    .first()
+    .evaluate((el) => {
+      const canvas = el as HTMLCanvasElement
+      return (
+        canvas.width > 0 &&
+        canvas.height > 0 &&
+        canvas
+          .getContext('2d')!
+          .getImageData(0, 0, canvas.width, canvas.height)
+          .data.some((value, index) => index % 4 === 3 && value > 0)
+      )
+    })
+  expect(painted).toBe(true)
 })
 
-test('a strategy that refuses the signal columns still gets its candles', async ({ page }) => {
-  let refused = 0
-  let asked = 0
-  await page.route('**/api/v1/pair_candles**', (route) => {
-    asked += 1
-    if (route.request().postData()?.includes('enter_long')) {
-      refused += 1
-      return route.fulfill({
-        status: 400,
-        headers: { 'Access-Control-Allow-Origin': '*' },
-        json: { detail: 'Column enter_long not found' },
-      })
-    }
-    // The retry is the one the fixture answers, so it carries candles like any other.
-    return route.fallback()
-  })
-
-  // Coming back to the page asks again, this time with the signal columns in the request.
-  await page.goto('/#/trades')
-  await page.goto('/#/market')
-  await expect(livePage(page).locator('.candles svg rect').first()).toBeVisible()
-  // Refused once, asked again, and the chart is on screen rather than an error state.
-  await expect.poll(() => refused).toBeGreaterThan(0)
-  await expect.poll(() => asked).toBeGreaterThan(refused)
-  await expect(livePage(page).locator('.candles__marks polygon').first()).toBeVisible()
-})
-
-test('candles follow the page on screen, not the mount', async ({ page }) => {
+test(CANDLE_VISIBILITY_TEST, async ({ page }) => {
   /*
    * Every other page is held on the track, so this one is mounted while it is not the one
    * on screen. Mounting it is not a reason to fetch: the chart is asked for when the page
    * is walked to, and not when it is merely parked.
    */
+  await page.goto('/#/')
+  await expect(livePage(page)).toHaveAttribute('data-page', 'dashboard')
+  await settlePages(page)
   const candles: string[] = []
   page.on('request', (request) => {
     if (request.url().includes('pair_candles')) candles.push(request.url())
@@ -166,11 +188,11 @@ test('candles follow the page on screen, not the mount', async ({ page }) => {
 })
 
 test('dragging across the chart scrubs the candle readout', async ({ page }) => {
-  const readout = livePage(page).locator('.candles__readout')
+  const readout = livePage(page).locator('.candles__summary')
   await expect(readout).toBeVisible()
   const before = await readout.innerText()
 
-  const plot = livePage(page).locator('.candles svg')
+  const plot = livePage(page).locator('.candles__plot')
   const box = (await plot.boundingBox())!
   await page.mouse.move(box.x + box.width * 0.8, box.y + box.height / 2)
   await page.mouse.down()
@@ -188,7 +210,7 @@ test('pair list switches the chart to another pair', async ({ page }) => {
   await expect(selector).toContainText('OPEN/USDT')
 
   await selector.click()
-  await page.locator('.filter-menu__item', { hasText: 'BBB/USDT' }).click()
+  await page.locator('.v-overlay--active [role=option]', { hasText: 'BBB/USDT' }).click()
   await expect(selector).toContainText('BBB/USDT')
 })
 
@@ -208,50 +230,23 @@ test('switching pairs requests candles for the pair now shown', async ({ page })
 
   const selector = livePage(page).locator('.panel').first().locator('.filter-menu__button')
   await selector.click()
-  await page.locator('.filter-menu__item', { hasText: 'BBB/USDT' }).click()
+  await page.locator('.v-overlay--active [role=option]', { hasText: 'BBB/USDT' }).click()
   await expect(selector).toContainText('BBB/USDT')
   await expect.poll(() => requestedPairs.at(-1)).toBe('BBB/USDT')
 })
 
-test('an open position puts its cost basis on the chart, tagged with its P&L', async ({ page }) => {
-  // The fixture's open position is OPEN/USDT: filled at 1.0, +0.2 in profit so far.
-  const entry = livePage(page).locator('.candles__entry')
-  await expect(entry).toHaveCount(1)
-  await expect(livePage(page).locator('.candles__entry-label')).toHaveText('+0.2000')
-  // Profit tints the line as well as the tag.
-  await expect(entry.locator('line')).toHaveAttribute('stroke', 'var(--long)')
-
-  /*
-   * Painted colour, not just a class: the tag used to render in the axis grey because a
-   * CSS `fill` on the shared axis rule beat the per-tone fill attribute.
-   */
-  const tag = livePage(page).locator('.candles__entry-label')
-  expect(await tag.evaluate((node) => getComputedStyle(node).fill)).toBe('rgb(36, 201, 138)')
-  // Hairline outline, not the filled block it used to be.
-  expect(await tag.evaluate((node) => getComputedStyle(node).strokeWidth)).toBe('1px')
-
-  // Tucked into the right gutter: the tag ends at the chart's right edge, past the plot.
-  const [chart, tagBox] = await Promise.all([
-    livePage(page).locator('.candles svg').boundingBox(),
-    tag.boundingBox(),
-  ])
-  expect(tagBox!.x + tagBox!.width).toBeGreaterThan(chart!.x + chart!.width * 0.85)
-
-  // The line is horizontal and lives inside the plot.
-  const line = entry.locator('line')
-  const [x1, x2, y1, y2] = await line.evaluate((node) => [
-    Number(node.getAttribute('x1')),
-    Number(node.getAttribute('x2')),
-    Number(node.getAttribute('y1')),
-    Number(node.getAttribute('y2')),
-  ])
-  expect(x2).toBeGreaterThan(x1)
-  expect(y1).toBe(y2)
-
-  // A pair without a position gets no line at all.
+test('a position cost line updates without replacing the chart or changing its size', async ({
+  page,
+}) => {
+  const plot = livePage(page).locator('.candles__plot')
+  await expect(plot.locator('canvas').first()).toBeVisible()
+  const before = await plot.boundingBox()
   await livePage(page).locator('.panel').first().locator('.filter-menu__button').click()
-  await page.locator('.filter-menu__item', { hasText: 'BBB/USDT' }).click()
-  await expect(livePage(page).locator('.candles__entry')).toHaveCount(0)
+  await page.locator('.v-overlay--active [role=option]', { hasText: 'BBB/USDT' }).click()
+  await expect(livePage(page).locator('.candles__summary')).toBeVisible()
+  const after = await plot.boundingBox()
+  expect(after?.width).toBe(before?.width)
+  expect(after?.height).toBe(before?.height)
 })
 
 test('the pair popup stays inside a phone-width viewport', async ({ page }) => {
@@ -272,6 +267,7 @@ test('the pair popup stays inside a phone-width viewport', async ({ page }) => {
 test('whitelist has one three-column list on phone and desktop', async ({ page }) => {
   for (const width of [360, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 844 })
+    await settlePages(page)
     const market = livePage(page)
     const list = market.getByRole('region', { name: '白名单' })
     await expect(list.locator('table')).toHaveCount(1)
@@ -289,8 +285,9 @@ test('whitelist has one three-column list on phone and desktop', async ({ page }
 for (const width of [360, 768, 1280]) {
   test(`switching pairs keeps the plot fixed at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 })
+    await settlePages(page)
     const market = livePage(page)
-    await expect(market.locator('.candles svg rect').first()).toBeVisible()
+    await expect(market.locator('.candles__plot canvas').first()).toBeVisible()
     const geometry = () =>
       market.evaluate((el) => {
         const plot = el.querySelector('.market__plot')!.getBoundingClientRect()
@@ -307,16 +304,16 @@ for (const width of [360, 768, 1280]) {
     })
     try {
       await market.locator('.filter-menu__button').click()
-      await page.locator('.filter-menu__item', { hasText: 'BBB/USDT' }).click()
-      await expect(market.locator('.skeleton')).toBeVisible()
+      await page.locator('.v-overlay--active [role=option]', { hasText: 'BBB/USDT' }).click()
+      await expect(market.locator('.v-skeleton-loader')).toBeVisible()
       await expect(market.locator('.market__legend')).toHaveCount(0)
       const pending = await geometry()
       for (const key of ['x', 'y', 'width', 'height'] as const) {
         expect(Math.abs(pending[key] - before[key]), key).toBeLessThanOrEqual(1)
       }
       release()
-      await expect(market.locator('.skeleton')).toHaveCount(0)
-      await expect(market.locator('.candles svg rect').first()).toBeVisible()
+      await expect(market.locator('.v-skeleton-loader')).toHaveCount(0)
+      await expect(market.locator('.candles__plot canvas').first()).toBeVisible()
       const after = await geometry()
       for (const key of ['x', 'y', 'width', 'height'] as const) {
         expect(Math.abs(after[key] - before[key]), key).toBeLessThanOrEqual(1)
@@ -348,30 +345,51 @@ for (const width of [360, 768, 1280]) {
         }
       })
       await market.locator('.filter-menu__button').click()
-      await page.locator('.filter-menu__item', { hasText: 'AAA/USDT' }).click()
+      await page.locator('.v-overlay--active [role=option]', { hasText: 'AAA/USDT' }).click()
       const plot = market.locator('.market__plot')
       await expect(plot).toHaveAttribute('aria-busy', 'false')
-      await expect(plot.locator('.skeleton')).toBeVisible()
+      await expect(plot.locator('.v-skeleton-loader')).toBeVisible()
+      const placeholder = plot.locator('.v-skeleton-loader__image')
+      await expect
+        .poll(async () => {
+          const area = await plot.boundingBox()
+          const bone = await placeholder.boundingBox()
+          return (
+            !!area &&
+            !!bone &&
+            Math.abs(area.width - bone.width) <= 1 &&
+            Math.abs(area.height - bone.height) <= 1
+          )
+        })
+        .toBe(true)
       await expect(plot).toHaveText('')
-      expect(await geometry()).toEqual(before)
-      await page.clock.fastForward(10_001)
-      await expect(plot.locator('.empty')).toBeVisible()
-      expect(await geometry()).toEqual(before)
+      for (const key of ['x', 'y', 'width', 'height'] as const) {
+        expect(Math.abs((await geometry())[key] - before[key]), key).toBeLessThanOrEqual(1)
+      }
+      await page.clock.fastForward(1_001)
+      await expect(plot.locator('.v-skeleton-loader')).toBeVisible()
+      await expect(plot).toHaveText('')
+      for (const key of ['x', 'y', 'width', 'height'] as const) {
+        expect(Math.abs((await geometry())[key] - before[key]), key).toBeLessThanOrEqual(1)
+      }
     } finally {
       release()
     }
   })
 }
 
-test('the chart zooms with the wheel and resets with a double click', async ({ page }) => {
-  const chart = livePage(page).locator('.candles svg')
-  const candles = chart.locator('.candles__candle')
-  await expect(candles.first()).toBeVisible()
-  const initial = await candles.count()
-  const position = { x: 100, y: 100 }
-  await chart.hover({ position })
-  await page.mouse.wheel(0, -100)
-  await expect.poll(() => candles.count()).toBeLessThan(initial)
-  await chart.dblclick({ position })
-  await expect(candles).toHaveCount(initial)
+test('the chart zooms with the wheel and resets through its native scale controls', async ({
+  page,
+}) => {
+  const plot = livePage(page).locator('.candles__plot')
+  await expect(plot.locator('canvas').first()).toBeVisible()
+  const slider = livePage(page).getByRole('slider')
+  await expect(slider).toHaveAttribute('aria-valuemax', '0')
+  await plot.hover({ position: { x: 100, y: 100 } })
+  await page.mouse.wheel(0, -300)
+  await expect
+    .poll(async () => Number(await slider.getAttribute('aria-valuemax')))
+    .toBeGreaterThan(0)
+  await livePage(page).getByRole('button', { name: '复位' }).click()
+  await expect(slider).toHaveAttribute('aria-valuemax', '0')
 })

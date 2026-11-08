@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError, type FreqtradeApiClient } from '@/data/freqtrade'
 import { BotSessionController } from '@/data/freqtrade/session'
-import type { PairCandlesResponse } from '@/lib/types'
 
 const credentials = {
   baseUrl: 'https://bot.example.com/api/v1',
@@ -36,6 +35,12 @@ function fakeClient(overrides: Record<string, unknown> = {}): FreqtradeApiClient
     weekly: vi.fn().mockResolvedValue({}),
     monthly: vi.fn().mockResolvedValue({}),
     profitAll: vi.fn().mockResolvedValue({}),
+    historicBalance: vi.fn().mockResolvedValue({
+      columns: ['date', '__date_ts', 'total_quote'],
+      data: [],
+      length: 0,
+      capture_start_ts: 0,
+    }),
     whitelist: vi.fn().mockResolvedValue({}),
     blacklist: vi.fn().mockResolvedValue({}),
     locks: vi.fn().mockResolvedValue({}),
@@ -53,18 +58,6 @@ function sessionFor(
     credentials,
     clientFactory: (nextCredentials) => clients[nextCredentials.baseUrl] ?? client,
   })
-}
-
-function candleResponse(): PairCandlesResponse {
-  return {
-    strategy: 'TestStrategy',
-    pair: 'BTC/USDT',
-    timeframe: '5m',
-    timeframe_ms: 300_000,
-    columns: ['date', 'open', 'high', 'low', 'close', 'volume'],
-    data: [['2026-10-24 12:00:00', 1, 1.1, 0.9, 1.05, 10]],
-    length: 1,
-  }
 }
 
 describe('BotSessionController', () => {
@@ -209,20 +202,20 @@ describe('BotSessionController', () => {
     expect(session.state.errorKey?.key).toBe('errors.auth')
   })
 
-  it('polls other groups on schedule without repeating a pending core group', async () => {
+  it('polls every group each tick without repeating a pending health group', async () => {
     vi.useFakeTimers()
     const health = deferred<unknown>()
     const client = fakeClient({ health: vi.fn().mockReturnValue(health.promise) })
     const session = sessionFor(client)
     try {
       session.startPolling()
-      await vi.advanceTimersByTimeAsync(12_000)
+      await vi.advanceTimersByTimeAsync(2_000)
       expect(client.health).toHaveBeenCalledOnce()
-      expect(client.status).toHaveBeenCalledTimes(12)
-      expect(client.trades).toHaveBeenCalledTimes(3)
-      expect(client.whitelist).toHaveBeenCalledTimes(3)
-      expect(client.tradeStats).toHaveBeenCalledOnce()
-      expect(client.logs).toHaveBeenCalledOnce()
+      expect(client.status).toHaveBeenCalledTimes(2)
+      expect(client.trades).toHaveBeenCalledTimes(2)
+      expect(client.whitelist).toHaveBeenCalledTimes(2)
+      expect(client.tradeStats).toHaveBeenCalledTimes(2)
+      expect(client.logs).toHaveBeenCalledTimes(2)
       health.resolve({})
       await vi.advanceTimersByTimeAsync(1_000)
       expect(client.health).toHaveBeenCalledTimes(2)
@@ -253,6 +246,53 @@ describe('BotSessionController', () => {
       session.cleanup()
       vi.useRealTimers()
     }
+  })
+
+  it('keeps ten-second hidden health probes with a sixty-second foreground interval', async () => {
+    vi.useFakeTimers()
+    const originalVisibility = document.visibilityState
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+    const client = fakeClient()
+    const session = new BotSessionController({
+      botId: 'first',
+      credentials,
+      clientFactory: () => client,
+      pollIntervalSeconds: 60,
+      backgroundCheckEnabled: () => true,
+    })
+    try {
+      session.startPolling()
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(client.health).toHaveBeenCalledTimes(1)
+      session.setPollingInterval(50)
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(client.health).toHaveBeenCalledTimes(2)
+      expect(client.status).not.toHaveBeenCalled()
+    } finally {
+      session.cleanup()
+      Object.defineProperty(document, 'visibilityState', {
+        value: originalVisibility,
+        configurable: true,
+      })
+      vi.useRealTimers()
+    }
+  })
+
+  it('drops cached locks when an existing backend ID gets a new connection identity', async () => {
+    const locks = { lock_count: 1, locks: [{ id: 1, pair: 'BTC/USDT', active: true }] }
+    const session = sessionFor(fakeClient({ locks: vi.fn().mockResolvedValue(locks) }))
+    await session.refreshMarket()
+    const snapshot = session.captureSnapshot()
+    expect(session.state.locksReady).toBe(true)
+
+    const replacement = { ...credentials, baseUrl: 'https://replacement.example/api/v1' }
+    session.updateCredentials(replacement)
+    expect(session.state.data.locks).toBeNull()
+    expect(session.state.locksReady).toBe(false)
+
+    session.setBot('first', replacement, snapshot)
+    expect(session.state.data.locks).toBeNull()
+    session.cleanup()
   })
 
   it('alerts once during failed background health checks and rearms after recovery', async () => {
@@ -472,51 +512,6 @@ describe('BotSessionController', () => {
     vi.useRealTimers()
   })
 
-  it.each([400, 422])(
-    'retries candles without signal columns for a %s signal-column response',
-    async (status) => {
-      const pairCandles = vi
-        .fn()
-        .mockRejectedValueOnce(
-          new ApiError('http', 'signal column is not available', {
-            status,
-            detail: 'Column enter_long not found',
-          }),
-        )
-        .mockResolvedValueOnce(candleResponse())
-      const session = sessionFor(fakeClient({ pairCandles }))
-
-      await expect(
-        session.fetchCandles('BTC/USDT', '5m', 180, [
-          'date',
-          'open',
-          'high',
-          'low',
-          'close',
-          'volume',
-          'enter_long',
-        ]),
-      ).resolves.toEqual(candleResponse())
-
-      expect(pairCandles).toHaveBeenNthCalledWith(
-        1,
-        'BTC/USDT',
-        '5m',
-        180,
-        ['date', 'open', 'high', 'low', 'close', 'volume', 'enter_long'],
-        expect.objectContaining({ signal: expect.any(AbortSignal) }),
-      )
-      expect(pairCandles).toHaveBeenNthCalledWith(
-        2,
-        'BTC/USDT',
-        '5m',
-        180,
-        undefined,
-        expect.objectContaining({ signal: expect.any(AbortSignal) }),
-      )
-    },
-  )
-
   it('does not retry candle requests for server errors', async () => {
     const pairCandles = vi.fn().mockRejectedValue(
       new ApiError('http', 'server failed', {
@@ -527,7 +522,14 @@ describe('BotSessionController', () => {
     const session = sessionFor(fakeClient({ pairCandles }))
 
     await expect(
-      session.fetchCandles('BTC/USDT', '5m', 180, ['date', 'enter_long']),
+      session.fetchCandles('BTC/USDT', '5m', 180, [
+        'date',
+        'open',
+        'high',
+        'low',
+        'close',
+        'volume',
+      ]),
     ).resolves.toBeNull()
     expect(pairCandles).toHaveBeenCalledTimes(1)
     expect(session.state.resourceErrors.candles).toEqual({

@@ -10,7 +10,6 @@ export interface RequestOptions {
   method?: 'GET' | 'POST' | 'DELETE' | 'PATCH' | 'PUT'
   query?: Record<string, string | number | boolean | (string | number)[] | undefined | null>
   body?: unknown
-  form?: Record<string, string>
   /** Adds an `Authorization: Basic` header instead of the cached bearer token. */
   basic?: boolean
   timeoutMs?: number
@@ -37,6 +36,18 @@ export function normalizeBaseUrl(raw: string): string {
     url.pathname = `${path}/api/v1`
   }
   return `${url.origin}${url.pathname.replace(/\/+$/, '')}`
+}
+
+export function sameConnectionIdentity(
+  first: Pick<Credentials, 'baseUrl' | 'username'>,
+  second: Pick<Credentials, 'baseUrl' | 'username'>,
+): boolean {
+  if (first.username !== second.username) return false
+  try {
+    return normalizeBaseUrl(first.baseUrl) === normalizeBaseUrl(second.baseUrl)
+  } catch {
+    return false
+  }
 }
 
 /** Absolute http(s) base, resolved against the current origin when relative. */
@@ -139,8 +150,7 @@ export class FreqtradeTransport {
 
   private headers(options: RequestOptions, useBearer: boolean): HeadersInit {
     const headers: Record<string, string> = { Accept: 'application/json' }
-    if (options.body !== undefined && !options.form) headers['Content-Type'] = 'application/json'
-    if (options.form) headers['Content-Type'] = 'application/x-www-form-urlencoded'
+    if (options.body !== undefined) headers['Content-Type'] = 'application/json'
     headers.Authorization = useBearer ? `Bearer ${this.bearer?.token ?? ''}` : this.basicAuthHeader
     return headers
   }
@@ -181,11 +191,7 @@ export class FreqtradeTransport {
       const response = await fetch(url, {
         method: options.method ?? 'GET',
         headers: this.headers(options, useBearer),
-        body: options.form
-          ? new URLSearchParams(options.form).toString()
-          : options.body !== undefined
-            ? JSON.stringify(options.body)
-            : undefined,
+        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
         signal: controller.signal,
         credentials: 'omit',
         cache: 'no-store',

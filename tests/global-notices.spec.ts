@@ -50,8 +50,8 @@ describe('GlobalNotices', () => {
     rawBot.connection = 'online'
     rawBot.heartbeatAgeMs = 30_001
     const wrapper = mountNotices()
-    expect(wrapper.findAll('.banner')).toHaveLength(1)
-    expect(wrapper.find('.banner--warn').exists()).toBe(true)
+    expect(wrapper.findAll('.v-alert')).toHaveLength(1)
+    expect(wrapper.find('.text-warning').exists()).toBe(true)
     expect(wrapper.text()).toContain(i18n.global.t('notices.heartbeatTitle'))
     expect(wrapper.text()).toContain(i18n.global.t('system.lagging'))
   })

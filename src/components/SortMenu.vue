@@ -17,39 +17,34 @@ const toggleLabel = computed(() =>
 </script>
 
 <template>
-  <div class="sort-group">
+  <VBtnGroup class="sort-group" variant="tonal">
     <FilterMenu
       v-model="field"
       :options="options"
       :prefix="t('trades.sort')"
       :label="t('trades.sort')"
     />
-    <button
+    <VDivider vertical />
+    <VBtn
+      :icon="true"
       type="button"
-      class="btn btn--sm btn--icon sort-group__dir"
+      class="sort-group__dir"
       :aria-label="toggleLabel"
       :title="toggleLabel"
       @click="direction = nextDirection"
     >
       <AppIcon :name="direction === 'asc' ? 'chevronUp' : 'chevronDown'" />
-    </button>
-  </div>
+    </VBtn>
+  </VBtnGroup>
 </template>
 
 <style scoped>
-.sort-group {
-  display: inline-flex;
+.sort-group :deep(.v-btn) {
+  border: 0;
+  border-radius: 0;
 }
-
-.sort-group :deep(.filter-menu__button) {
-  border-right: 0;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.sort-group__dir {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-  border-left: 1px solid var(--line-strong);
+.sort-group :deep(.v-divider) {
+  opacity: 1;
+  border-color: var(--line);
 }
 </style>

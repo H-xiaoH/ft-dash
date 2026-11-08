@@ -6,7 +6,7 @@
 | --- | --- |
 | `src/data/freqtrade/` | API 传输、客户端与会话管理 |
 | `src/views/` | 页面 |
-| `src/components/` | 共用组件与手写 SVG 图表 |
+| `src/components/` | 共用组件与图表库适配组件 |
 | `src/composables/` | Vue 组合式函数 |
 | `src/stores/` | 设置、机器人数据和事件状态 |
 | `src/lib/` | 格式化、存储、图表计算等通用逻辑 |
@@ -39,6 +39,16 @@
 
 ### 导航、布局与动效
 
+- [md3-five-destinations](specs/md3-five-destinations.md) — 五项底栏、更多子页、跨布局页面状态及 K 线键盘查看
+
+- [period-equity-layer](specs/period-equity-layer.md) — 总览周期图账户净值折线位于盈亏柱上方
+
+- [candle-presentation](specs/candle-presentation.md) — K 线顶部读数、时区刻度与桌面/触屏操作
+
+- [candle-cleanup](specs/candle-cleanup.md) — 移除 K 线信号标记、自适应占位与交易详情退场
+
+- [md3-control-polish](specs/md3-control-polish.md) — MD3 控件尺寸、文字对比度、输入焦点与交易对显示统一
+
 - [market-trades-polish](specs/market-trades-polish.md) — 白名单表头固定、分段控件初次定位、排序分隔线与统计提示精简
 
 - [market-layout](specs/market-layout.md) — K 线加载、失败与切换时尺寸稳定，白名单共用三列表头
@@ -66,12 +76,20 @@
 
 ### 项目维护
 
+- [md3-review-fixes](specs/md3-review-fixes.md) — 切页加载隔离、K 线时间锚点、提示生命周期与 CSV 排序
+
+- [md3-migration-validation](specs/md3-migration-validation.md) — MD3 迁移后的测试适配、实际回归修复与验证边界
+
 - [e2e-synchronization](specs/e2e-synchronization.md) — 折叠手势与下拉位置测试等待 resize 和入场动画完成
 - [privacy-cleanup](specs/privacy-cleanup.md) — 历史环境与交易明细脱敏，清理本地配置和临时备份
 - [readme-screenshots](specs/readme-screenshots.md) — 双语 README 与固定数据截图更新
 - [project-layout](specs/project-layout.md) — 目录职责、文档索引和临时产物清理
 
 ## archive
+
+- [md3-five-destinations-verification](archive/md3-five-destinations-verification.md) — 2026-11-08 五项底栏、K 线键盘、净值计算及全量回归
+
+- [md3-period-review](archive/md3-period-review.md) — 2026-11-08 周期图层、全量测试及 MD3 设计与动画复审
 
 - [backend-controls-verification](archive/backend-controls-verification.md) — 2026-11-02 后端排序、删除弹窗、按钮尺寸与双轴复审验收
 

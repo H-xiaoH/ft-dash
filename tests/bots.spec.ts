@@ -89,6 +89,55 @@ describe('bots store', () => {
     setActivePinia(createPinia())
   })
 
+  it('does not restore a tab password or token for a changed backend address', () => {
+    localStorage.setItem(
+      BOTS_KEY,
+      JSON.stringify([
+        bot({
+          baseUrl: 'https://new.example/api/v1',
+          password: '',
+        }),
+      ]),
+    )
+    sessionStorage.setItem(BOTS_SESSION_KEY, JSON.stringify([bot({ wsToken: 'old-token' })]))
+
+    const settings = useSettingsStore()
+    expect(settings.baseUrl).toBe('https://new.example/api/v1')
+    expect(settings.password).toBe('')
+    expect(settings.wsToken).toBe('')
+    settings.$dispose()
+  })
+
+  it('blocks stale persistence and drops old tab credentials after another tab clears data', () => {
+    const first = useSettingsStore()
+    first.addBot(bot())
+    first.remember = true
+    const oldLocalCopy = localStorage.getItem(BOTS_KEY)!
+    const oldSettings = localStorage.getItem('ftdash.settings.v1')!
+    const oldTabCopy = sessionStorage.getItem(BOTS_SESSION_KEY)!
+    const second = useSettingsStore(createPinia())
+    const localDataRevision = first.localDataRevision
+    second.clearStoredData()
+
+    first.persistBots()
+    expect(localStorage.getItem(BOTS_KEY)).toBeNull()
+    expect(first.isLocalDataRevisionCurrent(localDataRevision)).toBe(false)
+
+    window.dispatchEvent(new StorageEvent('storage', { key: 'ftdash.dataGeneration.v1' }))
+    expect(first.bots).toEqual([])
+    expect(first.password).toBe('')
+    expect(first.remember).toBe(false)
+    localStorage.setItem(BOTS_KEY, oldLocalCopy)
+    localStorage.setItem('ftdash.settings.v1', oldSettings)
+    sessionStorage.setItem(BOTS_SESSION_KEY, oldTabCopy)
+    const reopened = useSettingsStore(createPinia())
+    expect(reopened.bots).toEqual([])
+    expect(reopened.remember).toBe(false)
+    first.$dispose()
+    second.$dispose()
+    reopened.$dispose()
+  })
+
   it('persists a valid order without changing the active backend or credentials', () => {
     const settings = useSettingsStore()
     const first = settings.addBot({
@@ -107,7 +156,7 @@ describe('bots store', () => {
     expect(settings.bots.map((bot) => bot.id)).toEqual([second.id, first.id])
     expect(settings.activeBotId).toBe(first.id)
     expect(settings.password).toBe('one')
-    expect(JSON.parse(localStorage.getItem(BOTS_KEY)!)[0].id).toBe(second.id)
+    expect(JSON.parse(localStorage.getItem(BOTS_KEY)!).bots[0].id).toBe(second.id)
     expect(localStorage.getItem(BOTS_KEY)).not.toContain('two')
     expect(JSON.parse(sessionStorage.getItem(BOTS_SESSION_KEY)!)[0].password).toBe('two')
     settings.reorderBots([first.id, first.id])

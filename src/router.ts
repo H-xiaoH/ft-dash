@@ -20,6 +20,15 @@ export const NAV_ROUTES: NavRoute[] = [
   { path: '/settings', name: 'settings', titleKey: 'nav.settings', icon: 'settings' },
 ]
 
+export const MORE_ROUTE: NavRoute = {
+  path: '/more',
+  name: 'more',
+  titleKey: 'nav.more',
+  icon: 'more',
+}
+export const MOBILE_NAV_ROUTES = [...NAV_ROUTES.slice(0, 4), MORE_ROUTE]
+export const SECONDARY_ROUTES = NAV_ROUTES.slice(4)
+
 export const router = createRouter({
   // Hash history keeps deep links working on GitHub Pages without a 404 rewrite.
   history: createWebHashHistory(),
@@ -59,13 +68,11 @@ export const router = createRouter({
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),
     },
+    { path: '/more', name: 'more', component: () => import('@/views/MoreView.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
-  /**
-   * Only a change of page resets the scroll position. Query-only navigation (opening a
-   * trade detail, switching the trades tab) must not yank a scrolled list back to the top.
-   */
-  scrollBehavior: (to, from) => (to.path === from.path ? false : { top: 0 }),
+  // Each Swiper page owns its scroll position, including query-only detail navigation.
+  scrollBehavior: () => false,
 })
 
 /**

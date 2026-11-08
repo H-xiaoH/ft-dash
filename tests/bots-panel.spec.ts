@@ -51,12 +51,12 @@ describe('BotsPanel', () => {
     try {
       wrapper.findComponent(FilterMenu).vm.$emit('update:modelValue', '__manage')
       await nextTick()
-      await wrapper.get('.bots__row .btn--danger').trigger('click')
+      await wrapper.get('.bots__row .text-error').trigger('click')
       await nextTick()
       const dialog = document.querySelector('[role="dialog"]')
       expect(dialog).not.toBeNull()
       expect(dialog?.textContent).toContain('First')
-      const confirm = dialog!.querySelector<HTMLButtonElement>('.dialog__foot .btn--danger')!
+      const confirm = dialog!.querySelector<HTMLButtonElement>('.v-card-actions button:last-child')!
       confirm.click()
       confirm.click()
       await nextTick()
@@ -64,7 +64,7 @@ describe('BotsPanel', () => {
       expect(confirm.disabled).toBe(true)
       removal.resolve(true)
       await flushPromises()
-      expect(document.querySelector('[role="dialog"]')).toBeNull()
+      expect(document.querySelector('.v-dialog.v-overlay--active')).toBeNull()
     } finally {
       wrapper.unmount()
     }
@@ -85,11 +85,11 @@ describe('BotsPanel', () => {
     try {
       wrapper.findComponent(FilterMenu).vm.$emit('update:modelValue', '__manage')
       await nextTick()
-      await wrapper.get('.bots__row .btn--danger').trigger('click')
+      await wrapper.get('.bots__row .text-error').trigger('click')
       await nextTick()
       const dialog = document.querySelector('[role="dialog"]')!
       expect(dialog.textContent).not.toContain(i18n.global.t('actions.confirmBody'))
-      const confirm = dialog.querySelector<HTMLButtonElement>('.dialog__foot .btn--danger')!
+      const confirm = dialog.querySelector<HTMLButtonElement>('.v-card-actions button:last-child')!
       confirm.click()
       await flushPromises()
       expect(document.querySelector('[role="dialog"]')).toBe(dialog)
@@ -97,7 +97,7 @@ describe('BotsPanel', () => {
       confirm.click()
       await flushPromises()
       expect(remove).toHaveBeenCalledTimes(2)
-      expect(document.querySelector('[role="dialog"]')).toBeNull()
+      expect(document.querySelector('.v-dialog.v-overlay--active')).toBeNull()
     } finally {
       wrapper.unmount()
     }
@@ -116,7 +116,7 @@ describe('BotsPanel', () => {
     try {
       await expect(vm.submit()).resolves.toBeUndefined()
       await nextTick()
-      expect(wrapper.find('.banner--bad').text()).toContain(i18n.global.t('errors.config'))
+      expect(wrapper.find('.v-alert').text()).toContain(i18n.global.t('errors.config'))
       expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeUndefined()
       await inputs[1]!.setValue('https://new.example')
       await vm.submit()
@@ -270,7 +270,6 @@ describe('BotsPanel', () => {
     answerProbe()
     const bot = useBotStore()
     vi.spyOn(bot, 'connect').mockResolvedValue(true)
-    vi.spyOn(bot, 'rebuildClient').mockImplementation(() => undefined)
 
     const wrapper = mount(ConnectView, { global: { plugins: [i18n] } })
     const inputs = wrapper.findAll('input')
@@ -307,7 +306,7 @@ describe('BotsPanel', () => {
     // shown on this form rather than in the shell.
     expect(settings.bots).toHaveLength(0)
     expect(connect).not.toHaveBeenCalled()
-    expect(wrapper.find('.banner--bad').text()).toContain('Wrong username or password')
+    expect(wrapper.find('.v-alert').text()).toContain('Wrong username or password')
     wrapper.unmount()
   })
 

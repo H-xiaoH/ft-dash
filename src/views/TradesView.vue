@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import CollapseTransition from '@/components/CollapseTransition.vue'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
@@ -17,7 +16,6 @@ import { isStandalone } from '@/lib/navigation'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
-import { useSegBlock } from '@/composables/useSegBlock'
 
 type Filter = 'open' | 'closed' | 'all'
 type SortKey = 'open_timestamp' | 'pair' | 'profit_abs' | 'duration' | 'stake_amount'
@@ -36,25 +34,21 @@ const sortKey = ref<SortKey>('open_timestamp')
 const sortDir = ref<'asc' | 'desc'>('desc')
 const selected = ref<Trade | null>(null)
 const exitTarget = ref<Trade | null>(null)
-const filterSeg = ref<HTMLElement | null>(null)
-const { blockStyle: filterBlockStyle, blockReady: filterBlockReady } = useSegBlock(
-  filterSeg,
-  () => filter.value,
-)
 /** Paging happens in the browser over everything already loaded; the size is a setting. */
 const pageSize = computed(() => settings.tradesPageSize)
 const page = ref(1)
 
 // The overview links here with ?filter=open|closed; keep the query in step with the tab.
 watch(
-  () => route.query.filter,
-  (value) => {
+  () => [route.name, route.query.filter] as const,
+  ([name, value]) => {
+    if (name !== 'trades') return
     filter.value = value === 'open' || value === 'closed' || value === 'all' ? value : 'all'
   },
   { immediate: true },
 )
 watch(filter, (value) => {
-  if (route.query.filter === value) return
+  if (route.name !== 'trades' || route.query.filter === value) return
   const query = { ...route.query }
   // "all" is the default, so it stays out of the URL instead of being spelled out.
   if (value === 'all') delete query.filter
@@ -74,6 +68,8 @@ const allTrades = computed(() => {
   for (const trade of bot.openTrades) byId.set(trade.trade_id, trade)
   return [...byId.values()]
 })
+const openRows = computed(() => allTrades.value.filter((trade) => trade.is_open))
+const closedRows = computed(() => allTrades.value.filter((trade) => !trade.is_open))
 
 const resultOptions = computed<FilterOption[]>(() => [
   { value: 'all', label: t('common.all') },
@@ -91,35 +87,18 @@ function durationOf(trade: Trade): number | null {
 const rows = computed(() => {
   const base =
     filter.value === 'open'
-      ? bot.openTrades
+      ? openRows.value
       : filter.value === 'closed'
-        ? bot.trades.filter((trade) => !trade.is_open)
+        ? closedRows.value
         : allTrades.value
   const query = search.value.trim().toLowerCase()
-  return base
-    .filter((trade) => {
-      if (filter.value === 'closed' && trade.is_open) return false
-      if (query && !trade.pair.toLowerCase().includes(query)) return false
-      const ratio = trade.profit_ratio ?? trade.close_profit
-      if (result.value === 'win' && !((ratio ?? 0) > 0)) return false
-      if (result.value === 'loss' && !((ratio ?? 0) < 0)) return false
-      return true
-    })
-    .sort((a, b) => {
-      const direction = sortDir.value === 'asc' ? 1 : -1
-      switch (sortKey.value) {
-        case 'pair':
-          return a.pair.localeCompare(b.pair) * direction
-        case 'profit_abs':
-          return ((a.profit_abs ?? 0) - (b.profit_abs ?? 0)) * direction
-        case 'stake_amount':
-          return (a.stake_amount - b.stake_amount) * direction
-        case 'duration':
-          return ((durationOf(a) ?? 0) - (durationOf(b) ?? 0)) * direction
-        default:
-          return ((a.open_timestamp ?? 0) - (b.open_timestamp ?? 0)) * direction
-      }
-    })
+  return base.filter((trade) => {
+    if (query && !trade.pair.toLowerCase().includes(query)) return false
+    const ratio = trade.profit_ratio ?? trade.close_profit
+    if (result.value === 'win' && !((ratio ?? 0) > 0)) return false
+    if (result.value === 'loss' && !((ratio ?? 0) < 0)) return false
+    return true
+  })
 })
 
 const filterLabel = computed(() => {
@@ -134,26 +113,29 @@ const filterStatus = computed(() =>
   }),
 )
 
-const openCount = computed(() => bot.openTrades.length)
-const closedCount = computed(() => bot.profit?.closed_trade_count ?? bot.closedTrades.length)
+const openCount = computed(() => openRows.value.length)
+const closedCount = computed(() => closedRows.value.length)
 const allCount = computed(() => allTrades.value.length)
-const totalPages = computed(() =>
-  pageSize.value === 0 ? 1 : Math.max(1, Math.ceil(rows.value.length / pageSize.value)),
-)
-const pagedRows = computed(() =>
-  pageSize.value === 0
-    ? rows.value
-    : rows.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value),
-)
+const tableSort = computed(() => [{ key: sortKey.value, order: sortDir.value }])
+const tableHeaders = [
+  { key: 'pair', sortRaw: (a: Trade, b: Trade) => a.pair.localeCompare(b.pair) },
+  { key: 'side' },
+  { key: 'stake_amount', sortRaw: (a: Trade, b: Trade) => a.stake_amount - b.stake_amount },
+  { key: 'open_rate' },
+  { key: 'current_rate' },
+  { key: 'profit_abs', sortRaw: (a: Trade, b: Trade) => (a.profit_abs ?? 0) - (b.profit_abs ?? 0) },
+  { key: 'duration', sortRaw: (a: Trade, b: Trade) => (durationOf(a) ?? 0) - (durationOf(b) ?? 0) },
+  {
+    key: 'open_timestamp',
+    sortRaw: (a: Trade, b: Trade) => (a.open_timestamp ?? 0) - (b.open_timestamp ?? 0),
+  },
+  { key: 'close_timestamp' },
+]
 
 // Any change to the query or ordering restarts from the first page.
 watch([filter, search, result, sortKey, sortDir], () => {
   page.value = 1
 })
-watch(totalPages, (max) => {
-  if (page.value > max) page.value = max
-})
-
 const sortOptions = computed<FilterOption<SortKey>[]>(() => [
   { value: 'open_timestamp', label: t('trades.openDate') },
   { value: 'pair', label: t('trades.pair') },
@@ -172,7 +154,6 @@ function selectSort(key: SortKey) {
 }
 
 function openTrade(trade: Trade): void {
-  selected.value = trade
   void router.push({ query: { ...route.query, trade: String(trade.trade_id) } })
 }
 
@@ -213,7 +194,10 @@ function exportCsv() {
     t('trades.enterTag'),
     t('trades.exitReason'),
   ]
-  const body = rows.value.map((trade) => [
+  const compare = tableHeaders.find((header) => header.key === sortKey.value)!.sortRaw!
+  const direction = sortDir.value === 'asc' ? 1 : -1
+  const sorted = [...rows.value].sort((a, b) => compare(a, b) * direction)
+  const body = sorted.map((trade) => [
     trade.trade_id,
     trade.pair,
     trade.is_short ? t('trades.short') : t('trades.long'),
@@ -238,79 +222,62 @@ function exportCsv() {
  * (on mount, or when the query changes) missed every deep link that booted with empty lists.
  */
 const linkedTrade = computed(() => {
+  if (route.name !== 'trades') return null
   const value = route.query.trade
   if (typeof value !== 'string') return null
   const id = Number(value)
   if (!Number.isFinite(id)) return null
-  return (
-    bot.trades.find((trade) => trade.trade_id === id) ??
-    bot.openTrades.find((trade) => trade.trade_id === id) ??
-    null
-  )
+  return allTrades.value.find((trade) => trade.trade_id === id) ?? null
 })
 
-watch(linkedTrade, (trade) => (selected.value = trade))
-// Set a deep-linked trade after this view mounts so the drawer transition can observe its
-// closed -> open edge instead of rendering an already-open drawer in the first frame.
-onMounted(() => {
-  if (!isStandalone.value || typeof route.query.trade !== 'string') {
+// Show standalone details only after their return-to-list history entry is committed.
+watch(
+  [() => route.fullPath, linkedTrade],
+  () => {
+    if (route.name === 'trades' && isStandalone.value && typeof route.query.trade === 'string') {
+      const detail = { path: route.path, query: { ...route.query } }
+      const query = { ...route.query }
+      delete query.trade
+      const list = { path: route.path, query }
+      const listPath = router.resolve(list).fullPath
+      if (router.options.history.state.back !== listPath) {
+        selected.value = null
+        void router
+          .replace(list)
+          .then(() => {
+            if (route.fullPath === listPath) return router.push(detail)
+          })
+          .catch(() => {
+            // The router reports failed navigation through its shared error handler.
+          })
+        return
+      }
+    }
     selected.value = linkedTrade.value
-    return
-  }
-
-  // A standalone deep link has no list entry behind it. Build that one history layer before
-  // restoring the detail URL, so the system Back action closes the drawer inside the app.
-  const detailQuery = { ...route.query }
-  const listQuery = { ...detailQuery }
-  delete listQuery.trade
-  void router
-    .replace({ query: listQuery })
-    .then(() => router.push({ query: detailQuery }))
-    .catch(() => {
-      selected.value = linkedTrade.value
-    })
-})
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
-  <div class="stack">
-    <section class="panel responsive-table">
-      <div class="panel__head">
-        <div ref="filterSeg" class="seg">
-          <button
-            type="button"
-            class="seg__item"
-            :aria-pressed="filter === 'open'"
-            @click="filter = 'open'"
-          >
+  <div class="d-flex flex-column ga-4">
+    <VCard tag="section" class="panel responsive-table">
+      <VCardItem class="panel__head">
+        <VBtnToggle v-model="filter" mandatory divided class="page-tabs">
+          <VBtn type="button" variant="outlined" :aria-pressed="filter === 'open'" value="open">
             {{ t('trades.open') }}
             <span class="small muted">{{ openCount }}</span>
-          </button>
-          <button
-            type="button"
-            class="seg__item"
-            :aria-pressed="filter === 'closed'"
-            @click="filter = 'closed'"
-          >
+          </VBtn>
+          <VBtn type="button" variant="outlined" :aria-pressed="filter === 'closed'" value="closed">
             {{ t('trades.closed') }}
             <span class="small muted">{{ closedCount }}</span>
-          </button>
-          <button
-            type="button"
-            class="seg__item"
-            :aria-pressed="filter === 'all'"
-            @click="filter = 'all'"
-          >
+          </VBtn>
+          <VBtn type="button" variant="outlined" :aria-pressed="filter === 'all'" value="all">
             {{ t('trades.all') }}
             <span class="small muted">{{ allCount }}</span>
-          </button>
-          <span
-            class="seg__block"
-            :class="{ 'is-ready': filterBlockReady }"
-            :style="filterBlockStyle"
-          />
-        </div>
-        <div class="panel__actions row">
+          </VBtn>
+        </VBtnToggle>
+        <div class="panel__actions d-flex align-center ga-2">
           <SearchToggle v-model="search" :placeholder="t('market.searchPairs')" />
           <FilterMenu
             v-model="result"
@@ -320,56 +287,82 @@ onMounted(() => {
           />
           <SortMenu v-model="sortField" v-model:direction="sortDir" :options="sortOptions" />
           <!-- On a phone this row also carries the sort pair, so the label gives way. -->
-          <button
+          <VBtn
             type="button"
-            class="btn btn--sm trades-export"
+            class="trades-export"
             :aria-label="t('trades.exportCsv')"
             :title="t('trades.exportCsv')"
             @click="exportCsv"
           >
             <AppIcon name="download" />
             <span class="u-hide-sm">{{ t('trades.exportCsv') }}</span>
-          </button>
+          </VBtn>
         </div>
-      </div>
+      </VCardItem>
 
-      <div class="panel__body panel__body--flush">
+      <VCardText class="panel__body panel__body--flush">
         <div class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-filter-status>
           {{ filterStatus }}
         </div>
-        <CollapseTransition>
+        <VExpandTransition>
           <div :key="filter" class="trade-filter-content" data-filter-content>
-            <div v-if="!rows.length" class="empty">{{ t('empty.table') }}</div>
-            <div v-else class="table-wrap progressive-table">
-              <table class="table table--clickable">
-                <thead>
-                  <tr>
-                    <th scope="col">{{ t('trades.pair') }}</th>
-                    <th scope="col" class="side-col col-extra-4">{{ t('trades.side') }}</th>
-                    <th scope="col" class="num col-extra-2">{{ t('trades.stake') }}</th>
-                    <th scope="col" class="num col-extra-3">{{ t('trades.entryPrice') }}</th>
-                    <th scope="col" class="num col-extra-3">{{ t('trades.currentPrice') }}</th>
-                    <th scope="col" class="num">{{ t('trades.profit') }}</th>
-                    <th scope="col" class="num col-extra-1">{{ t('trades.duration') }}</th>
-                    <th scope="col" class="num col-extra-3">{{ t('trades.openDate') }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="trade in pagedRows" :key="trade.trade_id" @click="openTrade(trade)">
+            <div class="table-wrap progressive-table">
+              <VDataTable
+                v-model:page="page"
+                :items="rows"
+                :headers="tableHeaders"
+                :sort-by="tableSort"
+                :items-per-page="pageSize === 0 ? -1 : pageSize"
+                item-value="trade_id"
+                hide-default-header
+                hide-default-footer
+                class="table table--clickable"
+                :no-data-text="t('empty.table')"
+              >
+                <template #thead
+                  ><thead>
+                    <tr>
+                      <th scope="col">{{ t('trades.pair') }}</th>
+                      <th scope="col" class="side-col">{{ t('trades.side') }}</th>
+                      <th scope="col" class="num col-extra-2">{{ t('trades.stake') }}</th>
+                      <th scope="col" class="num col-extra-3">{{ t('trades.entryPrice') }}</th>
+                      <th scope="col" class="num col-extra-3">{{ t('trades.currentPrice') }}</th>
+                      <th scope="col" class="num">{{ t('trades.profit') }}</th>
+                      <th scope="col" class="num col-extra-1">{{ t('trades.duration') }}</th>
+                      <th scope="col" class="num col-extra-3">{{ t('trades.openDate') }}</th>
+                      <th scope="col" class="num col-extra-4">{{ t('trades.closeDate') }}</th>
+                    </tr>
+                  </thead></template
+                >
+                <template #item="{ item: trade }"
+                  ><tr @click="openTrade(trade)">
                     <td>
                       <div class="table__pair">
                         <span
                           class="table__side"
                           :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
                         />
-                        <span class="num">{{ trade.pair }}</span>
-                        <SideBadge class="progressive-side" :is-short="trade.is_short" icon-only />
-                        <span v-if="trade.is_open" class="chip chip--accent">{{
-                          t('trades.open')
-                        }}</span>
+                        <VBtn
+                          type="button"
+                          class="num table__pair-action"
+                          variant="text"
+                          color="on-surface"
+                          height="auto"
+                          rounded="0"
+                          @click.stop="openTrade(trade)"
+                        >
+                          {{ trade.pair }}
+                        </VBtn>
+                        <VChip
+                          v-if="trade.is_open"
+                          size="x-small"
+                          variant="tonal"
+                          color="primary"
+                          >{{ t('trades.open') }}</VChip
+                        >
                       </div>
                     </td>
-                    <td class="side-col col-extra-4"><SideBadge :is-short="trade.is_short" /></td>
+                    <td class="side-col"><SideBadge :is-short="trade.is_short" /></td>
                     <td class="num col-extra-2">{{ format.money(trade.stake_amount, stake) }}</td>
                     <td class="num col-extra-3">{{ format.price(trade.open_rate) }}</td>
                     <td class="num col-extra-3">
@@ -391,36 +384,32 @@ onMounted(() => {
                     </td>
                     <td class="num col-extra-1">{{ format.duration(durationOf(trade)) }}</td>
                     <td class="num col-extra-3">{{ format.dateTime(trade.open_timestamp) }}</td>
+                    <td class="num col-extra-4">
+                      {{ format.dateTime(trade.close_timestamp ?? null) }}
+                    </td>
                   </tr>
-                </tbody>
-              </table>
+                </template>
+                <template #bottom="{ pageCount, items }">
+                  <VCardActions class="panel__pager">
+                    <span class="panel__meta num">{{
+                      t('common.showing', { shown: items.length, total: rows.length })
+                    }}</span>
+                    <VPagination
+                      v-model="page"
+                      :length="pageCount"
+                      :total-visible="3"
+                      size="small"
+                      density="compact"
+                      class="ml-auto"
+                    />
+                  </VCardActions>
+                </template>
+              </VDataTable>
             </div>
           </div>
-        </CollapseTransition>
-      </div>
-
-      <div class="panel__head panel__pager">
-        <span class="panel__meta num">
-          {{ t('common.showing', { shown: pagedRows.length, total: rows.length }) }}
-        </span>
-        <div class="panel__actions row">
-          <button type="button" class="btn btn--sm" :disabled="page <= 1" @click="page -= 1">
-            <AppIcon name="chevronRight" class="flip" />
-            {{ t('common.prev') }}
-          </button>
-          <span class="num small muted">{{ t('common.page', { page, pages: totalPages }) }}</span>
-          <button
-            type="button"
-            class="btn btn--sm"
-            :disabled="page >= totalPages"
-            @click="page += 1"
-          >
-            {{ t('common.next') }}
-            <AppIcon name="chevronRight" />
-          </button>
-        </div>
-      </div>
-    </section>
+        </VExpandTransition>
+      </VCardText>
+    </VCard>
 
     <TradeDetail
       :trade="selected"
@@ -429,7 +418,7 @@ onMounted(() => {
     />
 
     <ConfirmDialog
-      :open="exitTarget !== null"
+      :open="route.name === 'trades' && exitTarget !== null"
       tone="danger"
       :title="bot.labelWithBot(t('actions.forceExit'))"
       :body="t('actions.forceExitHint')"

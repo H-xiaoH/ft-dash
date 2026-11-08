@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { nextTick, reactive } from 'vue'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/i18n'
+import FilterMenu from '@/components/FilterMenu.vue'
 import type { PairCandlesResponse } from '@/lib/types'
 
 const { rawBot } = vi.hoisted(() => ({
@@ -65,6 +66,26 @@ async function makeRouter() {
 }
 
 describe('MarketView', () => {
+  it('retries an empty response after one second without showing empty-data copy', async () => {
+    vi.useFakeTimers()
+    const router = await makeRouter()
+    const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })
+    try {
+      await nextTick()
+      const empty = { ...response('AAA/USDT'), data: [], length: 0 }
+      bot.candleCache['AAA/USDT|5m'] = empty
+      pending[0]?.resolve(empty)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(wrapper.find('.v-skeleton-loader').exists()).toBe(true)
+      expect(wrapper.get('.market__plot').text()).toBe('')
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
+    } finally {
+      wrapper.unmount()
+      vi.useRealTimers()
+    }
+  })
+
   it('refreshes successful candles every thirty seconds and stops after unmount', async () => {
     vi.useFakeTimers()
     const router = await makeRouter()
@@ -209,26 +230,21 @@ describe('MarketView', () => {
     const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })
     await nextTick()
 
-    await wrapper.find('.filter-menu__button').trigger('click')
-    const option = [...document.querySelectorAll<HTMLButtonElement>('.filter-menu__item')].find(
-      (item) => item.textContent?.includes('BBB/USDT'),
-    )
-    expect(option).toBeDefined()
-    option?.click()
+    wrapper.findComponent(FilterMenu).vm.$emit('update:modelValue', 'BBB/USDT')
     await nextTick()
     expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
     expect(pending[1]?.pair).toBe('BBB/USDT')
 
     pending[0]?.resolve(null)
     await flushPromises()
-    expect(wrapper.find('.skeleton').exists()).toBe(true)
+    expect(wrapper.find('.v-skeleton-loader').exists()).toBe(true)
 
     pending[1]?.resolve(response('BBB/USDT'))
     await flushPromises()
     wrapper.unmount()
   })
 
-  it('retries a failed candle request on its own, ten seconds later', async () => {
+  it('retries a failed candle request on its own, one second later', async () => {
     vi.useFakeTimers()
     const router = await makeRouter()
     const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })
@@ -238,14 +254,14 @@ describe('MarketView', () => {
     // The bot is restarting: the request fails, and there is no button to press.
     pending[0]?.resolve(null)
     await flushPromises()
-    expect(wrapper.find('.skeleton').exists()).toBe(true)
+    expect(wrapper.find('.v-skeleton-loader').exists()).toBe(true)
     expect(wrapper.text()).not.toContain('K 线加载失败')
     expect(wrapper.find('.empty button').exists()).toBe(false)
 
-    await vi.advanceTimersByTimeAsync(9_000)
+    await vi.advanceTimersByTimeAsync(999)
     expect(bot.fetchCandles).toHaveBeenCalledTimes(1)
 
-    await vi.advanceTimersByTimeAsync(1_500)
+    await vi.advanceTimersByTimeAsync(1)
     expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
     expect(pending[1]?.pair).toBe('AAA/USDT')
 
@@ -259,7 +275,7 @@ describe('MarketView', () => {
     vi.useRealTimers()
   })
 
-  it('keeps cached candles and metadata after a refresh fails, then retries', async () => {
+  it('keeps cached candles after a refresh fails without showing strategy metadata', async () => {
     vi.useFakeTimers()
     const router = await makeRouter()
     const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })
@@ -267,16 +283,16 @@ describe('MarketView', () => {
       await nextTick()
       pending[0]?.resolve({ ...response('AAA/USDT'), buy_signals: 1, sell_signals: 2 })
       await flushPromises()
-      const metadata = wrapper.find('.market__meta').text()
       await vi.advanceTimersByTimeAsync(30_001)
       expect(bot.fetchCandles).toHaveBeenCalledTimes(2)
       pending[1]?.resolve(null)
       await flushPromises()
       expect(wrapper.find('.candles').exists()).toBe(true)
-      expect(wrapper.find('.market__meta').text()).toBe(metadata)
-      expect(metadata).toContain('TestStrategy')
-      expect(wrapper.find('.skeleton').exists()).toBe(false)
-      await vi.advanceTimersByTimeAsync(10_001)
+      expect(wrapper.find('.market__meta').exists()).toBe(false)
+      expect(wrapper.text()).not.toContain('TestStrategy')
+      expect(wrapper.find('.market__legend').exists()).toBe(false)
+      expect(wrapper.find('.v-skeleton-loader').exists()).toBe(false)
+      await vi.advanceTimersByTimeAsync(1_001)
       expect(bot.fetchCandles).toHaveBeenCalledTimes(3)
       expect(wrapper.find('.candles').exists()).toBe(true)
     } finally {
@@ -303,7 +319,7 @@ describe('MarketView', () => {
   })
 
   it('refetches candles that have gone stale while the page was elsewhere', async () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ toFake: ['Date'] })
     const router = createRouter({
       history: createMemoryHistory(),
       routes: [

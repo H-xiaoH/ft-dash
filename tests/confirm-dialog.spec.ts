@@ -9,9 +9,11 @@ it('makes a closing dialog inert and prevents confirmation during leave', async 
     attachTo: document.body,
     global: { plugins: [i18n], stubs: { transition: false } },
   })
-  const button = document.body.querySelector<HTMLButtonElement>('.dialog__foot button:last-child')!
+  const button = document.body.querySelector<HTMLButtonElement>(
+    '.v-card-actions button:last-child',
+  )!
   await wrapper.setProps({ open: false })
-  expect(document.body.querySelector('.overlay')?.hasAttribute('inert')).toBe(true)
+  expect(document.body.querySelector('.v-overlay--active')).toBeNull()
   button.click()
   expect(wrapper.emitted('confirm')).toBeUndefined()
   wrapper.unmount()

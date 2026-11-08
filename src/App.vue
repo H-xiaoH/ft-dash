@@ -1,21 +1,22 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterView, useRoute, useRouter } from 'vue-router'
-import AppIcon from '@/components/AppIcon.vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ICON_PATHS } from '@/components/icons'
+import { useLocale } from 'vuetify'
 import AppNavigation from '@/components/AppNavigation.vue'
 import GlobalNotices from '@/components/GlobalNotices.vue'
 import StatusStrip from '@/components/StatusStrip.vue'
 import ConnectView from '@/views/ConnectView.vue'
-import { usePageDrag } from '@/composables/usePageDrag'
+import PageSwiper from '@/components/PageSwiper.vue'
 import { useToasts } from '@/composables/useToast'
-import { isWideLayout } from '@/lib/layout'
 import { applyPwaUpdate, updateAvailable } from '@/pwa'
-import { NAV_ROUTES } from '@/router'
+import { NAV_ROUTES, MORE_ROUTE } from '@/router'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
 
 const { t, locale } = useI18n()
+const { current: materialLocale } = useLocale()
 const settings = useSettingsStore()
 const bot = useBotStore()
 const route = useRoute()
@@ -58,182 +59,10 @@ const showConnect = computed(
 /** How long the pages have to stop changing before the landing one is refreshed. */
 const SETTLE_REFRESH_MS = 300
 
-/** Page-to-page swiping; it also owns the tab block's travel. */
-const {
-  dragOffset,
-  dragTransition,
-  dragging,
-  indicatorFraction,
-  indicatorTransition,
-  handoff,
-  neighbors,
-  finishHandoff,
-  loadAllPages,
-  onRailWheel,
-} = usePageDrag(() => showConnect.value)
+const pages = ref<InstanceType<typeof PageSwiper> | null>(null)
 const pageTitle = computed(() => {
-  const match = NAV_ROUTES.find((entry) => entry.name === route.name)
+  const match = [...NAV_ROUTES, MORE_ROUTE].find((entry) => entry.name === route.name)
   return match ? t(match.titleKey) : t('app.name')
-})
-
-/**
- * Position of the current page in the nav order: drives the sliding indicator and the
- * direction a page transition travels.
- */
-const navIndex = computed(() =>
-  Math.max(
-    0,
-    NAV_ROUTES.findIndex((item) => item.name === route.name),
-  ),
-)
-const pageDirection = ref(1)
-let previousIndex = navIndex.value
-
-watch(navIndex, (next) => {
-  pageDirection.value = next >= previousIndex ? 1 : -1
-  previousIndex = next
-})
-
-let viewportEpoch = 0
-const resizingPages = ref(false)
-let resizeTimer = 0
-let motionTimer = 0
-let pageFrameHeight = 0
-const framedPages = new Set<HTMLElement>()
-let motionFinished: Promise<void> | null = null
-let resolveMotion: (() => void) | null = null
-let motionHost: HTMLElement | null = null
-let leavingPage: HTMLElement | null = null
-let pageAnimation: Animation | null = null
-let enterDone: (() => void) | null = null
-let leaveDone: (() => void) | null = null
-const desktopMotion = isWideLayout
-const removeMotionGuard = router.beforeEach(async (to, from) => {
-  if (to.path !== from.path && desktopMotion() && motionFinished) {
-    const epoch = viewportEpoch
-    await motionFinished
-    if (epoch !== viewportEpoch) return false
-  }
-})
-onBeforeUnmount(() => {
-  removeMotionGuard()
-  finishPageMotion()
-})
-
-function measureLeavingPage(element: Element) {
-  if (!desktopMotion()) return
-  window.clearTimeout(resizeTimer)
-  resizingPages.value = false
-  window.clearTimeout(motionTimer)
-  motionTimer = window.setTimeout(finishPageMotion, 500)
-  motionHost = element.closest<HTMLElement>('.page-host')
-  if (!motionHost) return
-  // A resize guard belongs to the interrupted motion, not this new navigation.
-  motionHost.classList.remove('page-host--resizing')
-  const scrollTop = window.scrollY
-  const top = motionHost.getBoundingClientRect().top + window.scrollY
-  const shell = motionHost.closest('.shell')!
-  const bottom = parseFloat(getComputedStyle(shell).getPropertyValue('--shell-pad-bottom')) || 0
-  pageFrameHeight = Math.max(1, window.innerHeight - top - bottom)
-  // Set the offscreen start before the incoming page is inserted or painted.
-  motionHost.style.setProperty('--page-distance', `${pageFrameHeight}px`)
-  motionHost.style.setProperty('min-height', `${pageFrameHeight}px`)
-  framePage(element)
-  // Keep the outgoing viewport when the shorter frame and router reset document scroll.
-  if (scrollTop > 0) {
-    element.classList.add('page-motion-scrolled')
-    ;(element as HTMLElement).scrollTop = scrollTop
-  }
-  window.scrollTo(0, 0)
-  motionFinished = new Promise((resolve) => {
-    resolveMotion = resolve
-  })
-}
-
-function framePage(element: Element, offset = 0) {
-  const page = element as HTMLElement
-  page.style.setProperty('--page-frame-height', `${pageFrameHeight}px`)
-  page.style.transform = `translateY(${offset}px)`
-  page.classList.add('page-motion-frame')
-  framedPages.add(page)
-}
-
-function beforePageEnter(element: Element) {
-  if (!desktopMotion() || !motionHost) return
-  framePage(element, pageDirection.value * pageFrameHeight)
-}
-
-function holdPageLeave(element: Element, done: () => void) {
-  if (!motionHost) return done()
-  leavingPage = element as HTMLElement
-  leaveDone = done
-}
-
-function preparePageEnter(element: Element, done: () => void) {
-  if (!motionHost || !leavingPage) return done()
-  enterDone = done
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    finishPageMotion()
-    return
-  }
-  const style = getComputedStyle(element)
-  const duration = style.getPropertyValue('--dur-slide').trim()
-  const timing: KeyframeAnimationOptions = {
-    duration: parseFloat(duration) * (duration.endsWith('ms') ? 1 : 1000),
-    easing: style.getPropertyValue('--ease-out-strong').trim(),
-    fill: 'forwards',
-  }
-  const distance = pageDirection.value * pageFrameHeight
-  // Move both pages on one layer so their shared edge cannot drift between animations.
-  pageAnimation = element.parentElement!.animate(
-    [{ transform: 'translateY(0)' }, { transform: `translateY(${-distance}px)` }],
-    timing,
-  )
-  void pageAnimation.finished.then(finishPageMotion, () => {})
-}
-
-function finishPageMotion() {
-  window.clearTimeout(motionTimer)
-  const finishEnter = enterDone
-  const finishLeave = leaveDone
-  enterDone = null
-  leaveDone = null
-  pageAnimation?.cancel()
-  pageAnimation = null
-  for (const page of framedPages) {
-    page.classList.remove('page-motion-frame', 'page-motion-scrolled')
-    page.style.removeProperty('--page-frame-height')
-    page.style.removeProperty('transform')
-    page.scrollTop = 0
-  }
-  framedPages.clear()
-  pageFrameHeight = 0
-  motionHost?.style.removeProperty('min-height')
-  motionHost = null
-  leavingPage = null
-  resolveMotion?.()
-  resolveMotion = null
-  motionFinished = null
-  finishEnter?.()
-  finishLeave?.()
-  finishHandoff()
-}
-
-function resetPageMotion() {
-  viewportEpoch += 1
-  const host = document.querySelector('.page-host')
-  if (!host?.querySelector('.page-enter-active, .page-leave-active')) return
-  resizingPages.value = true
-  finishPageMotion()
-  window.clearTimeout(resizeTimer)
-  resizeTimer = window.setTimeout(() => {
-    resizingPages.value = false
-  }, 300)
-}
-onMounted(() => window.addEventListener('resize', resetPageMotion, { passive: true }))
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', resetPageMotion)
-  window.clearTimeout(resizeTimer)
 })
 
 async function refresh() {
@@ -242,6 +71,7 @@ async function refresh() {
 
 onMounted(async () => {
   locale.value = settings.locale
+  materialLocale.value = settings.locale === 'zh-CN' ? 'zhHans' : 'en'
   document.documentElement.lang = settings.locale
   try {
     await bot.autoConnect()
@@ -249,8 +79,6 @@ onMounted(async () => {
     // A rejected sign-in falls back to the connect screen, which then shows why.
     restoredSession.value = false
   }
-  // Off the critical path: the first paint and the first API burst go first.
-  window.setTimeout(loadAllPages, 1200)
 })
 
 onBeforeUnmount(() => {
@@ -262,14 +90,15 @@ watch(
   () => settings.locale,
   (value) => {
     locale.value = value
+    materialLocale.value = value === 'zh-CN' ? 'zhHans' : 'en'
     document.documentElement.lang = value
   },
 )
 
 watch(
-  () => settings.activeBotId,
-  (next, previous) => {
-    if (!previous || !next || next === previous) return
+  () => [settings.activeBotId, bot.connectionRevision] as const,
+  ([next, revision], [previous, previousRevision]) => {
+    if (!previous || !next || (next === previous && revision === previousRevision)) return
     const query = { ...route.query }
     const hadPageState = 'filter' in query || 'trade' in query
     if (!hadPageState) return
@@ -297,140 +126,68 @@ watch(
 </script>
 
 <template>
-  <ConnectView v-if="showConnect" />
+  <VApp>
+    <VLayout :class="{ shell: !showConnect && !restoring }">
+      <ConnectView v-if="showConnect" />
 
-  <div v-else-if="restoring" class="booting" role="status" aria-live="polite">
-    <span class="booting__dot" />
-    <span class="sr-only">{{ t('connect.connecting') }}</span>
-  </div>
-
-  <div v-else class="shell">
-    <AppNavigation
-      variant="rail"
-      :active-route-name="route.name"
-      :nav-index="navIndex"
-      :indicator-fraction="indicatorFraction"
-      :indicator-transition="indicatorTransition"
-      :dragging="dragging"
-      @rail-wheel="onRailWheel"
-    />
-
-    <div class="main">
-      <StatusStrip @refresh="refresh" />
-      <GlobalNotices />
-
-      <div class="shell__body">
-        <main class="content">
-          <h1 class="sr-only">{{ pageTitle }}</h1>
-          <!--
-            The travel direction lives on this stable host, not on the page itself:
-            an inline custom property is baked in when a page renders, so a leaving
-            page would animate with the direction of the *previous* navigation.
-          -->
-          <div
-            class="page-host"
-            :class="{ 'page-host--resizing': resizingPages }"
-            :style="{
-              '--page-enter': `${handoff ? 0 : pageDirection}`,
-              '--page-leave': `${handoff ? 0 : -pageDirection}`,
-              '--page-leave-opacity': handoff ? 0 : 1,
-            }"
-          >
-            <!-- A bot switch is a new data source, so page-local filters and drawers start fresh. -->
-            <div
-              :key="settings.activeBotId"
-              class="page-track"
-              :style="{ transform: `translateX(${dragOffset}px)`, transition: dragTransition }"
-            >
-              <RouterView v-slot="{ Component }">
-                <!--
-                  A finger-committed swipe has already moved the pages into place, so that
-                  navigation gets a zero-length transition with no displacement. It stays a
-                  real transition: `css: false` would resolve the leave synchronously inside
-                  the render and re-enter the renderer.
-                -->
-                <Transition
-                  v-bind="
-                    desktopMotion() ? { onLeave: holdPageLeave, onEnter: preparePageEnter } : {}
-                  "
-                  name="page"
-                  :duration="handoff ? 0 : undefined"
-                  @before-leave="measureLeavingPage"
-                  @before-enter="beforePageEnter"
-                  @after-enter="finishPageMotion"
-                  @enter-cancelled="finishPageMotion"
-                >
-                  <component :is="Component" />
-                </Transition>
-              </RouterView>
-              <!--
-                Every other page, held on the track in its own slot: the finger drags
-                across them and a wheel walks them, so none of them is ever still loading
-                when the strip reaches it. The key is the rail index, which keeps every
-                page a switch does not touch on its own instance — the one you leave and
-                the one you enter are rebuilt, and that costs nothing because their code
-                is already resolved. Inert, so a page that is off screen stays out of the
-                tab order and the accessibility tree.
-              -->
-              <div
-                v-for="page in neighbors"
-                :key="page.index"
-                class="page-neighbor"
-                :data-slot="page.slot"
-                inert
-                :style="{ transform: `translateX(${page.slot * 100}%)` }"
-              >
-                <component :is="page.component" />
-              </div>
-            </div>
-          </div>
-        </main>
+      <div v-else-if="restoring" class="booting flex-grow-1" role="status" aria-live="polite">
+        <VProgressCircular indeterminate color="primary" :size="24" :width="2" />
+        <span class="sr-only">{{ t('connect.connecting') }}</span>
       </div>
-    </div>
 
-    <AppNavigation
-      variant="tabbar"
-      :active-route-name="route.name"
-      :nav-index="navIndex"
-      :indicator-fraction="indicatorFraction"
-      :indicator-transition="indicatorTransition"
-      :dragging="dragging"
-    />
-  </div>
+      <template v-else>
+        <AppNavigation variant="rail" @rail-wheel="pages?.railWheel($event)" />
 
-  <div v-if="updateAvailable" class="banner update-prompt">
-    <AppIcon name="refresh" />
-    <div class="banner__body" role="status">
-      <div class="banner__title">{{ t('notices.updateAvailable') }}</div>
-    </div>
-    <div class="banner__actions">
-      <button type="button" class="btn btn--sm" @click="applyPwaUpdate">
-        {{ t('notices.applyUpdate') }}
-      </button>
-    </div>
-  </div>
+        <VMain tag="div" class="main">
+          <StatusStrip @refresh="refresh" />
+          <GlobalNotices />
 
-  <TransitionGroup name="toast" tag="div" class="toast-stack" aria-live="polite">
-    <div
-      v-for="toast in toasts"
-      :key="toast.id"
-      class="toast"
-      :class="`toast--${toast.tone}`"
-      @click="dismissToast(toast.id)"
-    >
-      <AppIcon
-        class="toast__icon"
-        :name="toast.tone === 'good' ? 'check' : toast.tone === 'bad' ? 'alert' : 'info'"
+          <main class="shell__body">
+            <h1 class="sr-only">{{ pageTitle }}</h1>
+            <PageSwiper :key="`${settings.activeBotId}|${bot.connectionRevision}`" ref="pages" />
+          </main>
+        </VMain>
+        <AppNavigation variant="tabbar" />
+      </template>
+      <VSnackbar
+        v-for="(toast, index) in toasts"
+        :key="toast.id"
+        class="ma-4"
+        :model-value="true"
+        :timeout="toast.ttlMs"
+        :queue-index="index"
+        :queue-gap="8"
+        timer
+        :color="toast.tone === 'good' ? 'success' : toast.tone === 'bad' ? 'error' : 'info'"
+        :prepend-icon="
+          ICON_PATHS[toast.tone === 'good' ? 'check' : toast.tone === 'bad' ? 'alert' : 'info']
+        "
+        :text="toast.message"
+        variant="tonal"
+        location="bottom end"
+        min-width="0"
+        max-width="min(440px, calc(100vw - 32px))"
+        @update:model-value="!$event && dismissToast(toast.id)"
+        @click="dismissToast(toast.id)"
       />
-      <span>{{ toast.message }}</span>
-      <!-- The countdown itself: same length as the dismissal that is already scheduled. -->
-      <span
-        class="toast__timer"
-        aria-hidden="true"
-        :style="{ animationDuration: `${toast.ttlMs}ms` }"
-      />
-    </div>
-  </TransitionGroup>
+
+      <VBanner
+        v-if="updateAvailable"
+        class="update-prompt"
+        :icon="ICON_PATHS.refresh"
+        :text="t('notices.updateAvailable')"
+        color="primary"
+        bg-color="surface"
+        role="status"
+      >
+        <template #actions>
+          <VBtn variant="flat" color="primary" @click="applyPwaUpdate">{{
+            t('notices.applyUpdate')
+          }}</VBtn>
+        </template>
+      </VBanner>
+    </VLayout>
+  </VApp>
 </template>
 
 <style scoped>
@@ -450,183 +207,30 @@ watch(
   place-items: center;
 }
 
-.booting__dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: boot-pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes boot-pulse {
-  0%,
-  100% {
-    opacity: 0.35;
-    transform: scale(0.85);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
 .shell {
-  /* The frame's padding, and with it the gutter each page carries on both sides. */
-  --shell-pad: var(--sp-4);
-  --shell-pad-bottom: var(--sp-4);
-  min-height: 100vh;
-  min-height: 100dvh;
-  display: grid;
-  grid-template-columns: var(--rail-w) minmax(0, 1fr);
+  --shell-pad: 16px;
+  height: 100dvh;
+  overflow: hidden;
 }
-
 .main {
+  height: 100%;
+  min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  padding-bottom: calc(var(--v-layout-bottom) + env(safe-area-inset-bottom, 0px));
 }
-
-.shell__body {
-  padding: var(--shell-pad);
-  padding-bottom: var(--shell-pad-bottom);
-  min-width: 0;
-}
-
-.content {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-}
-
-/*
- * Clips both axes, for two reasons. A transition slides its child, which would widen the
- * scrollable area mid-animation and make phones jitter sideways. And a parked page is
- * absolutely placed, which does not take it out of the document's scrollable overflow: clip
- * it, or every page can be scrolled past its own content, down the tallest parked page.
- *
- * `clip` rather than `hidden`: it trims without creating a scroll container, so sticky and
- * fixed children are unaffected.
- */
-.page-host {
-  min-width: 0;
-  overflow: hidden;
-  overflow: clip;
-}
-
-/* The current page and the parked ones ride this track, moved only by the finger. */
-.page-track {
-  position: relative;
-  min-width: 0;
-  will-change: transform;
-}
-
-/*
- * The sideways gutter belongs to each page rather than to the frame around the track, so two
- * pages meeting mid-swipe keep twice this between them and read as two sheets.
- *
- * Each page also carries the page colour. Two pages are in flight during a swap, and their
- * regions overlap while they pass: without a background of its own, the one underneath shows
- * its rows through the one arriving, which reads as the two pages covering each other.
- */
-.page-track > * {
-  padding-inline: var(--shell-pad);
-  background: var(--ink-900);
-}
-
-/*
- * Parked pages are absolutely placed so the real page keeps defining the layout while the
- * strip slides across them, and their paint is contained: dragging the strip repaints the
- * pages coming into view, not all six.
- */
-.page-neighbor {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  contain: paint;
-}
-
-/* Mobile pages travel horizontally; desktop pages share a vertical edge. */
-.page-motion-frame {
-  height: var(--page-frame-height);
-  min-height: var(--page-frame-height);
-  max-height: var(--page-frame-height);
-  overflow: hidden;
-  overflow: clip;
-  transition: none !important;
-}
-
-.page-motion-scrolled {
-  overflow: hidden;
-}
-
-.page-motion-frame > * {
+.main > :not(.shell__body) {
   flex-shrink: 0;
 }
-
-.page-enter-active,
-.page-leave-active {
-  transition: transform var(--dur-slide) var(--ease-out-strong);
+.shell__body {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
 }
-
-/*
- * Both pages move together. The outgoing page leaves normal flow so the two pages do not
- * stack and double the document height during the transition.
- */
-.page-leave-active {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  /* A completed swipe already shows the parked destination; only its old root is hidden. */
-  opacity: var(--page-leave-opacity, 1);
-}
-
-.page-enter-from {
-  transform: translateX(calc(var(--page-enter, 0) * 100%));
-}
-
-.page-leave-to {
-  transform: translateX(calc(var(--page-leave, 0) * 100%));
-}
-
-/* Folding or rotation must not continue an animation on its former axis. */
-.page-host--resizing .page-enter-active,
-.page-host--resizing .page-leave-active {
-  transition: none !important;
-  transform: none !important;
-}
-.page-host--resizing .page-leave-active {
-  visibility: hidden;
-}
-
-@media (min-width: 720px) {
-  /* The shared track owns wide-page motion, including its final frame. */
-  .page-enter-active,
-  .page-leave-active {
-    transition: none;
-  }
-
-  .page-enter-from {
-    transform: translateY(calc(var(--page-enter, 0) * var(--page-distance, 0px)));
-  }
-
-  .page-leave-to {
-    transform: translateY(calc(var(--page-leave, 0) * var(--page-distance, 0px)));
-  }
-}
-
-@media not all and (min-width: 720px) {
+@media (width < 720px) {
   .shell {
-    --shell-pad: var(--sp-3);
-    --shell-pad-bottom: calc(var(--tabbar-space) + env(safe-area-inset-bottom, 0px));
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .shell__body {
-    padding: var(--shell-pad);
-    padding-bottom: var(--shell-pad-bottom);
+    --shell-pad: 12px;
   }
 }
 </style>

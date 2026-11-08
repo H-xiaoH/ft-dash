@@ -1,10 +1,18 @@
 import { reactive } from 'vue'
-import { describeError, FreqtradeApiClient, type Credentials, type RequestOptions } from './index'
+import {
+  ApiError,
+  describeError,
+  FreqtradeApiClient,
+  sameConnectionIdentity,
+  type Credentials,
+  type RequestOptions,
+} from './index'
 import type {
   BalanceResponse,
   BlacklistResponse,
   DailyResponse,
   HealthResponse,
+  HistoricBalanceResponse,
   LocksResponse,
   LogsResponse,
   PairCandlesResponse,
@@ -26,6 +34,7 @@ export type ConnectionState = 'idle' | 'connecting' | 'online' | 'unauthorized' 
 export const HEARTBEAT_STALE_MS = 30_000
 export const POLL_INTERVAL_SECONDS = 1
 const TRADES_PAGE_SIZE = 300
+const BACKGROUND_HEALTH_INTERVAL_MS = 10_000
 
 export type ResourceName =
   'core' | 'trades' | 'analytics' | 'market' | 'system' | 'health' | 'candles'
@@ -47,6 +56,7 @@ export interface SessionData {
   daily: DailyResponse | null
   weekly: DailyResponse | null
   monthly: DailyResponse | null
+  historicBalance: HistoricBalanceResponse | null
   whitelist: WhitelistResponse | null
   blacklist: BlacklistResponse | null
   locks: LocksResponse | null
@@ -61,6 +71,8 @@ export interface BotSessionState {
   snapshotStale: boolean
   coreReady: boolean
   tradesReady: boolean
+  configReady: boolean
+  locksReady: boolean
   refreshing: boolean
   errorKey: ErrorDescription | null
   resourceErrors: Record<ResourceName, ErrorDescription | null>
@@ -79,6 +91,7 @@ export interface RefreshSummary {
 }
 
 export interface BotSessionSnapshot {
+  identity: Pick<Credentials, 'baseUrl' | 'username'>
   data: SessionData
   latencyMs: number | null
   lastFetchAt: number | null
@@ -89,6 +102,7 @@ export interface BotSessionOptions {
   credentials: Credentials
   clientFactory?: (credentials: Credentials) => FreqtradeApiClient
   snapshot?: BotSessionSnapshot
+  pollIntervalSeconds?: number
   backgroundCheckEnabled?: () => boolean
   onHeartbeatAlert?: (ageMs: number) => void
 }
@@ -129,6 +143,7 @@ const EMPTY_DATA: SessionData = {
   daily: null,
   weekly: null,
   monthly: null,
+  historicBalance: null,
   whitelist: null,
   blacklist: null,
   locks: null,
@@ -171,6 +186,8 @@ function createState(botId: string, epoch: number): BotSessionState {
     snapshotStale: false,
     coreReady: false,
     tradesReady: false,
+    configReady: false,
+    locksReady: false,
     refreshing: false,
     errorKey: null,
     resourceErrors: emptyResourceErrors(),
@@ -191,23 +208,14 @@ function cloneData(data: SessionData): SessionData {
   }
 }
 
-function summary(
+function summarizeRefresh(
   epoch: number,
-  results: Partial<Record<ResourceName, CallResult<unknown>>>,
+  succeededByResource: Partial<Record<ResourceName, boolean>>,
   stale: boolean,
 ): RefreshSummary {
-  const succeeded = RESOURCE_NAMES.filter((resource) => results[resource]?.ok)
-  const failed = RESOURCE_NAMES.filter((resource) => results[resource] && !results[resource]?.ok)
+  const succeeded = RESOURCE_NAMES.filter((resource) => succeededByResource[resource] === true)
+  const failed = RESOURCE_NAMES.filter((resource) => succeededByResource[resource] === false)
   return { epoch, ok: !stale && failed.length === 0, stale, succeeded, failed }
-}
-
-function canDropSignalColumns(error: ErrorDescription | undefined, columns?: string[]): boolean {
-  if (error?.key !== 'errors.http' || !columns?.some((column) => /^(enter|exit)_/.test(column))) {
-    return false
-  }
-  const status = Number(error.params?.status)
-  const detail = String(error.params?.detail ?? '')
-  return (status === 400 || status === 422) && /(column|signal|enter_|exit_)/i.test(detail)
 }
 
 function isTransportFailure(error: ErrorDescription | null | undefined): error is ErrorDescription {
@@ -252,10 +260,10 @@ export class BotSessionController {
   private nextRefreshToken = 0
   private nextActionToken = 0
   private actionLock: { token: number } | null = null
+  private pollIntervalSeconds: number
   private pollTimer: ReturnType<typeof setInterval> | null = null
+  private backgroundTimer: ReturnType<typeof setTimeout> | null = null
   private readonly pollInFlight = new Map<ResourceName, object>()
-  private pollTickCount = 0
-  private lastBackgroundCheck = 0
   private heartbeatAlerted = false
   private readonly backgroundCheckEnabled: () => boolean
   private readonly onHeartbeatAlert?: (ageMs: number) => void
@@ -264,10 +272,11 @@ export class BotSessionController {
     this.credentials = { ...options.credentials }
     this.clientFactory =
       options.clientFactory ?? ((credentials) => new FreqtradeApiClient(credentials))
+    this.pollIntervalSeconds = options.pollIntervalSeconds ?? POLL_INTERVAL_SECONDS
     this.backgroundCheckEnabled = options.backgroundCheckEnabled ?? (() => false)
     this.onHeartbeatAlert = options.onHeartbeatAlert
     this.state = reactive(createState(options.botId, 0)) as BotSessionState
-    if (options.snapshot) {
+    if (options.snapshot && sameConnectionIdentity(options.snapshot.identity, this.credentials)) {
       this.restoreSnapshot(options.snapshot)
       this.state.snapshotStale = true
     }
@@ -290,20 +299,26 @@ export class BotSessionController {
     return this.client
   }
 
-  updateCredentials(credentials: Credentials): void {
+  updateCredentials(credentials: Credentials): boolean {
+    if (!sameConnectionIdentity(this.credentials, credentials)) {
+      this.setBot(this.state.botId, credentials)
+      return true
+    }
     this.credentials = { ...credentials }
     this.client = null
+    return false
   }
 
   captureSnapshot(): BotSessionSnapshot {
     return {
+      identity: { baseUrl: this.credentials.baseUrl, username: this.credentials.username },
       data: cloneData(this.state.data),
       latencyMs: this.state.latencyMs,
       lastFetchAt: this.state.lastFetchAt,
     }
   }
 
-  restoreSnapshot(snapshot: BotSessionSnapshot): void {
+  private restoreSnapshot(snapshot: BotSessionSnapshot): void {
     this.state.data = cloneData(snapshot.data)
     this.state.latencyMs = snapshot.latencyMs
     this.state.lastFetchAt = snapshot.lastFetchAt
@@ -328,7 +343,8 @@ export class BotSessionController {
     this.credentials = { ...credentials }
     this.client = null
     this.clearStateData()
-    if (snapshot) this.restoreSnapshot(snapshot)
+    if (snapshot && sameConnectionIdentity(snapshot.identity, credentials))
+      this.restoreSnapshot(snapshot)
   }
 
   async switchBot(
@@ -345,6 +361,8 @@ export class BotSessionController {
     this.state.snapshotStale = false
     this.state.coreReady = false
     this.state.tradesReady = false
+    this.state.configReady = false
+    this.state.locksReady = false
     this.state.refreshing = false
     this.state.errorKey = null
     this.state.resourceErrors = emptyResourceErrors()
@@ -441,7 +459,7 @@ export class BotSessionController {
       this.state.connection = key === 'errors.auth' ? 'unauthorized' : 'unreachable'
       /*
        * 401 is not a transient: the credentials are wrong, or the proxy in front of the API
-       * refuses this origin. Retrying would be six more rejections a second in the bot's log
+       * refuses this origin. Retrying would add rejections to the bot's log
        * and would never fix itself — so polling stops and the app goes back to the sign-in
        * form, which is the only place that can fix it. A reachable-but-broken bot (5xx,
        * network) keeps polling, because that does heal.
@@ -464,6 +482,7 @@ export class BotSessionController {
         key: string,
         task: (client: FreqtradeApiClient, options: RequestOptions) => Promise<unknown>,
         apply: (value: unknown) => void,
+        onFailure?: () => void,
       ]
     >,
   ): Promise<GroupResult> {
@@ -472,13 +491,16 @@ export class BotSessionController {
     if (pending?.epoch === epoch && pending.client === client) return pending.promise
     const generation = this.beginGroup(resource)
     const promise = Promise.all(
-      calls.map(async ([key, task, apply]) => {
+      calls.map(async ([key, task, apply, onFailure]) => {
         const result = await this.call(key, task)
         if (!result.stale && this.isCurrentGroup(resource, generation, epoch)) {
           if (result.ok) apply(result.value)
-          else if (result.error?.key === 'errors.auth') {
-            this.state.resourceErrors[resource] = result.error
-            this.updateConnectionFromResults([result], epoch)
+          else {
+            onFailure?.()
+            if (result.error?.key === 'errors.auth') {
+              this.state.resourceErrors[resource] = result.error
+              this.updateConnectionFromResults([result], epoch)
+            }
           }
         }
         return result
@@ -508,8 +530,22 @@ export class BotSessionController {
       ],
       [
         'core.count',
-        (client, options) => client.count(options),
-        (value) => (this.state.data.count = value as StatusCountResponse),
+        async (client, options) => {
+          try {
+            return await client.count(options)
+          } catch (error) {
+            if (
+              this.state.configReady &&
+              this.state.data.showConfig?.state === 'stopped' &&
+              error instanceof ApiError &&
+              error.status === 502 &&
+              /trader is not running/i.test(error.detail ?? '')
+            )
+              return null
+            throw error
+          }
+        },
+        (value) => (this.state.data.count = value as StatusCountResponse | null),
       ],
       [
         'core.balance',
@@ -524,17 +560,14 @@ export class BotSessionController {
     ])
     const { generation, results } = group
     const stale = !this.isCurrentGroup('core', generation, epoch)
+    const coreSucceeded = results.every((result) => result.ok)
     if (!stale) {
       this.updateConnectionFromResults(results, epoch)
-      this.state.coreReady = results.every((result) => result.ok)
+      this.state.coreReady = coreSucceeded && this.state.data.count !== null
       if (this.state.coreReady && this.state.tradesReady) this.state.snapshotStale = false
       this.state.latencyMs = Math.round(performance.now() - started)
     }
-    return {
-      ...summary(epoch, { core: { ok: results.every((result) => result.ok), stale } }, stale),
-      succeeded: results.every((result) => result.ok) ? ['core'] : [],
-      failed: results.every((result) => result.ok) ? [] : ['core'],
-    }
+    return summarizeRefresh(epoch, { core: coreSucceeded }, stale)
   }
 
   async refreshTrades(): Promise<RefreshSummary> {
@@ -548,16 +581,13 @@ export class BotSessionController {
     ])
     const { generation, results } = group
     const stale = !this.isCurrentGroup('trades', generation, epoch)
+    const tradesSucceeded = results[0]?.ok === true
     if (!stale) {
       this.updateConnectionFromResults(results, epoch)
-      this.state.tradesReady = results[0]?.ok === true
+      this.state.tradesReady = tradesSucceeded
       if (this.state.coreReady && this.state.tradesReady) this.state.snapshotStale = false
     }
-    return {
-      ...summary(epoch, { trades: results[0] }, stale),
-      succeeded: results[0]?.ok ? ['trades'] : [],
-      failed: results[0]?.ok ? [] : ['trades'],
-    }
+    return summarizeRefresh(epoch, { trades: tradesSucceeded }, stale)
   }
 
   async refreshAnalytics(): Promise<RefreshSummary> {
@@ -589,6 +619,11 @@ export class BotSessionController {
         (value) => (this.state.data.monthly = value as DailyResponse),
       ],
       [
+        'analytics.historicBalance',
+        (client, options) => client.historicBalance(options),
+        (value) => (this.state.data.historicBalance = value as HistoricBalanceResponse),
+      ],
+      [
         'analytics.profitAll',
         (client, options) => client.profitAll(options),
         (value) => (this.state.data.profitAll = value as ProfitAllResponse),
@@ -596,11 +631,7 @@ export class BotSessionController {
     ])
     const { generation, results } = group
     const stale = !this.isCurrentGroup('analytics', generation, epoch)
-    return {
-      ...summary(epoch, { analytics: { ok: results.every((result) => result.ok), stale } }, stale),
-      succeeded: results.every((result) => result.ok) ? ['analytics'] : [],
-      failed: results.every((result) => result.ok) ? [] : ['analytics'],
-    }
+    return summarizeRefresh(epoch, { analytics: results.every((result) => result.ok) }, stale)
   }
 
   async refreshMarket(): Promise<RefreshSummary> {
@@ -619,16 +650,16 @@ export class BotSessionController {
       [
         'market.locks',
         (client, options) => client.locks(options),
-        (value) => (this.state.data.locks = value as LocksResponse),
+        (value) => {
+          this.state.data.locks = value as LocksResponse
+          this.state.locksReady = true
+        },
+        () => (this.state.locksReady = false),
       ],
     ])
     const { generation, results } = group
     const stale = !this.isCurrentGroup('market', generation, epoch)
-    return {
-      ...summary(epoch, { market: { ok: results.every((result) => result.ok), stale } }, stale),
-      succeeded: results.every((result) => result.ok) ? ['market'] : [],
-      failed: results.every((result) => result.ok) ? [] : ['market'],
-    }
+    return summarizeRefresh(epoch, { market: results.every((result) => result.ok) }, stale)
   }
 
   async refreshSystem(): Promise<RefreshSummary> {
@@ -637,7 +668,11 @@ export class BotSessionController {
       [
         'system.config',
         (client, options) => client.showConfig(options),
-        (value) => (this.state.data.showConfig = value as ShowConfigResponse),
+        (value) => {
+          this.state.data.showConfig = value as ShowConfigResponse
+          this.state.configReady = true
+        },
+        () => (this.state.configReady = false),
       ],
       [
         'system.sysinfo',
@@ -652,11 +687,7 @@ export class BotSessionController {
     ])
     const { generation, results } = group
     const stale = !this.isCurrentGroup('system', generation, epoch)
-    return {
-      ...summary(epoch, { system: { ok: results.every((result) => result.ok), stale } }, stale),
-      succeeded: results.every((result) => result.ok) ? ['system'] : [],
-      failed: results.every((result) => result.ok) ? [] : ['system'],
-    }
+    return summarizeRefresh(epoch, { system: results.every((result) => result.ok) }, stale)
   }
 
   async refreshAll(): Promise<RefreshSummary> {
@@ -680,14 +711,17 @@ export class BotSessionController {
         this.refreshSystem(),
         this.refreshHealth(),
       ])
-      if (epoch !== this.state.epoch) return summary(epoch, {}, true)
-      return summary(
+      if (epoch !== this.state.epoch) return summarizeRefresh(epoch, {}, true)
+      return summarizeRefresh(
         epoch,
-        Object.fromEntries(
-          Object.entries({ core, trades, analytics, market, system, health }).map(
-            ([name, result]) => [name, { ok: result.ok, stale: result.stale }],
-          ),
-        ),
+        {
+          core: core.ok,
+          trades: trades.ok,
+          analytics: analytics.ok,
+          market: market.ok,
+          system: system.ok,
+          health: health.ok,
+        },
         false,
       )
     })()
@@ -700,6 +734,7 @@ export class BotSessionController {
   }
 
   private evaluateHeartbeat(): void {
+    if (this.state.configReady && this.state.data.showConfig?.state === 'stopped') return
     const timestamp = parseTimestamp(
       this.state.data.health?.last_process_ts ?? this.state.data.health?.last_process ?? null,
     )
@@ -729,33 +764,29 @@ export class BotSessionController {
   }
 
   private async pollTick(): Promise<void> {
-    const now = Date.now()
-    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-      if (this.backgroundCheckEnabled() && now - this.lastBackgroundCheck >= 10_000) {
-        this.lastBackgroundCheck = now
-        await this.pollResource('health', () => this.refreshHealth())
-      }
-      return
-    }
-    this.pollTickCount += 1
-    const pending = [
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    await Promise.all([
       this.pollResource('core', () => this.refreshCore()),
       this.pollResource('health', () => this.refreshHealth()),
-    ]
-    if (this.pollTickCount % 4 === 0) {
-      pending.push(
-        this.pollResource('trades', () => this.refreshTrades()),
-        this.pollResource('market', () => this.refreshMarket()),
-      )
-    }
-    if (this.pollTickCount % 12 === 0) {
-      pending.push(
-        this.pollResource('analytics', () => this.refreshAnalytics()),
-        this.pollResource('system', () => this.refreshSystem()),
-      )
-    }
-    await Promise.all(pending)
+      this.pollResource('system', () => this.refreshSystem()),
+      this.pollResource('trades', () => this.refreshTrades()),
+      this.pollResource('market', () => this.refreshMarket()),
+      this.pollResource('analytics', () => this.refreshAnalytics()),
+    ])
   }
+
+  private scheduleBackgroundHealth = (delay = POLL_INTERVAL_SECONDS * 1000): void => {
+    if (this.backgroundTimer !== null) clearTimeout(this.backgroundTimer)
+    this.backgroundTimer = null
+    if (typeof document === 'undefined' || document.visibilityState !== 'hidden') return
+    this.backgroundTimer = setTimeout(() => {
+      if (this.backgroundCheckEnabled())
+        void this.pollResource('health', () => this.refreshHealth())
+      this.scheduleBackgroundHealth(BACKGROUND_HEALTH_INTERVAL_MS)
+    }, delay)
+  }
+
+  private onVisibilityChange = (): void => this.scheduleBackgroundHealth()
 
   async refreshHealth(): Promise<RefreshSummary> {
     const epoch = this.state.epoch
@@ -768,12 +799,23 @@ export class BotSessionController {
     ])
     const stale = !this.isCurrentGroup('health', generation, epoch)
     if (!stale) this.evaluateHeartbeat()
-    return summary(epoch, { health: { ok: results.every((result) => result.ok), stale } }, stale)
+    return summarizeRefresh(epoch, { health: results.every((result) => result.ok) }, stale)
   }
 
   startPolling(): void {
-    this.stopPolling()
-    this.pollTimer = setInterval(() => void this.pollTick(), POLL_INTERVAL_SECONDS * 1000)
+    if (this.pollTimer !== null) {
+      clearInterval(this.pollTimer)
+    } else if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.onVisibilityChange)
+      this.scheduleBackgroundHealth()
+    }
+    this.pollTimer = setInterval(() => void this.pollTick(), this.pollIntervalSeconds * 1000)
+  }
+
+  setPollingInterval(seconds: number): void {
+    if (this.pollIntervalSeconds === seconds) return
+    this.pollIntervalSeconds = seconds
+    if (this.pollTimer !== null) this.startPolling()
   }
 
   stopPolling(): void {
@@ -781,6 +823,10 @@ export class BotSessionController {
       clearInterval(this.pollTimer)
       this.pollTimer = null
     }
+    if (this.backgroundTimer !== null) clearTimeout(this.backgroundTimer)
+    this.backgroundTimer = null
+    if (typeof document !== 'undefined')
+      document.removeEventListener('visibilitychange', this.onVisibilityChange)
     this.pollInFlight.clear()
   }
 
@@ -794,6 +840,7 @@ export class BotSessionController {
       const config = await client.showConfig()
       if (epoch !== this.state.epoch || client !== this.client) return false
       this.state.data.showConfig = config
+      this.state.configReady = true
       const started = performance.now()
       void this.refreshAll()
       const [core, trades] = await Promise.all([this.refreshCore(), this.refreshTrades()])
@@ -830,16 +877,9 @@ export class BotSessionController {
   ): Promise<PairCandlesResponse | null> {
     const key = `candles:${pair}|${timeframe}`
     const epoch = this.state.epoch
-    let result = await this.call(key, (client, options) =>
+    const result = await this.call(key, (client, options) =>
       client.pairCandles(pair, timeframe, limit, columns, options),
     )
-    // A strategy may explicitly reject requested signal columns. Only that contract-level
-    // response gets a second, plain candle request; network/auth/server failures stay failures.
-    if (!result.ok && !result.stale && canDropSignalColumns(result.error, columns)) {
-      result = await this.call(key, (client, options) =>
-        client.pairCandles(pair, timeframe, limit, undefined, options),
-      )
-    }
     if (result.ok && !result.stale && epoch === this.state.epoch) {
       this.state.data.candleCache = {
         ...this.state.data.candleCache,
@@ -898,6 +938,8 @@ export class BotSessionController {
     this.state.connection = 'idle'
     this.state.coreReady = false
     this.state.tradesReady = false
+    this.state.configReady = false
+    this.state.locksReady = false
     this.heartbeatAlerted = false
   }
 

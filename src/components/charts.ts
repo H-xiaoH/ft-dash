@@ -1,15 +1,5 @@
 /** Shared chart data contracts (kept out of SFCs: `<script setup>` cannot export). */
 
-export interface BarItem {
-  label: string
-  value: number
-  /** Pre-formatted value for the tooltip/label. */
-  display: string
-  sub?: string
-  /** Longer description shown in the interaction tooltip (e.g. the full date). */
-  tooltip?: string
-}
-
 export interface Candle {
   open: number
   high: number
@@ -22,8 +12,11 @@ export interface Candle {
 
 /** Number/time formatting is injected so the chart matches the app's locale. */
 export interface CandleFormatters {
+  locale?: string
+  timezone?: string
   price: (value: number) => string
   time?: (value: number | string | null | undefined) => string
+  tickTime?: (value: number, unit: 'year' | 'month' | 'day' | 'time') => string
   volume?: (value: number) => string
   change?: (ratio: number) => string
 }
