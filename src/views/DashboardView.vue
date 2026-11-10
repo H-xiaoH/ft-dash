@@ -12,11 +12,10 @@ import { pushToast } from '@/composables/useToast'
 import { useChartHeight } from '@/composables/useChartHeight'
 import { isStandalone, navigatePage } from '@/lib/navigation'
 import { hideFreqtradeSentinel, toIsoDate } from '@/lib/format'
+import { equitySamples, periodEquityRows, type ChartPeriod } from '@/lib/period-equity'
 import type { Trade } from '@/lib/types'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
-
-type Period = 'daily' | 'weekly' | 'monthly'
 
 const { t } = useI18n()
 const format = useFormat()
@@ -45,7 +44,7 @@ async function openOverviewTrade(trade: Trade, filter: 'open' | 'closed'): Promi
   await navigatePage(router, { path: '/trades', query: { filter } })
   await router.push(detail)
 }
-const period = ref<Period>('daily')
+const period = ref<ChartPeriod>('daily')
 /** The block behind the period tabs, which slides to whichever one is active. */
 const periodChartHeight = useChartHeight(140, 0.19, 220)
 /** The period tables list exactly as many rows as the chart draws bars. */
@@ -71,10 +70,16 @@ const todayPnl = computed(() => {
   return row ? row.abs_profit : null
 })
 
-const periodData = computed(() => {
+const samples = computed(() => equitySamples(bot.historicBalance))
+const periodRows = computed(() => {
   const source =
     period.value === 'daily' ? bot.daily : period.value === 'weekly' ? bot.weekly : bot.monthly
-  return source?.data ?? []
+  return periodEquityRows(
+    (source?.data ?? []).slice(0, PERIOD_ROWS),
+    samples.value,
+    period.value,
+    bot.balance?.total_bot ?? bot.balance?.total ?? null,
+  )
 })
 
 function durationOf(trade: Trade): number | null {
@@ -186,11 +191,8 @@ async function confirmExit() {
         </VCardItem>
         <VCardText class="panel__body">
           <PeriodChart
-            v-if="periodData.length"
-            :entries="periodData"
-            :history="bot.historicBalance"
-            :current-equity="bot.balance?.total_bot ?? bot.balance?.total ?? null"
-            :period="period"
+            v-if="periodRows.length"
+            :entries="periodRows"
             :stake="stake"
             :height="periodChartHeight"
           />
@@ -202,7 +204,7 @@ async function confirmExit() {
             class="panel__body panel__body--flush responsive-table responsive-table--short"
           >
             <div class="table-wrap u-desktop-only">
-              <VTable class="table">
+              <VTable class="table period-table">
                 <thead>
                   <tr>
                     <th scope="col">{{ t('stats.date') }}</th>
@@ -210,10 +212,11 @@ async function confirmExit() {
                     <th scope="col" class="num">{{ t('stats.relProfit') }}</th>
                     <th scope="col" class="num">{{ t('stats.tradeCount') }}</th>
                     <th scope="col" class="num">{{ t('stats.startingBalance') }}</th>
+                    <th scope="col" class="num">{{ t('kpi.equity') }}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="entry in periodData.slice(0, PERIOD_ROWS)" :key="entry.date">
+                  <tr v-for="entry in periodRows" :key="entry.date">
                     <td>{{ format.day(entry.date) }}</td>
                     <td class="num" :class="format.toneClass(entry.abs_profit)">
                       {{ format.signedMoney(entry.abs_profit, stake) }}
@@ -223,6 +226,7 @@ async function confirmExit() {
                     </td>
                     <td class="num">{{ entry.trade_count }}</td>
                     <td class="num">{{ format.money(entry.starting_balance, stake) }}</td>
+                    <td class="num">{{ format.money(entry.equity, stake) }}</td>
                   </tr>
                 </tbody>
               </VTable>
@@ -230,7 +234,7 @@ async function confirmExit() {
 
             <VList role="list" class="period-details u-mobile-only" lines="two">
               <VListItem
-                v-for="entry in periodData.slice(0, PERIOD_ROWS)"
+                v-for="entry in periodRows"
                 :key="entry.date"
                 role="listitem"
                 class="border-b"
@@ -243,11 +247,19 @@ async function confirmExit() {
                     format.signedMoney(entry.abs_profit, stake)
                   }}</span></template
                 >
-                <template #subtitle
-                  >{{ format.ratio(entry.rel_profit) }} · {{ entry.trade_count }}
-                  {{ t('stats.tradeCount') }} ·
-                  {{ format.money(entry.starting_balance, stake) }}</template
-                >
+                <template #subtitle>
+                  <span class="d-block">
+                    {{ format.ratio(entry.rel_profit) }} · {{ entry.trade_count }}
+                    {{ t('stats.tradeCount') }}
+                  </span>
+                  <span class="d-block">
+                    {{ t('kpi.equity') }} {{ format.money(entry.equity, stake) }}
+                  </span>
+                  <span class="d-block">
+                    {{ t('stats.startingBalance') }}
+                    {{ format.money(entry.starting_balance, stake) }}
+                  </span>
+                </template>
               </VListItem>
             </VList>
           </VCardText>
@@ -446,6 +458,12 @@ async function confirmExit() {
 .period-details :deep(.v-list-item-subtitle) {
   -webkit-line-clamp: unset;
   white-space: normal;
+  overflow-wrap: anywhere;
+}
+.period-table :deep(th),
+.period-table :deep(td) {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 /*
  * Which columns the two overview tables carry follows the room they actually have, not the

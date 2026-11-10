@@ -155,7 +155,7 @@ watch(
           <dd>{{ format.money(trade.funding_fees ?? null, stake, 4) }}</dd>
         </dl>
 
-        <VCard tag="section" class="panel">
+        <VCard tag="section" class="panel flex-shrink-0">
           <VCardItem class="panel__head">
             <VCardTitle tag="span" class="panel__title">{{ t('trades.orders') }}</VCardTitle>
             <div class="panel__actions">

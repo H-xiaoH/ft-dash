@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import { VVirtualScroll } from 'vuetify/components/VVirtualScroll'
 import { useI18n } from 'vue-i18n'
+import AppIcon from '@/components/AppIcon.vue'
 import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
 import { useFormat } from '@/composables/useFormat'
@@ -19,6 +20,7 @@ const bot = useBotStore()
 const minLevel = ref<Level>('INFO')
 const search = ref('')
 const follow = ref(true)
+const pausedLogs = shallowRef<LogsResponse['logs'] | null>(null)
 const logsRef = useTemplateRef<InstanceType<typeof VVirtualScroll>>('logs')
 
 const levelOptions: FilterOption<Level>[] = LEVELS.map((level) => ({ value: level, label: level }))
@@ -38,7 +40,7 @@ interface DisplayLogLine {
 const lines = computed<DisplayLogLine[]>(() => {
   const minIndex = LEVELS.indexOf(minLevel.value)
   const query = search.value.trim().toLowerCase()
-  const rows = bot.logs?.logs ?? []
+  const rows = pausedLogs.value ?? bot.logs?.logs ?? []
   return rows
     .map((line, index) => ({ line, index }))
     .filter(({ line }) => {
@@ -58,10 +60,37 @@ const lines = computed<DisplayLogLine[]>(() => {
     }))
 })
 
-watch(lines, async (_currentLines, previousLines) => {
-  if (!follow.value || previousLines === undefined) return
+watch(lines, async () => {
+  if (!follow.value || pausedLogs.value !== null) return
   await nextTick()
-  logsRef.value?.scrollToIndex(0)
+  if (follow.value && pausedLogs.value === null) logsRef.value?.scrollToIndex(0)
+})
+
+function pauseFollowing() {
+  // Hold the visible window even if new logs evict the row being read on the backend.
+  pausedLogs.value ??= [...(bot.logs?.logs ?? [])]
+}
+
+function onLogScroll(event: Event) {
+  if (!(event.currentTarget instanceof HTMLElement) || !follow.value) return
+  if (event.currentTarget.scrollTop > 4) pauseFollowing()
+  else pausedLogs.value = null
+}
+
+async function returnToLatest() {
+  pausedLogs.value = null
+  follow.value = true
+  await nextTick()
+  const element = logsRef.value?.$el
+  if (element instanceof HTMLElement) {
+    element.scrollTop = 0
+    element.focus({ preventScroll: true })
+  }
+}
+
+watch(follow, (enabled) => {
+  if (enabled && pausedLogs.value !== null) void returnToLatest()
+  else if (!enabled) pauseFollowing()
 })
 
 function levelColor(level: string): string {
@@ -93,6 +122,10 @@ function levelColor(level: string): string {
             ></template
           >
         </VSwitch>
+        <VBtn v-if="pausedLogs !== null" variant="text" type="button" @click="returnToLatest">
+          <AppIcon name="chevronUp" />
+          {{ t('logs.backToLatest') }}
+        </VBtn>
       </div>
     </VCardItem>
     <VCardText class="panel__body panel__body--flush">
@@ -107,6 +140,7 @@ function levelColor(level: string): string {
           role="list"
           :aria-label="t('logs.title')"
           @keydown.stop
+          @scroll.passive="onLogScroll"
         >
           <template #default="{ item: entry }">
             <VListItem role="listitem" class="logs__line border-b py-2" :lines="false">

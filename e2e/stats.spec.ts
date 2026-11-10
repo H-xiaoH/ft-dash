@@ -48,7 +48,7 @@ test('the pair table pages by the size set in Settings', async ({ page }) => {
   // Seeded before the reload, the way the settings input leaves it behind.
   await page.addInitScript(() =>
     localStorage.setItem(
-      'ftdash.settings.v1',
+      'ftdash.settings.v2',
       JSON.stringify({ locale: 'system', pairTablePerPage: 5 }),
     ),
   )

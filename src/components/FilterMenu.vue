@@ -1,6 +1,7 @@
 <script setup lang="ts" generic="T extends string">
-import { computed, ref, useId, watch } from 'vue'
+import { computed, ref, useId, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import type { VMenu } from 'vuetify/components'
 import AppIcon from './AppIcon.vue'
 
 export type StatusLamp = 'good' | 'warn' | 'bad' | 'muted'
@@ -9,6 +10,7 @@ export interface FilterOption<T extends string = string> {
   label: string
   hint?: string
   dot?: StatusLamp
+  status?: string
 }
 
 const props = withDefaults(
@@ -21,6 +23,8 @@ const props = withDefaults(
     searchable?: boolean
     searchText?: Record<string, string>
     triggerHint?: string
+    disabled?: boolean
+    actionLabel?: string
   }>(),
   {
     label: '',
@@ -32,12 +36,13 @@ const props = withDefaults(
     triggerHint: '',
   },
 )
-const emit = defineEmits<{ 'open-change': [open: boolean] }>()
+const emit = defineEmits<{ 'open-change': [open: boolean]; action: [] }>()
 const model = defineModel<T>()
 const { t } = useI18n()
 const open = ref(false)
 const query = ref('')
 const titleId = useId()
+const menu = useTemplateRef<InstanceType<typeof VMenu>>('menu')
 const current = computed(
   () => props.options.find((option) => option.value === model.value) ?? props.options[0],
 )
@@ -51,6 +56,11 @@ const visibleOptions = computed(() => {
           .includes(term),
       )
 })
+const triggerName = computed(() =>
+  current.value?.status
+    ? [props.label, current.value.label, current.value.status].filter(Boolean).join(' · ')
+    : props.label || props.prefix || current.value?.label,
+)
 watch(open, (value) => {
   query.value = ''
   emit('open-change', value)
@@ -65,12 +75,24 @@ function choose(value: T) {
   model.value = value
   open.value = false
 }
+function runAction() {
+  open.value = false
+  emit('action')
+}
+function focusTrigger(): boolean {
+  const element = menu.value?.activatorEl
+  element?.focus({ preventScroll: true })
+  return !!element && document.activeElement === element
+}
+defineExpose({ focusTrigger })
 </script>
 
 <template>
   <div class="filter-menu">
     <VMenu
+      ref="menu"
       v-model="open"
+      :disabled="disabled"
       :location="`bottom ${align}`"
       :close-on-content-click="false"
       max-height="360"
@@ -81,9 +103,15 @@ function choose(value: T) {
           class="filter-menu__button"
           :class="{ 'filter-menu__button--with-hint': triggerHint }"
           :height="triggerHint ? 'auto' : undefined"
-          :aria-label="label || prefix || current?.label"
+          :aria-label="triggerName"
         >
-          <VBadge v-if="current?.dot" dot inline :color="lampColors[current.dot]" />
+          <VBadge
+            v-if="current?.dot"
+            dot
+            inline
+            :color="lampColors[current.dot]"
+            aria-hidden="true"
+          />
           <span v-if="prefix" class="muted">{{ prefix }}</span>
           <span class="filter-menu__trigger-label"
             >{{ triggerLabel || current?.label }}
@@ -124,13 +152,26 @@ function choose(value: T) {
             @click="choose(option.value)"
           >
             <template #prepend>
-              <VBadge v-if="option.dot" dot inline :color="lampColors[option.dot]" class="mr-2" />
+              <VBadge
+                v-if="option.dot"
+                dot
+                inline
+                :color="lampColors[option.dot]"
+                aria-hidden="true"
+                class="mr-2"
+              />
             </template>
             <VListItemTitle>{{ option.label }}</VListItemTitle>
-            <VListItemSubtitle v-if="option.hint" class="num">{{ option.hint }}</VListItemSubtitle>
+            <VListItemSubtitle v-if="option.hint" class="num text-wrap filter-menu__hint">{{
+              option.hint
+            }}</VListItemSubtitle>
+            <VListItemSubtitle v-if="option.status">{{ option.status }}</VListItemSubtitle>
           </VListItem>
         </VList>
         <VEmptyState v-if="!visibleOptions.length" :text="t('common.noMatch')" class="pa-3" />
+        <VCardActions v-if="actionLabel">
+          <VBtn type="button" variant="text" block @click="runAction">{{ actionLabel }}</VBtn>
+        </VCardActions>
       </VCard>
     </VMenu>
   </div>
@@ -157,5 +198,9 @@ function choose(value: T) {
 }
 .filter-menu__trigger-hint {
   color: var(--text-3);
+}
+.filter-menu__hint {
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: unset;
 }
 </style>

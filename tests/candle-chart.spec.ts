@@ -130,6 +130,34 @@ describe('Lightweight Charts adapter', () => {
     expect(range?.from).toBeCloseTo(0.915)
     expect(range?.to).toBeCloseTo(1.085)
   })
+  it('scales prices only for single-finger drags started on the price axis', async () => {
+    const wrapper = render()
+    const plot = wrapper.get('.candles__plot')
+    vi.spyOn(plot.element, 'getBoundingClientRect').mockReturnValue(
+      DOMRect.fromRect({
+        x: 10,
+        y: 20,
+        width: 400,
+        height: 260,
+      }),
+    )
+    const drag = async (clientX: number, startY: number, endY: number) => {
+      await plot.trigger('touchstart', { touches: [{ clientX, clientY: startY }] })
+      await plot.trigger('touchmove', { touches: [{ clientX, clientY: endY }] })
+      await plot.trigger('touchend')
+    }
+    await drag(200, 100, 160)
+    await drag(390, 270, 300)
+    expect(chartApi.priceScale.setVisibleRange).not.toHaveBeenCalled()
+    chartApi.timeScale.setVisibleLogicalRange.mockClear()
+    await drag(390, 100, 160)
+    const zoomIn = chartApi.priceScale.setVisibleRange.mock.lastCall?.[0]
+    expect(zoomIn?.from).toBeGreaterThan(0.9)
+    expect(zoomIn?.from + zoomIn?.to).toBeCloseTo(2)
+    await drag(390, 160, 100)
+    expect(chartApi.priceScale.setVisibleRange.mock.lastCall?.[0]?.from).toBeLessThan(0.9)
+    expect(chartApi.timeScale.setVisibleLogicalRange).not.toHaveBeenCalled()
+  })
   it('preserves a historical viewport on refresh and follows the latest bars at the edge', async () => {
     const wrapper = render()
     chartApi.timeScale.setVisibleLogicalRange({ from: 2, to: 12 })

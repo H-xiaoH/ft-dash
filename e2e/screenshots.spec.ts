@@ -12,7 +12,7 @@ test.skip(!process.env.SCREENS, 'set SCREENS=1 to regenerate docs/images')
 /** The socket is stubbed by the fixtures, so show the honest "switched off" state, no warning. */
 const quietStream = (page: Page) =>
   page.addInitScript(() => {
-    localStorage.setItem('ftdash.settings.v1', JSON.stringify({ websocket: false }))
+    localStorage.setItem('ftdash.settings.v2', JSON.stringify({ websocket: false }))
   })
 
 /** Long enough for the "bot added" toast to fade out of the frame. */

@@ -32,6 +32,30 @@ describe('virtual log following', () => {
     await flushPromises()
     expect(scroll).not.toHaveBeenCalled()
   })
+  it('keeps the displayed log window until the operator returns to the latest line', async () => {
+    const wrapper = render()
+    const list = wrapper.findComponent(VVirtualScroll)
+    const scroller = list.element as HTMLElement
+    const messages = () => (list.props('items') as { line: string[] }[]).map(({ line }) => line[4])
+
+    scroller.scrollTop = 120
+    await list.trigger('scroll')
+    bot.logs = {
+      log_count: 1,
+      logs: [['2026-10-24 12:01:00', 2, 'worker', 'ERROR', 'second']],
+    }
+    await flushPromises()
+    expect(messages()).toEqual(['first'])
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes(i18n.global.t('logs.backToLatest')))!
+      .trigger('click')
+    await flushPromises()
+    expect(scroller.scrollTop).toBe(0)
+    expect(messages()).toEqual(['second'])
+  })
+
   it('renders an empty state for filtered logs and restores the newest row when visible again', async () => {
     const wrapper = render()
     wrapper.findComponent(FilterMenu).vm.$emit('update:modelValue', 'CRITICAL')

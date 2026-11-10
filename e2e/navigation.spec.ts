@@ -94,7 +94,7 @@ for (const target of [1, 4]) {
     const frame = (await page.locator('.page-swiper').boundingBox())!
     expect(Math.abs(slide.x - frame.x)).toBeLessThanOrEqual(1)
     expect(Math.abs(slide.width - frame.width)).toBeLessThanOrEqual(1)
-    await expect(page.locator('.page-scroll[inert]')).toHaveCount(4)
+    await expect(page.locator('.page-scroll[inert]:visible')).toHaveCount(4)
     await expect(livePage(page)).toHaveCount(1)
   })
 }

@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PeriodChart from '@/components/PeriodChart.vue'
+import { equitySamples, periodEquityRows, type ChartPeriod } from '@/lib/period-equity'
 import type { DailyEntry } from '@/lib/types'
 import { i18n } from '@/i18n'
 
@@ -17,25 +18,18 @@ const entry = (date: string): DailyEntry => ({
   fiat_value: null,
   trade_count: 2,
 })
-function render(
-  period: 'daily' | 'weekly' | 'monthly',
-  dates: string[],
-  samples: [string, number][],
-  capture = 0,
-) {
+function render(period: ChartPeriod, dates: string[], samples: [string, number][], capture = 0) {
+  const history = {
+    columns: ['__date_ts', 'total_quote'],
+    data: samples.map(([date, value]) => [timestamp(date), value]),
+    length: samples.length,
+    capture_start_ts: capture,
+  }
   const wrapper = mount(PeriodChart, {
     props: {
-      entries: dates.map(entry),
-      period,
-      currentEquity: 999,
+      entries: periodEquityRows(dates.map(entry), equitySamples(history), period, 999),
       stake: 'USDT',
       height: 220,
-      history: {
-        columns: ['__date_ts', 'total_quote'],
-        data: samples.map(([date, value]) => [timestamp(date), value]),
-        length: samples.length,
-        capture_start_ts: capture,
-      },
     },
     global: { plugins: [i18n, createPinia()] },
   })

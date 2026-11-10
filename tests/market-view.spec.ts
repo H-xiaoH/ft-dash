@@ -4,13 +4,19 @@ import { createPinia, setActivePinia } from 'pinia'
 import { nextTick, reactive } from 'vue'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/i18n'
+import CandleChart from '@/components/CandleChart.vue'
 import FilterMenu from '@/components/FilterMenu.vue'
 import type { PairCandlesResponse } from '@/lib/types'
 
 const { rawBot } = vi.hoisted(() => ({
   rawBot: {
     showConfig: { timeframe: '5m' },
-    openTrades: [{ pair: 'AAA/USDT' }],
+    openTrades: [{ pair: 'AAA/USDT' }] as {
+      pair: string
+      open_rate?: number
+      amount?: number
+      profit_abs?: number
+    }[],
     whitelist: { whitelist: ['AAA/USDT', 'BBB/USDT'] },
     blacklist: { blacklist: [], errors: {} },
     locks: { lock_count: 0, locks: [] },
@@ -194,6 +200,23 @@ describe('MarketView', () => {
           }),
         ),
     )
+  })
+
+  it('shows the floating profit without a position cost caption', async () => {
+    const router = await makeRouter()
+    bot.openTrades = [{ pair: 'AAA/USDT', open_rate: 1, amount: 10, profit_abs: 0.5 }]
+    bot.candleCache['AAA/USDT|5m'] = response('AAA/USDT')
+    const wrapper = mount(MarketView, {
+      global: { plugins: [i18n, router], stubs: { CandleChart: true } },
+    })
+    try {
+      expect(wrapper.getComponent(CandleChart).props('entry')).toMatchObject({
+        price: 1,
+        label: '+0.5000',
+      })
+    } finally {
+      wrapper.unmount()
+    }
   })
 
   it('requests the initially selected pair only once', async () => {

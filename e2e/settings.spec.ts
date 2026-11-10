@@ -37,12 +37,12 @@ const botsPanel = (page: Page) =>
     .locator('.panel')
     .filter({ has: page.locator('.panel__title', { hasText: /^后端$/ }) })
 
-/** The bot picker's last entry opens the manager, which is where add/edit/remove live. */
+/** The bot picker's footer action opens the manager, which is where add/edit/remove live. */
 const openBotManager = async (page: Page) => {
   await expect(page).toHaveURL(/#\/settings(?:\?|$)/)
   await settlePages(page)
   await botsPanel(page).locator('.filter-menu__button').click()
-  await page.locator('.v-overlay--active [role=option]', { hasText: '管理后端' }).last().click()
+  await page.getByRole('button', { name: '管理后端', exact: true }).click()
   await expect(botsPanel(page).locator('.bots__manage')).toBeVisible()
   await expect(
     botsPanel(page).locator('.expand-transition-enter-active, .expand-transition-leave-active'),
@@ -461,7 +461,7 @@ test('the write switch asks before it enables anything', async ({ page }) => {
 test('the password stays out of localStorage unless you ask for it', async ({ page }) => {
   // The connect helper never touches the "remember" toggle, so this is the default path.
   const stored = await page.evaluate(() => ({
-    local: localStorage.getItem('ftdash.bots.v1'),
+    local: localStorage.getItem('ftdash.bots.v2'),
     session: sessionStorage.getItem('ftdash.bots.session.v1'),
   }))
 
@@ -576,6 +576,10 @@ test('backend handles reorder and persist without switching, and action buttons 
   await keyboardHandle.press('ArrowDown')
   await expect(rows.last().locator('.bots__name')).toHaveText('second')
   await expect(rows.last().locator('.bots__drag')).toBeFocused()
+  await rows.last().locator('.bots__drag').click()
+  await page.getByRole('menuitem', { name: '上移', exact: true }).click()
+  await expect(rows.first().locator('.bots__name')).toHaveText('second')
+  await expect(rows.first().locator('.bots__drag')).toBeFocused()
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 1000 })
     const dimensions = await livePage(page)
@@ -599,13 +603,13 @@ test('clearing local data requires confirmation and cancel preserves credentials
   page,
 }) => {
   const dataPanel = panel(page, '本机数据')
-  const before = await page.evaluate(() => localStorage.getItem('ftdash.bots.v1'))
+  const before = await page.evaluate(() => localStorage.getItem('ftdash.bots.v2'))
   await dataPanel.getByRole('button', { name: '清除本机数据', exact: true }).click()
   const confirmation = dataPanel.getByRole('alert')
   await expect(confirmation).toContainText('这会把保存的凭据与偏好一并删除。')
   await confirmation.getByRole('button', { name: '取消' }).click()
   await expect(confirmation).toHaveCount(0)
-  expect(await page.evaluate(() => localStorage.getItem('ftdash.bots.v1'))).toBe(before)
+  expect(await page.evaluate(() => localStorage.getItem('ftdash.bots.v2'))).toBe(before)
 })
 
 test('adding a second bot and switching moves the dashboard to it', async ({ page }) => {
@@ -616,6 +620,9 @@ test('adding a second bot and switching moves the dashboard to it', async ({ pag
   await expect(page).toHaveURL(/filter=closed/)
   await page.locator('.rail__item').nth(6).click()
   await expect(livePage(page).locator('.settings__columns')).toBeVisible()
+
+  const topPicker = page.locator('.strip__picker .filter-menu__button')
+  await expect(topPicker).toHaveCount(0)
 
   // The second origin only exists for this test.
   await mockApi(page, { secondBot: true })
@@ -637,18 +644,38 @@ test('adding a second bot and switching moves the dashboard to it', async ({ pag
 
   // Opening the picker probes the inactive backend without switching to it.
   await botsPanel(page).locator('.filter-menu__button').click()
-  const lamps = page.locator('.v-overlay--active [role=option] .v-badge')
-  await expect(lamps.first()).toContainText('')
-  await expect(lamps.nth(1)).toContainText('')
+  const menuOptions = page.locator('.v-overlay--active [role=option]')
+  await expect(menuOptions.filter({ hasText: 'tester' })).toContainText(API_BASE)
+  await expect(menuOptions.filter({ hasText: 'second' })).toContainText(SECOND_BASE)
+  await expect(menuOptions.filter({ hasText: 'second' }).locator('.bg-success')).toBeVisible()
   await page.keyboard.press('Escape')
 
-  // Switching is the picker's job now. A switch remounts the page track, so the manager
-  // closes with it and is reopened to check which bot is marked 当前.
-  await pickBot(page, 'second')
+  await page.setViewportSize({ width: 320, height: 1000 })
+  await expect(topPicker).toBeHidden()
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await expect(topPicker).toBeVisible()
+  expect((await topPicker.boundingBox())!.x).toBeLessThan(
+    (await page.locator('.strip__latency').boundingBox())!.x,
+  )
+
+  // Open the same manager directly from the top bar on another page.
+  await page.locator('.rail__item').nth(0).click()
+  await expect(page).toHaveURL(/#\/$/)
+  await topPicker.click()
+  await expect(menuOptions.filter({ hasText: 'second' })).toContainText(SECOND_BASE)
+  await page.getByRole('button', { name: '管理后端', exact: true }).click()
+  await expect(page).toHaveURL(/#\/settings$/)
+  const manager = botsPanel(page).locator('.bots__manage')
+  await expect(manager).toBeVisible()
+  await expect(manager.getByRole('heading', { name: '管理后端' })).toBeFocused()
+
+  await topPicker.click()
+  await menuOptions.filter({ hasText: 'second' }).click()
   await expect(
     page.locator('.v-snackbar--active .v-snackbar__wrapper', { hasText: '已切换' }),
   ).toHaveCount(1)
   await expect(botsPanel(page)).toContainText(SECOND_BASE)
+  await expect(manager).toBeHidden()
   await openBotManager(page)
   await expect(bots.nth(1)).toContainText('当前')
   await expect(bots.first()).not.toContainText('当前')

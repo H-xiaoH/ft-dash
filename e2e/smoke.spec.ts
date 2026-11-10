@@ -10,13 +10,13 @@ test.describe('connect screen', () => {
     await expect(page.locator('.v-alert.text-error')).toContainText('用户名或密码错误')
     await expect(page.locator('.connect .v-card')).toBeVisible()
     // The probe failed, so no bot was written down and no shell opened.
-    expect(await page.evaluate(() => localStorage.getItem('ftdash.bots.v1'))).toBeNull()
+    expect(await page.evaluate(() => localStorage.getItem('ftdash.bots.v2'))).toBeNull()
 
     // Fix the password: the same form now gets in, and only then is the bot saved.
     api.setRejectAuth(false)
     await page.locator('.connect__submit').click()
     await expect(page.locator('.shell')).toBeVisible()
-    const stored = await page.evaluate(() => localStorage.getItem('ftdash.bots.v1'))
+    const stored = await page.evaluate(() => localStorage.getItem('ftdash.bots.v2'))
     expect(JSON.parse(stored!).bots).toHaveLength(1)
   })
 
@@ -54,7 +54,7 @@ test.describe('connect screen', () => {
     await expect(page.locator('.connect h1')).toHaveText('Connect to your backend')
     // The pick is stored as a preference, not as the language it resolved to.
     const stored = await page.evaluate(() =>
-      JSON.parse(localStorage.getItem('ftdash.settings.v1') ?? '{}'),
+      JSON.parse(localStorage.getItem('ftdash.settings.v2') ?? '{}'),
     )
     expect(stored.locale).toBe('en')
   })

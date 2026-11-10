@@ -11,6 +11,7 @@ const chartApi = vi.hoisted(() => {
     subscribeVisibleLogicalRangeChange: vi.fn(),
   }
   const priceScale = {
+    width: () => 48,
     getVisibleRange: vi.fn(() => ({ from: 0.9, to: 1.1 })),
     setVisibleRange: vi.fn(),
     setAutoScale: vi.fn(),
@@ -18,6 +19,7 @@ const chartApi = vi.hoisted(() => {
   }
   const series = { setData: vi.fn(), createPriceLine: vi.fn(() => ({})), removePriceLine: vi.fn() }
   const chart = {
+    paneSize: () => ({ width: 352, height: 240 }),
     timeScale: () => timeScale,
     priceScale: () => priceScale,
     addSeries: vi.fn(() => series),

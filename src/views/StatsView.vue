@@ -163,7 +163,7 @@ function durationFromSeconds(seconds: number | null | undefined) {
           :label="t('kpi.availableBalance')"
           :value="bot.availableBalance"
           kind="money"
-          :currency="stake"
+          :currency="bot.availableBalanceCurrency"
           :sub="`${t('kpi.totalFunds')} ${format.money(bot.balance?.total_bot ?? null, stake)}`"
       /></VCol>
       <VCol cols="6" sm="4" lg="2"

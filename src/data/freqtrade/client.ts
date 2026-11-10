@@ -11,7 +11,6 @@ import type {
   LogsResponse,
   PairCandlesResponse,
   PerformanceEntry,
-  ProfitAllResponse,
   ProfitSummary,
   ShowConfigResponse,
   StatusCountResponse,
@@ -122,6 +121,7 @@ function parseShowConfig(value: unknown, context: ParseContext): ShowConfigRespo
   required(object, 'api_version', isNumber, context, 'a number')
   required(object, 'dry_run', isBoolean, context, 'a boolean')
   required(object, 'stake_currency', isString, context, 'a string')
+  optional(object, 'proxy_coin', isNullableString, context, 'a string or null')
   required(object, 'stake_amount', isNumberOrString, context, 'a number or string')
   required(object, 'max_open_trades', isNumber, context, 'a number')
   return object as ShowConfigResponse
@@ -218,44 +218,15 @@ const PROFIT_NULLABLE_NUMBER_FIELDS = [
   'profit_all_ratio',
 ] as const
 
-function parseProfitSummary(
-  value: unknown,
-  context: ParseContext,
-  field = 'response',
-): ProfitSummary {
-  const object = record(value, context, field)
+function parseProfit(value: unknown, context: ParseContext): ProfitSummary {
+  const object = record(value, context)
   for (const key of PROFIT_NUMBER_FIELDS) {
-    required(object, key, isNumber, context, 'a number', field)
+    required(object, key, isNumber, context, 'a number')
   }
   for (const key of PROFIT_NULLABLE_NUMBER_FIELDS) {
-    required(object, key, isNullableNumber, context, 'a number or null', field)
+    required(object, key, isNullableNumber, context, 'a number or null')
   }
   return asResponse<ProfitSummary>(object)
-}
-
-function parseProfit(value: unknown, context: ParseContext): ProfitSummary {
-  return parseProfitSummary(value, context)
-}
-
-function parseProfitAll(value: unknown, context: ParseContext): ProfitAllResponse {
-  const object = record(value, context)
-  return {
-    all: parseProfitSummary(
-      required(object, 'all', isObject, context, 'an object'),
-      context,
-      'response.all',
-    ),
-    long: parseProfitSummary(
-      required(object, 'long', isObject, context, 'an object'),
-      context,
-      'response.long',
-    ),
-    short: parseProfitSummary(
-      required(object, 'short', isObject, context, 'an object'),
-      context,
-      'response.short',
-    ),
-  }
 }
 
 function parseApiOrder(value: unknown, context: ParseContext, field: string): JsonObject {
@@ -541,10 +512,6 @@ export class FreqtradeApiClient {
 
   profit(options: RequestOptions = {}): Promise<ProfitSummary> {
     return this.parsed('/profit', parseProfit, options)
-  }
-
-  profitAll(options: RequestOptions = {}): Promise<ProfitAllResponse> {
-    return this.parsed('/profit_all', parseProfitAll, options)
   }
 
   status(options: RequestOptions = {}): Promise<Trade[]> {

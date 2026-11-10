@@ -5,36 +5,46 @@ import { useI18n } from 'vue-i18n'
 import { WIDE_LAYOUT_QUERY } from '@/lib/layout'
 import { useFormat } from '@/composables/useFormat'
 import { HEARTBEAT_STALE_MS, useBotStore } from '@/stores/bot'
+import { useSettingsStore } from '@/stores/settings'
 import AppIcon from './AppIcon.vue'
+import TopbarBotPicker from './TopbarBotPicker.vue'
 
 const { t } = useI18n()
 const format = useFormat()
 const bot = useBotStore()
+const settings = useSettingsStore()
 const emit = defineEmits<{ refresh: [] }>()
 
 const metrics = ref<HTMLElement | null>(null)
-const equityMetric = ref<HTMLElement | null>(null)
+const metricRow = ref<HTMLElement | null>(null)
+const picker = ref<HTMLElement | null>(null)
 const latency = ref<HTMLElement | null>(null)
 const hideLatency = ref(false)
+const hidePicker = ref(true)
 
 const wide = useMediaQuery(WIDE_LAYOUT_QUERY)
-function updateLatency() {
+function updateActions() {
   const area = metrics.value
-  const equity = equityMetric.value
+  const row = metricRow.value
   const label = latency.value
-  const actions = label?.parentElement
-  if (!area || !equity || !label || !actions) return
-  if (wide.value) {
-    hideLatency.value = false
-    return
-  }
+  const selector = picker.value
+  const actions = label?.parentElement ?? selector?.parentElement
+  if (!area || !row || !actions) return
   const gap = parseFloat(getComputedStyle(actions).columnGap) || 0
-  const latencyWidth = label.getBoundingClientRect().width + gap
-  const available = area.getBoundingClientRect().width + (hideLatency.value ? 0 : latencyWidth)
-  hideLatency.value = available < equity.getBoundingClientRect().width + latencyWidth
+  const latencyWidth = label ? label.getBoundingClientRect().width + gap : 0
+  const pickerWidth = selector ? selector.getBoundingClientRect().width + gap : 0
+  const available =
+    area.getBoundingClientRect().width +
+    (hideLatency.value ? 0 : latencyWidth) +
+    (hidePicker.value ? 0 : pickerWidth)
+  const metricsWidth = row.getBoundingClientRect().width
+  const showLatency = wide.value || available >= metricsWidth + latencyWidth
+  hideLatency.value = !showLatency
+  hidePicker.value =
+    !selector || available < metricsWidth + (showLatency ? latencyWidth : 0) + pickerWidth
 }
-useResizeObserver([metrics, equityMetric, latency], updateLatency)
-watchPostEffect(updateLatency)
+useResizeObserver([metrics, metricRow, latency, picker], updateActions)
+watchPostEffect(updateActions)
 
 const status = computed(() => {
   // A cached backend state cannot override the current connection state.
@@ -106,44 +116,57 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
     </div>
 
     <div ref="metrics" class="strip__metrics" tabindex="0">
-      <div ref="equityMetric" class="strip__metric">
-        <span class="strip__metric-label">{{ t('kpi.equity') }}</span>
-        <span class="num strip__metric-value">
-          {{
-            format.money(
-              equity?.total_bot ?? equity?.total ?? null,
-              equity?.stake ?? bot.stakeCurrency,
-            )
-          }}
-          <small :class="format.toneClass(totalPnlRatio)">
-            {{ format.ratio(totalPnlRatio) }}
-          </small>
-        </span>
-      </div>
-      <div class="strip__metric">
-        <span class="strip__metric-label">{{ t('kpi.totalPnl') }}</span>
-        <span class="num strip__metric-value" :class="format.toneClass(totalPnl)">
-          {{ format.signedMoney(totalPnl, bot.stakeCurrency) }}
-          <small v-if="totalPnlRatio !== null">{{ format.ratio(totalPnlRatio) }}</small>
-        </span>
-      </div>
-      <div class="strip__metric">
-        <span class="strip__metric-label">{{ t('kpi.openTrades') }}</span>
-        <span class="num strip__metric-value"
-          >{{ openCount }}<small>/{{ maxOpen }}</small></span
+      <div ref="metricRow" class="strip__metric-row">
+        <div class="strip__metric">
+          <span class="strip__metric-label">{{ t('kpi.equity') }}</span>
+          <span class="num strip__metric-value">
+            {{
+              format.money(
+                equity?.total_bot ?? equity?.total ?? null,
+                equity?.stake ?? bot.stakeCurrency,
+              )
+            }}
+            <small :class="format.toneClass(totalPnlRatio)">
+              {{ format.ratio(totalPnlRatio) }}
+            </small>
+          </span>
+        </div>
+        <div class="strip__metric">
+          <span class="strip__metric-label">{{ t('kpi.totalPnl') }}</span>
+          <span class="num strip__metric-value" :class="format.toneClass(totalPnl)">
+            {{ format.signedMoney(totalPnl, bot.stakeCurrency) }}
+            <small v-if="totalPnlRatio !== null">{{ format.ratio(totalPnlRatio) }}</small>
+          </span>
+        </div>
+        <div class="strip__metric">
+          <span class="strip__metric-label">{{ t('kpi.openTrades') }}</span>
+          <span class="num strip__metric-value"
+            >{{ openCount }}<small>/{{ maxOpen }}</small></span
+          >
+        </div>
+        <div
+          class="strip__metric"
+          :class="{ 'strip__metric--warn': heartbeatStale || bot.healthRequestFailed }"
+          :title="bot.healthRequestFailed ? t('system.heartbeatRequestFailed') : undefined"
         >
-      </div>
-      <div
-        class="strip__metric"
-        :class="{ 'strip__metric--warn': heartbeatStale || bot.healthRequestFailed }"
-        :title="bot.healthRequestFailed ? t('system.heartbeatRequestFailed') : undefined"
-      >
-        <span class="strip__metric-label">{{ t('dashboard.heartbeat') }}</span>
-        <span class="num strip__metric-value">{{ heartbeat }}</span>
+          <span class="strip__metric-label">{{ t('dashboard.heartbeat') }}</span>
+          <span class="num strip__metric-value">{{ heartbeat }}</span>
+        </div>
       </div>
     </div>
 
     <div class="strip__actions">
+      <div
+        v-if="settings.bots.length > 1"
+        ref="picker"
+        class="strip__picker"
+        :class="{ 'strip__picker--hidden': hidePicker }"
+      >
+        <TopbarBotPicker
+          :hidden="hidePicker"
+          @focus-fallback="metrics?.focus({ preventScroll: true })"
+        />
+      </div>
       <span
         v-if="bot.latencyMs !== null"
         ref="latency"
@@ -158,6 +181,7 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
         type="button"
         :disabled="bot.refreshing"
         :title="t('common.refresh')"
+        :aria-label="t('common.refresh')"
         @click="emit('refresh')"
       >
         <AppIcon name="refresh" :class="{ 'is-spinning': bot.refreshing }" />
@@ -219,13 +243,17 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
 }
 
 .strip__metrics {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-5);
   overflow-x: auto;
   flex: 1;
   min-width: 0;
   scrollbar-width: none;
+}
+
+.strip__metric-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+  width: max-content;
 }
 
 .strip__metrics::-webkit-scrollbar {
@@ -271,6 +299,17 @@ const heartbeatStale = computed(() => (bot.heartbeatAgeMs ?? 0) > HEARTBEAT_STAL
   gap: var(--sp-2);
   flex: none;
   margin-left: auto;
+}
+
+.strip__picker {
+  width: max-content;
+  flex: none;
+}
+
+.strip__picker--hidden {
+  position: absolute;
+  inset-inline-end: 0;
+  visibility: hidden;
 }
 
 .strip__latency {

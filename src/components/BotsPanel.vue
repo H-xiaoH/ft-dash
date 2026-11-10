@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import ControlsPanel from '@/components/ControlsPanel.vue'
-import FilterMenu, { type FilterOption, type StatusLamp } from '@/components/FilterMenu.vue'
+import FilterMenu from '@/components/FilterMenu.vue'
 import BotList from '@/components/BotList.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import { useBackendPicker } from '@/composables/useBackendPicker'
 import { pushToast } from '@/composables/useToast'
 import { describeError, FreqtradeApiClient, sameConnectionIdentity } from '@/data/freqtrade'
 import { defaultBotName, type Bot } from '@/lib/bots'
@@ -34,62 +36,48 @@ const testing = ref<string | null>(null)
 const testResult = ref<Record<string, 'ok'>>({})
 const removeTarget = ref<Bot | null>(null)
 const removing = ref(false)
-/** Set when switching to a bot whose password is not at hand. */
-const passwordTarget = ref<Bot | null>(null)
-const passwordDraft = ref('')
-/** Only the newest switch may report its result; older requests can finish later. */
-let switchRequest = 0
-/** The last entry of the bot picker: it opens the manager instead of switching bots. */
-const MANAGE = '__manage'
+const route = useRoute()
+const router = useRouter()
 const manageOpen = ref(false)
-
-const probeLamps = ref<Record<string, StatusLamp>>({})
-let probeController: AbortController | null = null
+const manageHeading = useTemplateRef<HTMLHeadingElement>('manageHeading')
+const picker = useTemplateRef<{ focusTrigger: () => boolean }>('picker')
+const {
+  choice: botChoice,
+  options: botOptions,
+  probeBackends,
+  passwordEntry,
+  passwordDraft,
+  cancelPassword,
+  submitPassword,
+} = useBackendPicker({ offerActivePassword: true })
 let disposed = false
-
-function probeBackends(open: boolean) {
-  probeController?.abort()
-  if (!open) return
-  const controller = new AbortController()
-  probeController = controller
-  for (const entry of settings.bots) {
-    if (entry.id === settings.activeBotId) continue
-    probeLamps.value[entry.id] = 'warn'
-    const api = new FreqtradeApiClient(entry)
-    // Ping is public; show_config also checks the saved credentials.
-    void api
-      .ping({ signal: controller.signal, timeoutMs: 5000 })
-      .then(() => api.showConfig({ signal: controller.signal, timeoutMs: 5000 }))
-      .then(() => {
-        if (!controller.signal.aborted) probeLamps.value[entry.id] = 'good'
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) probeLamps.value[entry.id] = 'bad'
-      })
-  }
-}
 onBeforeUnmount(() => {
   disposed = true
-  probeController?.abort()
 })
 
-const activeBot = computed(
-  () => settings.bots.find((entry) => entry.id === settings.activeBotId) ?? null,
+watch(
+  () => route.name === 'settings' && route.query.manage === 'backends',
+  (open) => {
+    if (!open) return
+    void openManage()
+    const query = { ...route.query }
+    delete query.manage
+    void router.replace({ name: 'settings', query })
+  },
+  { immediate: true, flush: 'post' },
 )
-
-const lamp = computed<StatusLamp>(() => {
-  if (bot.connection === 'unreachable' || bot.connection === 'unauthorized') return 'bad'
-  if (bot.connection === 'online') return bot.refreshing ? 'warn' : 'good'
-  if (bot.connection === 'connecting' || bot.refreshing) return 'warn'
-  return 'muted'
-})
-const activeLamp = computed<StatusLamp>(() => lamp.value)
+watch(
+  () => settings.activeBotId,
+  (_, previous) => {
+    if (previous) closeManage()
+  },
+)
 
 /** The chip beside the title says the same thing as the lamp, in words. */
 const connectionChip = computed(() => {
   switch (bot.connection) {
     case 'online':
-      return { color: 'success', label: t('system.wsConnected') }
+      return { color: 'success', label: t('bots.connected') }
     case 'connecting':
       return { color: 'warning', label: t('bots.connecting') }
     case 'idle':
@@ -97,32 +85,6 @@ const connectionChip = computed(() => {
     default:
       return { color: 'error', label: t('common.offline') }
   }
-})
-
-/** Switching is what picking a bot does; the manager is the one entry that does not. */
-const botOptions = computed<FilterOption[]>(() => [
-  ...settings.bots.map((entry) => ({
-    value: entry.id,
-    label: entry.name,
-    hint: entry.id === settings.activeBotId ? t('bots.current') : undefined,
-    dot:
-      entry.id === settings.activeBotId
-        ? activeLamp.value
-        : (probeLamps.value[entry.id] ?? 'muted'),
-  })),
-  { value: MANAGE, label: t('bots.manage') },
-])
-
-const botChoice = computed<string>({
-  get: () => settings.activeBotId ?? settings.bots[0]?.id ?? MANAGE,
-  set: (value) => {
-    if (value === MANAGE) {
-      manageOpen.value = true
-      return
-    }
-    const entry = settings.bots.find((item) => item.id === value)
-    if (entry) void switchTo(entry)
-  },
 })
 
 const canSave = computed(() => {
@@ -146,10 +108,22 @@ const duplicateName = computed(() => {
   return settings.bots.some((item) => item.id !== entry.id && item.name.toLowerCase() === name)
 })
 
-function closeManage() {
+async function openManage() {
+  manageOpen.value = true
+  await nextTick()
+  requestAnimationFrame(() => {
+    if (disposed || !manageOpen.value || route.name !== 'settings') return
+    const heading = manageHeading.value
+    heading?.closest('.page-scroll')?.scrollTo({ top: 0 })
+    heading?.focus({ preventScroll: true })
+  })
+}
+
+function closeManage(restoreFocus = false) {
   manageOpen.value = false
   form.value = null
   removeTarget.value = null
+  if (restoreFocus) picker.value?.focusTrigger()
 }
 
 function startAdd() {
@@ -276,52 +250,10 @@ async function testConnection(entry: Bot) {
   }
 }
 
-async function switchTo(entry: Bot) {
-  if (entry.id === settings.activeBotId) return
-  if (!entry.password) {
-    switchRequest += 1
-    passwordTarget.value = entry
-    passwordDraft.value = ''
-    return
-  }
-  await runSwitch(entry)
-}
-
-async function runSwitch(entry: Bot) {
-  const request = ++switchRequest
-  // A write in flight belongs to the bot on screen; leaving it behind mid-request is
-  // exactly the mix-up the single-active model exists to prevent.
-  if (bot.actionPending !== null) {
-    pushToast(t('bots.busy'), 'bad')
-    return
-  }
-  const ok = await bot.switchBot(entry.id)
-  if (request !== switchRequest) return
-  pushToast(
-    ok ? t('bots.switched', { name: entry.name }) : t(bot.errorKey?.key ?? 'actions.failed'),
-    ok ? 'good' : 'bad',
-  )
-}
-
-/** The row currently asking for a password. */
-const passwordEntry = computed(
-  () => passwordTarget.value ?? (settings.needsPassword ? settings.activeBot : null),
-)
-
-async function submitPassword() {
-  const entry = passwordEntry.value
-  if (!entry || !passwordDraft.value) return
-  settings.updateBot(entry.id, { password: passwordDraft.value })
-  const password = passwordDraft.value
-  passwordTarget.value = null
-  passwordDraft.value = ''
-  if (entry.id !== settings.activeBotId) {
-    await runSwitch({ ...entry, password })
-    return
-  }
-  // The bot on screen just needs its password before it can be polled again.
-  const ok = await bot.connect()
-  pushToast(ok ? t('bots.testOk') : t(bot.errorKey?.key ?? 'actions.failed'), ok ? 'good' : 'bad')
+async function dismissPassword() {
+  cancelPassword()
+  await nextTick()
+  picker.value?.focusTrigger()
 }
 
 async function confirmRemove() {
@@ -361,16 +293,24 @@ async function confirmRemove() {
     </VCardItem>
 
     <VCardText class="panel__body d-flex flex-column ga-4">
-      <!-- One picker for every bot; the last entry manages them instead of switching. -->
       <FilterMenu
+        ref="picker"
         v-model="botChoice"
         :options="botOptions"
-        :trigger-hint="activeBot?.baseUrl ?? ''"
+        :trigger-hint="settings.activeBot?.baseUrl ?? ''"
+        :trigger-label="botOptions.length ? undefined : t('bots.manage')"
         :label="t('bots.select')"
+        :action-label="t('bots.manage')"
         @open-change="probeBackends"
+        @action="openManage"
       />
 
-      <VForm v-if="passwordEntry" class="bots__prompt" @submit.prevent="submitPassword">
+      <VForm
+        v-if="passwordEntry"
+        class="bots__prompt"
+        @submit.prevent="submitPassword"
+        @keydown.esc.stop.prevent="dismissPassword"
+      >
         <VTextField
           v-model="passwordDraft"
           :label="t('bots.needPassword', { name: passwordEntry.name })"
@@ -382,7 +322,7 @@ async function confirmRemove() {
             <AppIcon name="wifi" />
             {{ t('bots.connect') }}
           </VBtn>
-          <VBtn type="button" @click="passwordTarget = null">
+          <VBtn type="button" @click="dismissPassword">
             <AppIcon name="close" />
             {{ t('common.cancel') }}
           </VBtn>
@@ -399,9 +339,9 @@ async function confirmRemove() {
             class="d-flex flex-column ga-3 pa-3 bots__manage"
           >
             <div class="d-flex align-center ga-2">
-              <VCardTitle tag="span" class="panel__title">{{ t('bots.manage') }}</VCardTitle>
+              <h2 ref="manageHeading" class="panel__title" tabindex="-1">{{ t('bots.manage') }}</h2>
               <VSpacer />
-              <VBtn variant="text" type="button" @click="closeManage">
+              <VBtn variant="text" type="button" @click="closeManage(true)">
                 <AppIcon name="close" />
                 {{ t('common.close') }}
               </VBtn>

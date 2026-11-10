@@ -68,12 +68,15 @@ function commit(next: Bot[], id: string) {
     total: next.length,
   })
 }
+function move(id: string, offset: -1 | 1) {
+  const index = props.bots.findIndex((bot) => bot.id === id)
+  const next = moved(props.bots, id, index + offset)
+  if (next) commit(next, id)
+}
 function keyboard(event: KeyboardEvent, id: string) {
   if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
   event.preventDefault()
-  const index = props.bots.findIndex((bot) => bot.id === id)
-  const next = moved(props.bots, id, index + (event.key === 'ArrowUp' ? -1 : 1))
-  if (next) commit(next, id)
+  move(id, event.key === 'ArrowUp' ? -1 : 1)
 }
 </script>
 
@@ -86,7 +89,7 @@ function keyboard(event: KeyboardEvent, id: string) {
     bg-color="transparent"
   >
     <VListItem
-      v-for="entry in bots"
+      v-for="(entry, index) in bots"
       :key="entry.id"
       tag="li"
       role="listitem"
@@ -123,20 +126,40 @@ function keyboard(event: KeyboardEvent, id: string) {
             <AppIcon name="trash" />{{ t('bots.remove') }}
           </VBtn>
           <VSpacer />
-          <VBtn
-            variant="text"
-            :icon="true"
-            type="button"
-            class="bots__drag"
-            density="comfortable"
-            :disabled="bots.length < 2"
-            :title="t('bots.reorder', { name: entry.name })"
-            :aria-label="t('bots.reorder', { name: entry.name })"
-            @contextmenu.prevent
-            @keydown.stop="keyboard($event, entry.id)"
-          >
-            <AppIcon name="grip" />
-          </VBtn>
+          <VMenu :open-on-arrow="false" :disabled="bots.length < 2" location="bottom end">
+            <template #activator="{ props: activatorProps }">
+              <VBtn
+                v-bind="activatorProps"
+                variant="text"
+                :icon="true"
+                type="button"
+                class="bots__drag"
+                density="comfortable"
+                :disabled="bots.length < 2"
+                :title="t('bots.reorder', { name: entry.name })"
+                :aria-label="t('bots.reorder', { name: entry.name })"
+                @contextmenu.prevent
+                @keydown.stop="keyboard($event, entry.id)"
+              >
+                <AppIcon name="grip" />
+              </VBtn>
+            </template>
+            <VList role="menu" :aria-label="t('bots.reorder', { name: entry.name })">
+              <VListItem link role="menuitem" :disabled="index === 0" @click="move(entry.id, -1)">
+                <template #prepend><AppIcon name="chevronUp" /></template>
+                {{ t('bots.moveUp') }}
+              </VListItem>
+              <VListItem
+                link
+                role="menuitem"
+                :disabled="index === bots.length - 1"
+                @click="move(entry.id, 1)"
+              >
+                <template #prepend><AppIcon name="chevronDown" /></template>
+                {{ t('bots.moveDown') }}
+              </VListItem>
+            </VList>
+          </VMenu>
         </div>
       </div>
     </VListItem>

@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import CandleChart from '@/components/CandleChart.vue'
+import CandleChartHelp from '@/components/CandleChartHelp.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
@@ -122,10 +123,7 @@ const chartEntry = computed<CandleEntry | null>(() => {
   if (!marker) return null
   return {
     price: marker.price,
-    label:
-      marker.profit === null
-        ? t('market.costBasis')
-        : `${t('market.costBasis')} ${format.signedMoney(marker.profit, '')}`,
+    label: marker.profit === null ? '' : format.signedMoney(marker.profit, ''),
     tone: marker.tone,
   }
 })
@@ -257,7 +255,10 @@ watch(
     <VCard tag="section" class="panel">
       <VCardItem class="panel__head">
         <VCardTitle tag="span" class="panel__title">{{ t('market.candleChart') }}</VCardTitle>
-        <VChip size="x-small" variant="tonal">{{ timeframe }}</VChip>
+        <div class="d-inline-flex align-center ga-1">
+          <VChip size="x-small" variant="tonal">{{ timeframe }}</VChip>
+          <CandleChartHelp />
+        </div>
         <div class="panel__actions d-flex align-center ga-2 flex-wrap">
           <FilterMenu
             v-model="selectedPair"

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useDocumentVisibility } from '@vueuse/core'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -66,8 +67,20 @@ const pageTitle = computed(() => {
 })
 
 async function refresh() {
-  await bot.refreshAll()
+  await Promise.all([bot.refreshAll(), bot.refreshHistoricBalance()])
 }
+
+const visibility = useDocumentVisibility()
+watch(
+  () => route.name === 'dashboard' && visibility.value === 'visible' && bot.connection === 'online',
+  (active, _, onCleanup) => {
+    if (!active) return
+    void bot.refreshHistoricBalance()
+    const timer = window.setInterval(() => void bot.refreshHistoricBalance(), 60_000)
+    onCleanup(() => window.clearInterval(timer))
+  },
+  { immediate: true },
+)
 
 onMounted(async () => {
   locale.value = settings.locale

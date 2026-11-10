@@ -34,7 +34,6 @@ function fakeClient(overrides: Record<string, unknown> = {}): FreqtradeApiClient
     daily: vi.fn().mockResolvedValue({}),
     weekly: vi.fn().mockResolvedValue({}),
     monthly: vi.fn().mockResolvedValue({}),
-    profitAll: vi.fn().mockResolvedValue({}),
     historicBalance: vi.fn().mockResolvedValue({
       columns: ['date', '__date_ts', 'total_quote'],
       data: [],
@@ -200,6 +199,30 @@ describe('BotSessionController', () => {
     await expect(session.connect()).resolves.toBe(false)
     expect(session.state.connection).toBe('unauthorized')
     expect(session.state.errorKey?.key).toBe('errors.auth')
+  })
+
+  it('loads historic equity on demand, shares pending requests, and keeps data after errors', async () => {
+    const response = { columns: ['__date_ts', 'total_quote'], data: [[1, 42]] }
+    const pending = deferred<typeof response>()
+    const historicBalance = vi
+      .fn()
+      .mockReturnValueOnce(pending.promise)
+      .mockRejectedValueOnce(new ApiError('auth', 'Unauthorized', { status: 401 }))
+    const session = sessionFor(fakeClient({ historicBalance }))
+
+    await expect(session.connect()).resolves.toBe(true)
+    expect(historicBalance).not.toHaveBeenCalled()
+    const first = session.refreshHistoricBalance()
+    const second = session.refreshHistoricBalance()
+    expect(historicBalance).toHaveBeenCalledOnce()
+    pending.resolve(response)
+    await Promise.all([first, second])
+    await session.refreshHistoricBalance()
+    expect(session.state.data.historicBalance).toEqual(response)
+    expect(session.state.connection).toBe('online')
+    expect(session.state.resourceErrors.historicBalance?.key).toBe('errors.auth')
+    await session.refreshCore()
+    expect(session.state.connection).toBe('online')
   })
 
   it('polls every group each tick without repeating a pending health group', async () => {

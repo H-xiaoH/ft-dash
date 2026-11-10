@@ -1,3 +1,4 @@
+import { createPinia } from 'pinia'
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/i18n'
@@ -30,7 +31,7 @@ vi.mock('@/composables/useFormat', () => ({
   }),
 }))
 const StatusStrip = (await import('@/components/StatusStrip.vue')).default
-const render = () => mount(StatusStrip, { global: { plugins: [i18n] } })
+const render = () => mount(StatusStrip, { global: { plugins: [createPinia(), i18n] } })
 beforeEach(() => {
   i18n.global.locale.value = 'zh-CN'
   bot.connection = 'online'

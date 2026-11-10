@@ -2,11 +2,14 @@
 
 export type CsvValue = string | number | boolean | null | undefined
 
+// Some spreadsheet importers skip leading whitespace or normalize full-width operators.
+const FORMULA_PREFIX = /^\p{Cc}|^[\s\p{Cf}]*[=+@＝＋－＠−-]/u
+
 function escapeCell(value: CsvValue): string {
   if (value === null || value === undefined) return ''
   const raw = String(value)
-  const text = typeof value === 'string' && /^[=+\-@]/.test(raw) ? `'${raw}` : raw
-  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`
+  const text = typeof value === 'string' && FORMULA_PREFIX.test(raw) ? `'${raw}` : raw
+  if (/[",;\t\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`
   return text
 }
 

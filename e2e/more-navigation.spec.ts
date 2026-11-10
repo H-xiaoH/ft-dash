@@ -2,6 +2,56 @@ import { expect, test } from '@playwright/test'
 import { connect, livePage, mockApi } from './support/fixtures'
 import { dragPage, settlePages } from './support/gestures'
 
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`More animates the child and browser back when motion is ${reducedMotion}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion })
+    await page.setViewportSize({ width: 479, height: 844 })
+    await mockApi(page)
+    await page.goto('/#/more')
+    await connect(page)
+    await page.evaluate(() => {
+      document.body.dataset.moreMotion = ''
+      document.addEventListener('transitionrun', (event) => {
+        const target = event.target as HTMLElement
+        const name = target.dataset.page
+        if (event.propertyName !== 'transform' || (name !== 'more' && name !== 'logs')) return
+        const css = getComputedStyle(target)
+        const direction = Math.sign(new DOMMatrixReadOnly(css.transform).m41)
+        const content = Boolean(target.querySelector('.page-content > *'))
+        document.body.dataset.moreMotion += `${name}:${direction}:${css.transitionDuration}:${content};`
+      })
+    })
+    await livePage(page).getByRole('link', { name: '日志', exact: true }).click()
+    await expect(livePage(page).getByRole('button', { name: '返回更多' })).toBeVisible()
+    await settlePages(page)
+    if (reducedMotion === 'no-preference') {
+      await expect(page.locator('body')).toHaveAttribute(
+        'data-more-motion',
+        /logs:1:0\.22s, 0\.22s:true/,
+      )
+      await expect(livePage(page)).toBeFocused()
+    } else {
+      await expect(page.locator('body')).toHaveAttribute('data-more-motion', '')
+    }
+    await page.evaluate(() => {
+      document.body.dataset.moreMotion = ''
+    })
+    await page.goBack()
+    await expect(livePage(page).getByRole('link', { name: '日志', exact: true })).toBeVisible()
+    await settlePages(page)
+    if (reducedMotion === 'no-preference') {
+      await expect(page.locator('body')).toHaveAttribute(
+        'data-more-motion',
+        /more:-1:0\.22s, 0\.22s:true/,
+      )
+    } else {
+      await expect(page.locator('body')).toHaveAttribute('data-more-motion', '')
+    }
+  })
+}
+
 test('five mobile destinations expose secondary pages and return to More', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
@@ -40,11 +90,14 @@ test('five mobile destinations expose secondary pages and return to More', async
 test('secondary routes retain their page and scroll when changing layout', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 740 })
   await mockApi(page)
-  await page.goto('/#/settings')
+  await page.goto('/#/more')
   await connect(page)
+  await livePage(page).getByRole('link', { name: '设置', exact: true }).click()
+  await expect(livePage(page)).toHaveAttribute('data-page', 'settings')
   await settlePages(page)
-  await livePage(page).evaluate((element) => (element.scrollTop = 180))
+  await livePage(page).evaluate((element) => (element.scrollTop = 96))
   const before = await livePage(page).evaluate((element) => element.scrollTop)
+  expect(before).toBeGreaterThan(0)
   await page.setViewportSize({ width: 1100, height: 740 })
   await settlePages(page)
   await expect(livePage(page)).toHaveAttribute('data-page', 'settings')
@@ -52,6 +105,11 @@ test('secondary routes retain their page and scroll when changing layout', async
   await page.setViewportSize({ width: 390, height: 740 })
   await settlePages(page)
   await expect(livePage(page)).toHaveAttribute('data-page', 'settings')
+  await expect.poll(() => livePage(page).evaluate((element) => element.scrollTop)).toBe(before)
+  await page.goBack()
+  await livePage(page).getByRole('link', { name: '设置', exact: true }).click()
+  await expect(livePage(page)).toHaveAttribute('data-page', 'settings')
+  await settlePages(page)
   await expect.poll(() => livePage(page).evaluate((element) => element.scrollTop)).toBe(before)
 })
 

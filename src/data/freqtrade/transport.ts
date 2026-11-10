@@ -12,6 +12,8 @@ export interface RequestOptions {
   body?: unknown
   /** Adds an `Authorization: Basic` header instead of the cached bearer token. */
   basic?: boolean
+  /** Omits authentication for public requests. */
+  anonymous?: boolean
   timeoutMs?: number
   signal?: AbortSignal
 }
@@ -151,7 +153,10 @@ export class FreqtradeTransport {
   private headers(options: RequestOptions, useBearer: boolean): HeadersInit {
     const headers: Record<string, string> = { Accept: 'application/json' }
     if (options.body !== undefined) headers['Content-Type'] = 'application/json'
-    headers.Authorization = useBearer ? `Bearer ${this.bearer?.token ?? ''}` : this.basicAuthHeader
+    if (!options.anonymous)
+      headers.Authorization = useBearer
+        ? `Bearer ${this.bearer?.token ?? ''}`
+        : this.basicAuthHeader
     return headers
   }
 
@@ -168,7 +173,7 @@ export class FreqtradeTransport {
     const url = `${this.baseUrl}${path}${query}`
     const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
     const controller = new AbortController()
-    const useBearer = !options.basic && this.hasFreshBearer()
+    const useBearer = !options.anonymous && !options.basic && this.hasFreshBearer()
     let timedOut = false
     let externallyAborted = Boolean(options.signal?.aborted)
 

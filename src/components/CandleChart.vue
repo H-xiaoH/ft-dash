@@ -18,6 +18,7 @@ import {
   type UTCTimestamp,
 } from 'lightweight-charts'
 import { parseTimestamp } from '@/lib/format'
+import AppIcon from './AppIcon.vue'
 import type { Candle, CandleEntry, CandleFormatters } from './charts'
 
 const props = withDefaults(
@@ -30,12 +31,19 @@ const props = withDefaults(
   { height: 260, entry: null },
 )
 const { t } = useI18n()
+const zoomActions = [
+  { axis: 'price', zoomIn: true, label: 'chart.priceZoomIn' },
+  { axis: 'price', zoomIn: false, label: 'chart.priceZoomOut' },
+  { axis: 'time', zoomIn: true, label: 'chart.timeZoomIn' },
+  { axis: 'time', zoomIn: false, label: 'chart.timeZoomOut' },
+] as const
 const host = ref<HTMLElement | null>(null)
 const activeTime = ref<number | null>(null)
 const logicalRange = ref<LogicalRange | null>(null)
 let chart: IChartApi | undefined
 let series: ISeriesApi<'Candlestick'> | undefined
 let entryLine: IPriceLine | undefined
+let priceDrag: { y: number; height: number; center: number; radius: number } | undefined
 
 const data = computed(() => {
   const rows = new Map<number, { candle: Candle; time: UTCTimestamp }>()
@@ -90,8 +98,68 @@ function setStart(value: number) {
   chart?.timeScale().setVisibleLogicalRange({ from: value, to: value + visibleCount.value })
 }
 function reset() {
+  priceDrag = undefined
   chart?.priceScale('right').applyOptions({ autoScale: true })
   chart?.timeScale().fitContent()
+}
+function startPriceDrag(event: TouchEvent) {
+  priceDrag = undefined
+  if (!chart || !host.value || event.touches.length !== 1) return
+  const touch = event.touches[0]!
+  const rect = host.value.getBoundingClientRect()
+  const axis = chart.priceScale('right')
+  const width = axis.width()
+  const { height } = chart.paneSize()
+  const y = touch.clientY - rect.top
+  if (width <= 0 || touch.clientX < rect.right - width || y < 0 || y >= height) return
+  const range = axis.getVisibleRange()
+  if (!range || range.from >= range.to) return
+  priceDrag = {
+    y: touch.clientY,
+    height,
+    center: (range.from + range.to) / 2,
+    radius: (range.to - range.from) / 2,
+  }
+}
+function movePriceDrag(event: TouchEvent) {
+  if (!priceDrag || !event.cancelable || event.touches.length !== 1) return
+  // Cancel page scrolling only for gestures that started on the price scale.
+  event.preventDefault()
+  const { y, height, center, radius } = priceDrag
+  const delta = (event.touches[0]!.clientY - y) / height
+  const span = radius * Math.exp(-2 * Math.max(-2, Math.min(delta, 2)))
+  const from = center - span
+  const to = center + span
+  if (from < to && Number.isFinite(from) && Number.isFinite(to)) {
+    chart?.priceScale('right').setVisibleRange({ from, to })
+  }
+}
+function endPriceDrag() {
+  priceDrag = undefined
+}
+function zoom(axis: 'price' | 'time', zoomIn: boolean) {
+  if (!chart) return
+  const factor = zoomIn ? 0.85 : 1 / 0.85
+  if (axis === 'price') {
+    const scale = chart.priceScale('right')
+    const range = scale.getVisibleRange()
+    if (!range) return
+    const center = (range.from + range.to) / 2
+    const radius = ((range.to - range.from) * factor) / 2
+    const from = center - radius
+    const to = center + radius
+    if (from < to && Number.isFinite(from) && Number.isFinite(to)) {
+      scale.setAutoScale(false)
+      scale.setVisibleRange({ from, to })
+    }
+    return
+  }
+  const scale = chart.timeScale()
+  const range = scale.getVisibleLogicalRange()
+  if (!range) return
+  const center = (range.from + range.to) / 2
+  const radius = Math.max(1, ((range.to - range.from) * factor) / 2)
+  scale.setVisibleLogicalRange({ from: center - radius, to: center + radius })
 }
 function onKeydown(event: KeyboardEvent) {
   if (!chart) return
@@ -124,23 +192,10 @@ function onKeydown(event: KeyboardEvent) {
     reset()
   } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
     event.preventDefault()
-    const axis = chart.priceScale('right')
-    const range = axis.getVisibleRange()
-    if (!range) return
-    const center = (range.from + range.to) / 2
-    const radius = ((range.to - range.from) * (event.key === 'ArrowUp' ? 0.85 : 1 / 0.85)) / 2
-    axis.setAutoScale(false)
-    axis.setVisibleRange({ from: center - radius, to: center + radius })
+    zoom('price', event.key === 'ArrowUp')
   } else if (['+', '=', '-'].includes(event.key)) {
     event.preventDefault()
-    const range = chart.timeScale().getVisibleLogicalRange()
-    if (!range) return
-    const center = (range.from + range.to) / 2
-    const radius = Math.max(
-      1,
-      ((range.to - range.from) * (event.key === '-' ? 1 / 0.85 : 0.85)) / 2,
-    )
-    chart.timeScale().setVisibleLogicalRange({ from: center - radius, to: center + radius })
+    zoom('time', event.key !== '-')
   }
 }
 function syncEntry() {
@@ -297,6 +352,10 @@ onBeforeUnmount(() => {
       role="group"
       :aria-label="t('market.priceScale')"
       @keydown="onKeydown"
+      @touchstart.passive="startPriceDrag"
+      @touchmove="movePriceDrag"
+      @touchend.passive="endPriceDrag"
+      @touchcancel.passive="endPriceDrag"
     />
     <div class="candles__controls">
       <VSlider
@@ -310,6 +369,23 @@ onBeforeUnmount(() => {
         :aria-label="t('market.candleRange')"
         @update:model-value="setStart"
       />
+      <VMenu location="bottom end" :close-on-content-click="false">
+        <template #activator="{ props: activatorProps }">
+          <VBtn v-bind="activatorProps" type="button" variant="text" size="small">
+            {{ t('chart.zoom') }}
+            <AppIcon name="chevronDown" :size="14" />
+          </VBtn>
+        </template>
+        <VList role="menu" :aria-label="t('chart.zoom')">
+          <VListItem
+            v-for="action in zoomActions"
+            :key="action.label"
+            role="menuitem"
+            :title="t(action.label)"
+            @click="zoom(action.axis, action.zoomIn)"
+          />
+        </VList>
+      </VMenu>
       <VBtn variant="text" size="small" :aria-label="t('chart.reset')" @click="reset">{{
         t('chart.reset')
       }}</VBtn>

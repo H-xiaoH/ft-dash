@@ -35,6 +35,7 @@ const navigation = computed(() =>
     : MOBILE_NAV_ROUTES,
 )
 const morePage = ref(secondary.value ? String(route.name) : 'more')
+const moreMotion = ref(false)
 const currentIndex = computed(() =>
   Math.max(
     0,
@@ -73,9 +74,15 @@ function setTarget(name: string, element: unknown) {
 const moreNames = computed(() =>
   wide.value ? ['more'] : ['more', ...SECONDARY_ROUTES.map((page) => page.name)],
 )
+const mountedPages = new Set<string>()
+function isMorePage(name: unknown) {
+  return name === 'more' || SECONDARY_ROUTES.some((page) => page.name === name)
+}
 const scrollPositions = new Map<string, number>()
 function saveScroll(event: Event) {
   const element = event.target as HTMLElement
+  // Hiding a More frame can emit a scroll event with a reset offset.
+  if (element.inert && element.classList.contains('more-stack__page')) return
   scrollPositions.set(element.dataset.page!, element.scrollTop)
 }
 async function restoreScroll() {
@@ -89,13 +96,45 @@ function backToMore() {
   if (router.options.history.state.back === '/more') router.back()
   else void router.replace('/more')
 }
+
+async function showMorePage(name: string) {
+  const outgoing = targets.get(morePage.value)?.parentElement
+  if (name !== morePage.value && outgoing && !outgoing.inert) {
+    scrollPositions.set(morePage.value, outgoing.scrollTop)
+  }
+  const moveFocus =
+    moreMotion.value &&
+    (document.activeElement === document.body || outgoing?.contains(document.activeElement))
+  morePage.value = name
+  await restoreScroll()
+  if (
+    moveFocus &&
+    route.name === name &&
+    (document.activeElement === document.body || outgoing?.contains(document.activeElement))
+  ) {
+    targets.get(name)?.parentElement?.focus({ preventScroll: true })
+  }
+}
+
+function pageMounted(name: string) {
+  mountedPages.add(name)
+  if (!wide.value && route.name === name && isMorePage(name) && morePage.value !== name) {
+    void showMorePage(name)
+  } else {
+    void restoreScroll()
+  }
+}
+
 watch(
   () => route.name,
-  (name) => {
-    if (name === 'more' || SECONDARY_ROUTES.some((page) => page.name === name))
-      morePage.value = String(name)
+  (name, previous) => {
+    moreMotion.value = !wide.value && isMorePage(previous) && isMorePage(name)
     visited.value = new Set([...visited.value, String(name)])
-    void restoreScroll()
+    if (isMorePage(name) && (!moreMotion.value || mountedPages.has(String(name)))) {
+      void showMorePage(String(name))
+    } else {
+      void restoreScroll()
+    }
   },
 )
 let wheelTimer = 0
@@ -109,7 +148,10 @@ function ready(instance: SwiperInstance) {
 }
 
 function revealNeighbors(instance: SwiperInstance) {
-  if (!secondary.value && route.name !== 'more') morePage.value = 'more'
+  if (!secondary.value && route.name !== 'more') {
+    moreMotion.value = false
+    morePage.value = 'more'
+  }
   const next = new Set(visited.value)
   for (const index of [instance.activeIndex - 1, instance.activeIndex, instance.activeIndex + 1]) {
     if (index >= 0 && index < navigation.value.length) next.add(navigation.value[index]!.name)
@@ -225,32 +267,39 @@ defineExpose({ railWheel })
       @slide-change="changed"
     >
       <SwiperSlide v-for="(page, index) in navigation" :key="page.name">
+        <div v-if="page.name === 'more'" class="more-stack">
+          <Transition
+            v-for="name in moreNames"
+            :key="name"
+            :name="morePage === 'more' ? 'more-back' : 'more-forward'"
+            :css="moreMotion && !wide && !reducedMotion"
+          >
+            <div
+              v-show="morePage === name"
+              class="page-scroll more-stack__page"
+              :tabindex="index === currentIndex && morePage === name ? 0 : -1"
+              :inert="index !== currentIndex || morePage !== name || undefined"
+              :aria-hidden="index !== currentIndex || morePage !== name ? true : undefined"
+              :data-page="name"
+              @scroll.passive="saveScroll"
+            >
+              <VBtn v-if="name !== 'more'" variant="text" class="mb-3" @click="backToMore">
+                <AppIcon name="back" />{{ t('nav.backToMore') }}
+              </VBtn>
+              <div :ref="(element) => setTarget(name, element)" class="page-content" />
+            </div>
+          </Transition>
+        </div>
         <div
+          v-else
           class="page-scroll"
           :tabindex="index === currentIndex ? 0 : -1"
           :inert="index !== currentIndex || undefined"
           :aria-hidden="index !== currentIndex ? true : undefined"
-          :data-page="page.name === 'more' ? morePage : page.name"
+          :data-page="page.name"
           @scroll.passive="saveScroll"
         >
-          <VBtn
-            v-if="page.name === 'more' && morePage !== 'more'"
-            variant="text"
-            class="mb-3"
-            @click="backToMore"
-          >
-            <AppIcon name="back" />{{ t('nav.backToMore') }}
-          </VBtn>
-          <template v-if="page.name === 'more'">
-            <div
-              v-for="name in moreNames"
-              v-show="morePage === name"
-              :key="name"
-              :ref="(element) => setTarget(name, element)"
-              class="page-content"
-            />
-          </template>
-          <div v-else :ref="(element) => setTarget(page.name, element)" class="page-content" />
+          <div :ref="(element) => setTarget(page.name, element)" class="page-content" />
         </div>
       </SwiperSlide>
     </Swiper>
@@ -261,7 +310,7 @@ defineExpose({ railWheel })
         :to="targets.get(name)"
         :disabled="!targets.has(name)"
       >
-        <component :is="component" v-if="visited.has(name)" @vue:mounted="restoreScroll" />
+        <component :is="component" v-if="visited.has(name)" @vue:mounted="pageMounted(name)" />
       </Teleport>
     </div>
   </div>
@@ -290,5 +339,35 @@ defineExpose({ railWheel })
   padding: var(--shell-pad);
   background: var(--ink-900);
   scrollbar-gutter: stable;
+}
+.more-stack {
+  position: relative;
+  height: 100%;
+  overflow: clip;
+}
+.more-stack__page {
+  position: absolute;
+  inset: 0;
+}
+.more-forward-enter-active,
+.more-forward-leave-active,
+.more-back-enter-active,
+.more-back-leave-active {
+  transition:
+    transform 220ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 220ms ease;
+}
+.more-forward-enter-active,
+.more-back-leave-active {
+  z-index: 1;
+}
+.more-forward-enter-from,
+.more-back-leave-to {
+  transform: translateX(100%);
+}
+.more-forward-leave-to,
+.more-back-enter-from {
+  transform: translateX(-25%);
+  opacity: 0;
 }
 </style>

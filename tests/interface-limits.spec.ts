@@ -89,7 +89,7 @@ describe('interface limits', () => {
 
   it('clamps stored values instead of rendering an empty list', () => {
     localStorage.setItem(
-      'ftdash.settings.v1',
+      'ftdash.settings.v2',
       JSON.stringify({
         dashboardOpenLimit: 0,
         dashboardClosedLimit: 900,
@@ -108,7 +108,7 @@ describe('interface limits', () => {
 
   it('rounds halves and drops fractions', () => {
     localStorage.setItem(
-      'ftdash.settings.v1',
+      'ftdash.settings.v2',
       JSON.stringify({ dashboardOpenLimit: 4.6, tradesPerPage: 25.4 }),
     )
     const settings = useSettingsStore()

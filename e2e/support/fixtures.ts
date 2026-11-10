@@ -305,7 +305,6 @@ export const RESPONSES: Record<string, unknown> = {
     starting_capital_fiat: 95,
   },
   profit: profitSummary,
-  profit_all: { all: profitSummary, long: profitSummary, short: profitSummary },
   status: [openTrade],
   count: { current: 1, max: 6, total_stake: 4.2 },
   trades: { trades: closedTrades, trades_count: 4, offset: 0, total_trades: 4 },
@@ -387,6 +386,7 @@ export async function mockApi(
     lockCount?: number
     staleHeartbeat?: boolean
     secondBot?: boolean
+    responses?: Record<string, unknown>
   } = {},
 ) {
   const calls: string[] = []
@@ -531,7 +531,7 @@ export async function mockApi(
       })
     }
 
-  await page.route(`${API_ORIGIN}/**`, serve())
+  await page.route(`${API_ORIGIN}/**`, serve(options.responses))
 
   /*
    * A stand-in for a second freqtrade instance. It answers the same fixtures with a

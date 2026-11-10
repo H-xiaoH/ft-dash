@@ -1,23 +1,16 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { settlePages } from './support/gestures'
-import { connect, enableWriteAccess, livePage, mockApi, selectionMatches } from './support/fixtures'
+import type { Trade } from '../src/lib/types'
+import {
+  connect,
+  enableWriteAccess,
+  livePage,
+  mockApi,
+  RESPONSES,
+  selectionMatches,
+} from './support/fixtures'
 
 const TRADE_COUNTS_TEST = 'trade tab counts describe the same loaded trades as the list'
-
-const touchAt = async (
-  page: Page,
-  type: 'touchstart' | 'touchmove' | 'touchend',
-  x: number,
-  y: number,
-  selector: string,
-) => {
-  await page.locator(selector).first().waitFor()
-  if (type === 'touchstart') {
-    await page.mouse.move(x, y)
-    await page.mouse.down()
-  } else if (type === 'touchmove') await page.mouse.move(x, y, { steps: 12 })
-  else await page.mouse.up()
-}
 
 test.beforeEach(async ({ page }, testInfo) => {
   await mockApi(page, testInfo.title === TRADE_COUNTS_TEST ? { tradeCount: 6 } : undefined)
@@ -100,13 +93,20 @@ test('a horizontal swipe on trade results stays a page navigation', async ({ pag
   await page.goto('/#/trades?filter=closed')
 
   const tabs = livePage(page).locator('.v-btn-toggle .v-btn')
-  const cardSelector = '.page-scroll:not([inert]) tbody tr'
   await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator(cardSelector).first()).toBeVisible()
-
-  await touchAt(page, 'touchstart', 300, 420, cardSelector)
-  await touchAt(page, 'touchmove', 120, 422, cardSelector)
-  await touchAt(page, 'touchend', 120, 422, cardSelector)
+  await expect(page.locator('.page-swiper')).toHaveClass(/swiper-horizontal/)
+  await settlePages(page)
+  const rows = livePage(page).locator('tbody tr')
+  await expect(rows).toHaveCount(4)
+  const row = rows.first()
+  await row.hover()
+  const box = (await row.boundingBox())!
+  const x = box.x + box.width * 0.8
+  const y = box.y + box.height / 2
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x - box.width * 0.5, y, { steps: 12 })
+  await page.mouse.up()
 
   await expect.poll(() => page.url()).toMatch(/#\/stats$/)
 })
@@ -199,13 +199,28 @@ test('trade sorting uses the same toolbar on phone and desktop', async ({ page }
 
 test('search expands on demand and clears when collapsed', async ({ page }) => {
   const rows = livePage(page).locator('table tbody tr')
-  await expect(livePage(page).locator('.search-toggle input')).toHaveCount(0)
-
-  await livePage(page).locator('button[title="搜索"]').first().click()
-  await livePage(page).locator('.search-toggle input').fill('BBB')
+  const search = livePage(page).getByRole('button', { name: '搜索', exact: true })
+  const field = livePage(page).getByRole('searchbox', { name: '搜索交易对' })
+  const close = livePage(page).locator('.search-toggle').getByRole('button', { name: '关闭' })
+  const direction = livePage(page).getByRole('button', { name: /^改为.*序$/ })
+  await expect(field).toHaveCount(0)
+  await search.click()
+  await expect(field).toBeFocused()
+  await expect(field).toHaveAttribute('placeholder', '搜索交易对')
+  await expect(livePage(page).locator('.search-toggle .v-field-label')).toHaveCount(0)
+  await close.click()
+  await expect(search).toBeFocused()
+  await search.click()
+  await direction.click()
+  await expect(search).toBeVisible()
+  await expect(direction).toBeFocused()
+  await search.click()
+  await field.fill('BBB')
   await expect(rows).toHaveCount(1)
-
-  await livePage(page).locator('.v-field__clearable [role=button]').click()
+  await livePage(page).getByRole('columnheader', { name: '交易对' }).click()
+  await expect(field).toHaveValue('BBB')
+  await field.press('Escape')
+  await expect(search).toBeFocused()
   await expect(rows).toHaveCount(5)
 })
 
@@ -482,9 +497,32 @@ test('back and forward around an open force-exit confirmation restores focus saf
 
 test('trade details scroll inside the drawer without moving the page', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 480 })
+  const original = RESPONSES.trade as Trade
+  const history = RESPONSES.trades as { trades: Trade[] }
+  const trade = {
+    ...original,
+    orders: Array.from({ length: 20 }, (_, index) => ({
+      ...original.orders![0]!,
+      order_id: `multi-${index}`,
+      status: index === 19 ? 'last-fill' : 'closed',
+    })),
+  }
+  await mockApi(page, {
+    responses: {
+      trades: {
+        ...history,
+        trades: history.trades.map((row) => (row.trade_id === 1 ? trade : row)),
+      },
+      'trade/1': trade,
+    },
+  })
   await page.goto('/#/trades?trade=1')
 
   const body = page.locator('.trade-dialog .trade-detail > .v-card-text')
+  const last = body.getByText('last-fill', { exact: true })
+  await expect(last).toBeAttached()
+  const background = page.locator('.page-scroll[data-page="trades"]')
+  const backgroundTop = await background.evaluate((element) => element.scrollTop)
   await expect
     .poll(() => body.evaluate((element) => element.scrollHeight > element.clientHeight))
     .toBe(true)
@@ -496,13 +534,19 @@ test('trade details scroll inside the drawer without moving the page', async ({ 
   await expect.poll(() => body.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
 
   const bodyBottom = await body.evaluate((element) => element.scrollHeight - element.clientHeight)
-  await body.evaluate((element) => {
-    element.scrollTop = element.scrollHeight
-  })
-  await body.hover()
-  await page.mouse.wheel(0, 320)
+  await page.mouse.wheel(0, bodyBottom)
   await expect.poll(() => body.evaluate((element) => element.scrollTop)).toBe(bodyBottom)
-  expect(await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)).toBe(0)
+  await expect
+    .poll(() =>
+      last.evaluate((cell) => {
+        const bottom = cell.getBoundingClientRect().bottom
+        const orders = cell.closest('.panel')!.getBoundingClientRect()
+        const scroll = cell.closest('.trade-detail > .v-card-text')!.getBoundingClientRect()
+        return bottom <= Math.min(orders.bottom, scroll.bottom) + 1
+      }),
+    )
+    .toBe(true)
+  expect(await background.evaluate((element) => element.scrollTop)).toBe(backgroundTop)
 })
 
 test('CSV export follows the table sort in both directions', async ({ page }, testInfo) => {

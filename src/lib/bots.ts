@@ -23,7 +23,7 @@ export interface BotInput {
   wsToken?: string
 }
 
-export const BOTS_KEY = 'ftdash.bots.v1'
+export const BOTS_KEY = 'ftdash.bots.v2'
 /** Tab-scoped copy: keeps the password across a reload without writing it to disk. */
 export const BOTS_SESSION_KEY = 'ftdash.bots.session.v1'
 export const ACTIVE_BOT_KEY = 'ftdash.activeBot.v1'

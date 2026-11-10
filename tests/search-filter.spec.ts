@@ -31,7 +31,8 @@ describe('SearchToggle', () => {
     await wrapper.find('button').trigger('click')
     const input = wrapper.find('input')
     expect(input.exists()).toBe(true)
-    expect(wrapper.find('label').text()).toContain('Find')
+    expect(input.attributes('placeholder')).toBe('Find')
+    expect(input.attributes('aria-label')).toBe('Find')
   })
 
   it('emits the typed term and clears it when collapsed', async () => {
@@ -40,7 +41,7 @@ describe('SearchToggle', () => {
     await wrapper.find('input').setValue('btc')
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['btc'])
 
-    await wrapper.find('.v-field__clearable [role="button"]').trigger('click')
+    await wrapper.get('.search-toggle button').trigger('click')
     expect(wrapper.find('input').exists()).toBe(false)
     // Closing must not leave an invisible filter behind.
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([''])

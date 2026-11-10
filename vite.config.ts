@@ -24,7 +24,35 @@ function buildStamp(now = new Date()) {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const base = env.VITE_BASE || '/'
-  const devProxyTarget = env.FT_DEV_PROXY_TARGET
+  // Keep local proxy targets available in production-build previews too.
+  const localProxyEnv =
+    mode === 'development' ? env : loadEnv('development', process.cwd(), 'FT_DEV_PROXY_')
+  const proxy = Object.fromEntries(
+    (
+      [
+        ['/ft-api', env.FT_DEV_PROXY_TARGET ?? localProxyEnv.FT_DEV_PROXY_TARGET],
+        [
+          '/ft-api-secondary',
+          env.FT_DEV_PROXY_SECONDARY_TARGET ?? localProxyEnv.FT_DEV_PROXY_SECONDARY_TARGET,
+        ],
+      ] as const
+    ).flatMap(([prefix, target]) =>
+      target
+        ? [
+            [
+              `^${prefix}(?=/|\\?|$)`,
+              {
+                target,
+                changeOrigin: true,
+                secure: true,
+                ws: true,
+                rewrite: (path: string) => '/api/v1' + path.slice(prefix.length),
+              },
+            ],
+          ]
+        : [],
+    ),
+  )
   // The manifest cannot follow the browser the way the UI does, so the build decides it.
   const appLang = env.VITE_APP_LANG || 'zh-CN'
 
@@ -80,19 +108,7 @@ export default defineConfig(({ mode }) => {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
     },
-    server: devProxyTarget
-      ? {
-          proxy: {
-            '/ft-api': {
-              target: devProxyTarget,
-              changeOrigin: true,
-              secure: true,
-              ws: true,
-              rewrite: (path: string) => path.replace(/^\/ft-api/, '/api/v1'),
-            },
-          },
-        }
-      : undefined,
+    server: { proxy },
     build: {
       target: 'es2022',
       rolldownOptions: {

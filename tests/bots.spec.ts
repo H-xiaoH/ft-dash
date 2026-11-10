@@ -71,7 +71,7 @@ describe('bot helpers', () => {
     await nextTick()
     expect(localStorage.getItem(BOTS_KEY)).not.toContain('"password":"p"')
     expect(localStorage.getItem(BOTS_KEY)).not.toContain('"wsToken":"stream-secret"')
-    expect(localStorage.getItem('ftdash.settings.v1')).not.toContain('stream-secret')
+    expect(localStorage.getItem('ftdash.settings.v2')).not.toContain('stream-secret')
     expect(sessionStorage.getItem(BOTS_SESSION_KEY)).toContain('"password":"p"')
     expect(sessionStorage.getItem(BOTS_SESSION_KEY)).toContain('"wsToken":"stream-secret"')
 
@@ -113,7 +113,7 @@ describe('bots store', () => {
     first.addBot(bot())
     first.remember = true
     const oldLocalCopy = localStorage.getItem(BOTS_KEY)!
-    const oldSettings = localStorage.getItem('ftdash.settings.v1')!
+    const oldSettings = localStorage.getItem('ftdash.settings.v2')!
     const oldTabCopy = sessionStorage.getItem(BOTS_SESSION_KEY)!
     const second = useSettingsStore(createPinia())
     const localDataRevision = first.localDataRevision
@@ -128,7 +128,7 @@ describe('bots store', () => {
     expect(first.password).toBe('')
     expect(first.remember).toBe(false)
     localStorage.setItem(BOTS_KEY, oldLocalCopy)
-    localStorage.setItem('ftdash.settings.v1', oldSettings)
+    localStorage.setItem('ftdash.settings.v2', oldSettings)
     sessionStorage.setItem(BOTS_SESSION_KEY, oldTabCopy)
     const reopened = useSettingsStore(createPinia())
     expect(reopened.bots).toEqual([])
@@ -179,6 +179,162 @@ describe('bots store', () => {
     settings.remember = true
     await nextTick()
     expect(localStorage.getItem(BOTS_KEY)).toContain('"password":"p"')
+  })
+
+  it('keeps another tab from restoring remembered credentials before its storage event', () => {
+    const first = useSettingsStore()
+    const main = first.addBot(bot({ wsToken: 'stream-secret' }))
+    const side = first.addBot(bot({ baseUrl: 'https://other.example', password: 'other-secret' }))
+    first.remember = true
+    const second = useSettingsStore(createPinia())
+    expect(second.remember).toBe(true)
+
+    first.remember = false
+    expect(localStorage.getItem(BOTS_KEY)).not.toContain('stream-secret')
+    second.setActiveBot(side.id)
+    second.localePreference = 'en'
+    expect(localStorage.getItem(BOTS_KEY)).not.toContain('other-secret')
+    expect(localStorage.getItem(BOTS_KEY)).not.toContain('stream-secret')
+
+    window.dispatchEvent(new StorageEvent('storage', { key: 'ftdash.rememberCredentials.v2' }))
+    expect(second.remember).toBe(false)
+    expect(first.activeBotId).toBe(main.id)
+    expect(second.activeBotId).toBe(side.id)
+    expect(second.password).toBe('other-secret')
+    const reopened = useSettingsStore(createPinia())
+    expect(reopened.remember).toBe(false)
+    expect(reopened.activeBotId).toBe(side.id)
+    first.$dispose()
+    second.$dispose()
+    reopened.$dispose()
+  })
+
+  it('invalidates an older PWA writer when the operator turns off remembered credentials', () => {
+    const first = useSettingsStore()
+    first.addBot(bot({ wsToken: 'stream-secret' }))
+    first.remember = true
+    const second = useSettingsStore(createPinia())
+    const generationKey = 'ftdash.dataGeneration.v1'
+    const oldGeneration = localStorage.getItem(generationKey)
+    const legacyBots = localStorage.getItem(BOTS_KEY)!
+    const oldRevision = second.localDataRevision
+
+    first.remember = false
+    // Older builds check this generation before each persist, without reading REMEMBER_KEY.
+    expect(localStorage.getItem(generationKey)).not.toBe(oldGeneration)
+    // A persist already in progress before revocation still has its old-generation payload.
+    localStorage.setItem('ftdash.bots.v1', legacyBots)
+    localStorage.setItem(
+      'ftdash.settings.v1',
+      JSON.stringify({ remember: true, wsToken: 'old-token' }),
+    )
+    window.dispatchEvent(new StorageEvent('storage', { key: 'ftdash.bots.v1' }))
+    window.dispatchEvent(new StorageEvent('storage', { key: 'ftdash.settings.v1' }))
+    window.dispatchEvent(new StorageEvent('storage', { key: generationKey }))
+
+    expect(localStorage.getItem(BOTS_KEY)).not.toContain('stream-secret')
+    expect(localStorage.getItem(BOTS_KEY)).not.toContain('"password":"secret"')
+    expect(localStorage.getItem('ftdash.settings.v1')).toBeNull()
+    expect(second.remember).toBe(false)
+    expect(second.password).toBe('secret')
+    expect(second.isLocalDataRevisionCurrent(oldRevision)).toBe(true)
+    first.$dispose()
+    second.$dispose()
+
+    // A fresh tab also cleans up a stale write that finished when no newer tab was open.
+    sessionStorage.clear()
+    localStorage.setItem('ftdash.bots.v1', legacyBots)
+    localStorage.setItem(
+      'ftdash.settings.v1',
+      JSON.stringify({ remember: true, wsToken: 'old-token' }),
+    )
+    const fresh = useSettingsStore(createPinia())
+    expect(fresh.bots).toHaveLength(1)
+    expect(fresh.needsPassword).toBe(true)
+    expect(fresh.remember).toBe(false)
+    expect(localStorage.getItem(BOTS_KEY)).not.toContain('stream-secret')
+    expect(localStorage.getItem('ftdash.settings.v1')).toBeNull()
+    fresh.$dispose()
+  })
+
+  it('keeps the initial selection in a tab even before that tab signs in', () => {
+    const first = bot({ id: 'first', password: '' })
+    const second = bot({ id: 'second', password: '', baseUrl: 'https://other.example' })
+    localStorage.setItem(BOTS_KEY, JSON.stringify([first, second]))
+    localStorage.setItem(ACTIVE_BOT_KEY, JSON.stringify(first.id))
+    const original = useSettingsStore()
+    expect(original.needsPassword).toBe(true)
+    // Another tab changes the shared default, without touching this tab's sessionStorage.
+    localStorage.setItem(ACTIVE_BOT_KEY, JSON.stringify(second.id))
+    original.$dispose()
+    const reloaded = useSettingsStore(createPinia())
+    expect(reloaded.activeBotId).toBe(first.id)
+    expect(reloaded.needsPassword).toBe(true)
+    reloaded.$dispose()
+  })
+
+  it('keeps restored credentials in the tab even before a connection succeeds', () => {
+    const original = useSettingsStore()
+    original.addBot(bot({ wsToken: 'stream-secret' }))
+    original.remember = true
+    sessionStorage.clear()
+
+    const restored = useSettingsStore(createPinia())
+    expect(restored.password).toBe('secret')
+    restored.remember = false
+
+    const reloaded = useSettingsStore(createPinia())
+    expect(reloaded.password).toBe('secret')
+    expect(reloaded.wsToken).toBe('stream-secret')
+    expect(reloaded.remember).toBe(false)
+    original.$dispose()
+    restored.$dispose()
+    reloaded.$dispose()
+  })
+
+  it('migrates a previous saved backend and preferences once', () => {
+    localStorage.setItem('ftdash.bots.v1', JSON.stringify([bot({ wsToken: 'stream-secret' })]))
+    localStorage.setItem('ftdash.settings.v1', JSON.stringify({ remember: true, locale: 'en' }))
+
+    const settings = useSettingsStore()
+    expect(settings.remember).toBe(true)
+    expect(settings.password).toBe('secret')
+    expect(settings.wsToken).toBe('stream-secret')
+    expect(settings.localePreference).toBe('en')
+    expect(localStorage.getItem('ftdash.bots.v1')).toBeNull()
+    expect(localStorage.getItem('ftdash.settings.v1')).toBeNull()
+
+    settings.clearStoredData()
+    localStorage.setItem('ftdash.bots.v1', JSON.stringify([bot()]))
+    const reopened = useSettingsStore(createPinia())
+    expect(reopened.bots).toEqual([])
+    expect(localStorage.getItem('ftdash.bots.v1')).toBeNull()
+    settings.$dispose()
+    reopened.$dispose()
+  })
+
+  it('does not let an earlier build overwrite the backend list after a second revocation', () => {
+    const settings = useSettingsStore()
+    const first = settings.addBot(bot())
+    settings.remember = true
+    settings.remember = false
+    settings.remember = true
+    const generation = JSON.parse(localStorage.getItem('ftdash.dataGeneration.v1')!)
+    settings.remember = false
+    settings.$dispose()
+    sessionStorage.clear()
+
+    const staleBots = [bot({ id: 'removed', wsToken: 'stale-token' })]
+    for (const payload of [{ generation, bots: staleBots }, staleBots]) {
+      localStorage.setItem('ftdash.bots.v1', JSON.stringify(payload))
+      localStorage.setItem('ftdash.settings.v1', JSON.stringify({ remember: true }))
+      const reopened = useSettingsStore(createPinia())
+      expect(reopened.bots.map((entry) => entry.id)).toEqual([first.id])
+      expect(reopened.remember).toBe(false)
+      expect(localStorage.getItem('ftdash.bots.v1')).toBeNull()
+      expect(localStorage.getItem('ftdash.settings.v1')).toBeNull()
+      reopened.$dispose()
+    }
   })
 
   it('makes the first bot active and keeps the live credentials in step', () => {

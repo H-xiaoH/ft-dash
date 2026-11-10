@@ -25,8 +25,19 @@ import type { StreamAuthPreference } from '@/lib/stream'
 import type { TimezonePreference } from '@/lib/timezone'
 import { isZone } from '@/lib/timezone'
 
-const SETTINGS_KEY = 'ftdash.settings.v1'
+export const SETTINGS_KEY = 'ftdash.settings.v2'
+const LEGACY_BOTS_KEY = 'ftdash.bots.v1'
+const LEGACY_SETTINGS_KEY = 'ftdash.settings.v1'
 const DATA_GENERATION_KEY = 'ftdash.dataGeneration.v1'
+const REMEMBER_KEY = 'ftdash.rememberCredentials.v2'
+const LEGACY_REMEMBER_KEY = 'ftdash.rememberCredentials.v1'
+
+interface RememberPolicy {
+  generation: string | null
+  enabled: boolean
+  /** A credential revocation fences older builds without invalidating newer tab sessions. */
+  sessionGeneration?: string | null
+}
 
 interface StoredSettings {
   generation?: string | null
@@ -118,16 +129,77 @@ function resolveTimezone(value: unknown): TimezonePreference {
  * localStorage only when the operator asked to remember them; otherwise they live in
  * sessionStorage, so a reload inside the same tab still works but nothing hits the disk.
  */
-function loadBots(rememberLocalSecrets: boolean, generation: string | null): Bot[] {
-  const local = readJson<Bot[] | { generation: string | null; bots: Bot[] } | null>(BOTS_KEY, null)
-  const tabStorage = safeSessionStorage()
-  const tabGeneration = readJson<string | null>(DATA_GENERATION_KEY, null, tabStorage)
-  if (tabGeneration !== generation) removeKey(BOTS_SESSION_KEY, tabStorage)
+function readStoredBots(key = BOTS_KEY) {
+  const stored = readJson<Bot[] | { generation: string | null; bots: Bot[] } | null>(key, null)
+  return Array.isArray(stored) ? { generation: null, bots: stored } : stored
+}
+
+function readRememberPolicy(generation: string | null) {
+  const policy = readJson<RememberPolicy | null>(REMEMBER_KEY, null)
+  return policy?.generation === generation ? policy : null
+}
+
+function sessionGenerationFor(generation: string | null): string | null {
+  const session = readRememberPolicy(generation)?.sessionGeneration
+  return session === undefined ? generation : session
+}
+
+function clearRememberedBotCredentials() {
+  const stored = readStoredBots()
+  if (!stored) return
+  const entries = parseBots(stored.bots)
+  if (entries.some((entry) => entry.password || entry.wsToken)) {
+    writeJson(BOTS_KEY, { generation: stored.generation, bots: serializeBots(entries, false) })
+  }
+}
+
+function removeLegacyStorage() {
+  removeKey(LEGACY_BOTS_KEY)
+  removeKey(LEGACY_SETTINGS_KEY)
+  removeKey(LEGACY_REMEMBER_KEY)
+}
+
+function migrateLegacyStorage(generation: string | null) {
+  if (readJson<RememberPolicy | null>(REMEMBER_KEY, null) === null) {
+    const oldPolicy = readJson<RememberPolicy | null>(LEGACY_REMEMBER_KEY, null)
+    const policy = oldPolicy?.generation === generation ? oldPolicy : null
+    const settings = readJson<Partial<StoredSettings> | null>(LEGACY_SETTINGS_KEY, null)
+    const oldBots = readStoredBots(LEGACY_BOTS_KEY)
+    const currentSettings = settings && (settings.generation ?? null) === generation
+    const sessionGeneration =
+      policy?.sessionGeneration === undefined ? generation : policy.sessionGeneration
+    const enabled = policy?.enabled ?? Boolean(currentSettings && settings.remember === true)
+    if (oldBots?.generation === generation && !readStoredBots()) {
+      writeJson(BOTS_KEY, {
+        generation: sessionGeneration,
+        bots: serializeBots(parseBots(oldBots.bots), enabled),
+      })
+      if (!readStoredBots()) return
+    }
+    if (currentSettings && readJson(SETTINGS_KEY, null) === null) {
+      delete settings.remember
+      delete settings.wsToken
+      writeJson(SETTINGS_KEY, { ...settings, generation: sessionGeneration })
+      if (readJson(SETTINGS_KEY, null) === null) return
+    }
+    writeJson(REMEMBER_KEY, {
+      generation,
+      sessionGeneration,
+      enabled,
+    } satisfies RememberPolicy)
+  }
+  if (readJson<RememberPolicy | null>(REMEMBER_KEY, null)) removeLegacyStorage()
+}
+
+function loadBots(
+  rememberLocalSecrets: boolean,
+  generation: string | null,
+  tabStorage: Storage | null,
+): Bot[] {
+  const local = readStoredBots()
   const session = parseBots(readJson<unknown>(BOTS_SESSION_KEY, [], tabStorage))
-  if (local === null) return session
-  const localGeneration = Array.isArray(local) ? null : local.generation
-  if (localGeneration !== generation) return session
-  return parseBots(Array.isArray(local) ? local : local.bots).map((bot) => {
+  if (local?.generation !== generation) return session
+  return parseBots(local.bots).map((bot) => {
     const stored = rememberLocalSecrets ? bot : { ...bot, password: '', wsToken: '' }
     const tabCopy = session.find(
       (entry) => entry.id === bot.id && sameConnectionIdentity(entry, bot),
@@ -142,18 +214,37 @@ function loadBots(rememberLocalSecrets: boolean, generation: string | null): Bot
 
 export const useSettingsStore = defineStore('settings', () => {
   let storageGeneration = readJson<string | null>(DATA_GENERATION_KEY, null)
+  migrateLegacyStorage(storageGeneration)
   const stored = readJson<Partial<StoredSettings>>(SETTINGS_KEY, {})
-  const persisted = (stored.generation ?? null) === storageGeneration ? stored : {}
   const localDataRevision = ref(0)
 
-  const remember = ref(persisted.remember ?? DEFAULT_SETTINGS.remember)
-  const bots = ref<Bot[]>(loadBots(remember.value, storageGeneration))
-  const storedActive = readJson<string | null>(ACTIVE_BOT_KEY, null)
+  let sessionGeneration = sessionGenerationFor(storageGeneration)
+  const tabStorage = safeSessionStorage()
+  if (readJson<string | null>(DATA_GENERATION_KEY, null, tabStorage) !== sessionGeneration) {
+    removeKey(BOTS_SESSION_KEY, tabStorage)
+    removeKey(ACTIVE_BOT_KEY, tabStorage)
+  }
+  writeJson(DATA_GENERATION_KEY, sessionGeneration, tabStorage)
+  const rememberEnabled = ref(readRememberPolicy(storageGeneration)?.enabled === true)
+  if (!rememberEnabled.value) clearRememberedBotCredentials()
+  const persisted = (stored.generation ?? null) === sessionGeneration ? stored : {}
+  const remember = computed({
+    get: () => rememberEnabled.value,
+    set: (enabled: boolean) => setRememberPolicy(enabled),
+  })
+  const bots = ref<Bot[]>(loadBots(rememberEnabled.value, sessionGeneration, tabStorage))
+  if (bots.value.length) writeJson(BOTS_SESSION_KEY, serializeBots(bots.value, true), tabStorage)
+  const storedActive = readJson<string | null>(
+    ACTIVE_BOT_KEY,
+    readJson<string | null>(ACTIVE_BOT_KEY, null),
+    tabStorage,
+  )
   const activeBotId = ref(
     typeof storedActive === 'string' && bots.value.some((bot) => bot.id === storedActive)
       ? storedActive
       : (bots.value[0]?.id ?? ''),
   )
+  if (activeBotId.value) writeJson(ACTIVE_BOT_KEY, activeBotId.value, tabStorage)
   const activeBot = computed(() => bots.value.find((bot) => bot.id === activeBotId.value) ?? null)
 
   const baseUrl = ref(activeBot.value?.baseUrl ?? import.meta.env.VITE_API_BASE_DEFAULT ?? '')
@@ -271,44 +362,83 @@ export const useSettingsStore = defineStore('settings', () => {
   /** The active bot has no password at hand: the operator has to type it again. */
   const needsPassword = computed(() => Boolean(activeBot.value) && password.value.length === 0)
 
+  function adoptStorageGeneration(generation: string | null): boolean {
+    if (generation === storageGeneration) return true
+    if (generation === null || sessionGenerationFor(generation) !== sessionGeneration) return false
+    storageGeneration = generation
+    return true
+  }
+
   function isLocalDataRevisionCurrent(expectedRevision: number): boolean {
     return (
       expectedRevision === localDataRevision.value &&
-      storageGeneration === readJson<string | null>(DATA_GENERATION_KEY, null)
+      adoptStorageGeneration(readJson<string | null>(DATA_GENERATION_KEY, null))
     )
   }
 
   function persist() {
     if (suppressPersistence || !isLocalDataRevisionCurrent(localDataRevision.value)) return
     writeJson(SETTINGS_KEY, {
-      generation: storageGeneration,
+      generation: sessionGeneration,
       // The preference is what gets stored; the resolved language is derived from it.
       locale: localePreference.value,
       timezone: timezone.value,
       websocket: websocket.value,
       streamAuth: streamAuth.value,
-      wsToken: remember.value ? wsToken.value : '',
       allowControls: allowControls.value,
       notifications: notifications.value,
-      remember: remember.value,
       controlsAcknowledged: controlsAcknowledged.value,
       dashboardOpenLimit: dashboardOpenLimit.value,
       dashboardClosedLimit: dashboardClosedLimit.value,
       tradesPerPage: tradesPerPage.value,
       pairTablePerPage: pairTablePerPage.value,
       pollInterval: pollIntervalSeconds.value,
-    } satisfies StoredSettings)
+    } satisfies Omit<StoredSettings, 'remember' | 'wsToken'>)
+  }
+
+  function setRememberPolicy(enabled: boolean) {
+    if (!isLocalDataRevisionCurrent(localDataRevision.value)) return
+    if (enabled) {
+      writeJson(REMEMBER_KEY, {
+        generation: storageGeneration,
+        sessionGeneration,
+        enabled: true,
+      } satisfies RememberPolicy)
+      rememberEnabled.value = readRememberPolicy(storageGeneration)?.enabled === true
+      if (rememberEnabled.value) persistBots()
+      return
+    }
+
+    const generation = newBotId()
+    // Older builds compare this generation before saving. Newer builds keep the logical
+    // session generation, so open tabs retain their passwords without keeping them on disk.
+    writeJson(REMEMBER_KEY, {
+      generation,
+      sessionGeneration,
+      enabled: false,
+    } satisfies RememberPolicy)
+    writeJson(DATA_GENERATION_KEY, generation)
+    storageGeneration = readJson<string | null>(DATA_GENERATION_KEY, null)
+    rememberEnabled.value = false
+    clearRememberedBotCredentials()
+    removeLegacyStorage()
   }
 
   function persistBots() {
     if (suppressPersistence || !isLocalDataRevisionCurrent(localDataRevision.value)) return
+    const rememberLocalSecrets = readRememberPolicy(storageGeneration)?.enabled === true
     writeJson(BOTS_KEY, {
-      generation: storageGeneration,
-      bots: serializeBots(bots.value, remember.value),
+      generation: sessionGeneration,
+      bots: serializeBots(bots.value, rememberLocalSecrets),
     })
+    if (rememberLocalSecrets) {
+      const generation = readJson<string | null>(DATA_GENERATION_KEY, null)
+      if (!readRememberPolicy(generation)?.enabled) clearRememberedBotCredentials()
+    }
     const tabStorage = safeSessionStorage()
     writeJson(BOTS_SESSION_KEY, serializeBots(bots.value, true), tabStorage)
-    writeJson(DATA_GENERATION_KEY, storageGeneration, tabStorage)
+    writeJson(DATA_GENERATION_KEY, sessionGeneration, tabStorage)
+    writeJson(ACTIVE_BOT_KEY, activeBotId.value, tabStorage)
     writeJson(ACTIVE_BOT_KEY, activeBotId.value)
   }
 
@@ -317,6 +447,7 @@ export const useSettingsStore = defineStore('settings', () => {
     const tabStorage = safeSessionStorage()
     removeKey(BOTS_SESSION_KEY, tabStorage)
     removeKey(DATA_GENERATION_KEY, tabStorage)
+    removeKey(ACTIVE_BOT_KEY, tabStorage)
     bots.value = []
     activeBotId.value = ''
     baseUrl.value = ''
@@ -330,7 +461,7 @@ export const useSettingsStore = defineStore('settings', () => {
     wsToken.value = DEFAULT_SETTINGS.wsToken
     allowControls.value = DEFAULT_SETTINGS.allowControls
     notifications.value = DEFAULT_SETTINGS.notifications
-    remember.value = DEFAULT_SETTINGS.remember
+    rememberEnabled.value = DEFAULT_SETTINGS.remember
     dashboardOpenLimit.value = DEFAULT_SETTINGS.dashboardOpenLimit
     dashboardClosedLimit.value = DEFAULT_SETTINGS.dashboardClosedLimit
     tradesPerPage.value = DEFAULT_SETTINGS.tradesPerPage
@@ -345,22 +476,47 @@ export const useSettingsStore = defineStore('settings', () => {
   function clearStoredData() {
     writeJson(DATA_GENERATION_KEY, newBotId())
     storageGeneration = readJson<string | null>(DATA_GENERATION_KEY, null)
+    sessionGeneration = storageGeneration
     removeKey(SETTINGS_KEY)
+    writeJson(REMEMBER_KEY, {
+      generation: storageGeneration,
+      enabled: false,
+    } satisfies RememberPolicy)
     removeKey(BOTS_KEY)
     removeKey(ACTIVE_BOT_KEY)
+    removeLegacyStorage()
     resetLocalState()
   }
 
   if (typeof window !== 'undefined') {
-    const syncClearedData = (event: StorageEvent) => {
-      if (event.key !== DATA_GENERATION_KEY && event.key !== null) return
+    const syncLocalData = (event: StorageEvent) => {
+      if (
+        event.key === LEGACY_BOTS_KEY ||
+        event.key === LEGACY_SETTINGS_KEY ||
+        event.key === LEGACY_REMEMBER_KEY
+      ) {
+        removeLegacyStorage()
+        return
+      }
+      if (
+        event.key !== DATA_GENERATION_KEY &&
+        event.key !== REMEMBER_KEY &&
+        event.key !== BOTS_KEY &&
+        event.key !== null
+      )
+        return
       const generation = readJson<string | null>(DATA_GENERATION_KEY, null)
-      if (generation === storageGeneration) return
-      storageGeneration = generation
-      resetLocalState()
+      if (!adoptStorageGeneration(generation)) {
+        storageGeneration = generation
+        sessionGeneration = sessionGenerationFor(generation)
+        resetLocalState()
+      }
+      rememberEnabled.value = readRememberPolicy(generation)?.enabled === true
+      // A current build can have begun writing just before another tab revoked consent.
+      if (!rememberEnabled.value && event.key === BOTS_KEY) clearRememberedBotCredentials()
     }
-    window.addEventListener('storage', syncClearedData)
-    onScopeDispose(() => window.removeEventListener('storage', syncClearedData))
+    window.addEventListener('storage', syncLocalData)
+    onScopeDispose(() => window.removeEventListener('storage', syncLocalData))
   }
 
   /** Drops the live connection but keeps the stored bot list. */
@@ -468,7 +624,6 @@ export const useSettingsStore = defineStore('settings', () => {
       wsToken,
       allowControls,
       notifications,
-      remember,
       controlsAcknowledged,
       dashboardOpenLimit,
       dashboardClosedLimit,
@@ -479,9 +634,6 @@ export const useSettingsStore = defineStore('settings', () => {
     persist,
     { flush: 'sync' },
   )
-
-  /** Toggling "remember" rewrites the stored list with or without the passwords. */
-  watch(remember, persistBots, { flush: 'sync' })
 
   return {
     bots,

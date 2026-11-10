@@ -206,7 +206,7 @@ function exportCsv() {
     trade.open_rate,
     trade.close_rate ?? '',
     trade.profit_abs ?? '',
-    ((trade.profit_ratio ?? trade.close_profit ?? 0) * 100).toFixed(2),
+    Number(((trade.profit_ratio ?? trade.close_profit ?? 0) * 100).toFixed(2)),
     trade.open_date,
     trade.close_date ?? '',
     format.duration(durationOf(trade)),

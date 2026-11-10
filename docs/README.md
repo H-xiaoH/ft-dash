@@ -33,17 +33,22 @@
 - [independent-refresh](specs/independent-refresh.md) — 全量与轮询各组独立刷新，慢心跳不阻塞其他数据
 - [freqtrade-data-layer](specs/freqtrade-data-layer.md) — transport、client、session 分层与竞态控制
 - [audit-reliability-fixes](specs/audit-reliability-fixes.md) — 写入口门禁、后台告警、K 线刷新、表单恢复、未知统计与 Safari 15.5 基础样式
+- [audit-followup](specs/audit-followup.md) — 凭据同步、净值刷新、CSV 安全和点按操作
 - [backend-picker](specs/backend-picker.md) — 后端下拉选择与管理入口
 - [ui-limits-and-auto-retry](specs/ui-limits-and-auto-retry.md) — 界面数量上限、登录探测、401 回连接页与自动重试
 - [remove-version-warnings](specs/remove-version-warnings.md) — 移除版本兼容性检测与软警告
 
 ### 导航、布局与动效
 
+- [mobile-ui-polish](specs/mobile-ui-polish.md) — 订单滚动、搜索收起、周期提示框和更多子页过渡
+
 - [md3-five-destinations](specs/md3-five-destinations.md) — 五项底栏、更多子页、跨布局页面状态及 K 线键盘查看
 
 - [period-equity-layer](specs/period-equity-layer.md) — 总览周期图账户净值折线位于盈亏柱上方
 
 - [candle-presentation](specs/candle-presentation.md) — K 线顶部读数、时区刻度与桌面/触屏操作
+
+- [candle-chart-help](specs/candle-chart-help.md) — 市场 K 线图的触屏、鼠标和键盘帮助弹窗
 
 - [candle-cleanup](specs/candle-cleanup.md) — 移除 K 线信号标记、自适应占位与交易详情退场
 

@@ -59,7 +59,8 @@
 - 🕯️ **市场** — K 线图置顶（按住横向滑动可刮擦，左上角按交易所样式显示该 K 柱的开高低收/涨跌/
   成交量）。支持拖动价格轴、双指缩放和范围条，保留当前持仓成本线。下方配交易对选择器、机器人当前周期，以及白名单、
   黑名单与生效中的交易锁。白名单金额为累计已平仓盈亏，不含当前持仓的浮动盈亏。
-- 🪵 **日志** — 机器人实时日志，支持最低级别过滤、点开式搜索与自动滚动。
+- 🪵 **日志** — 机器人实时日志，支持最低级别过滤、点开式搜索与自动滚动。滚离顶部时保留当前记录，
+  点击「回到最新」即可继续跟随。
 - 🖥️ **系统** — CPU / 内存 / 负载、心跳延迟告警、进程运行时长、生效配置（策略、交易所、交易模式、
   投入模式）。
 - 🔔 **告警** — 可选系统通知：成交、警告、异常、机器人停止事件，以及心跳静默超过 30 秒。页面或
@@ -87,7 +88,8 @@
 
 页面可见时，所有常规数据组按「设置 → 界面」中的轮询间隔刷新，默认 1 秒。
 切换到后台时暂停常规轮询。开启告警后，后台独立每 10 秒尝试探测心跳。市场页可见时，K 线
-请求成功后等 30 秒刷新，失败后等 1 秒重试。同一资源组共享尚未结束的请求，其他资源组照常刷新。
+请求成功后等 30 秒刷新，失败后等 1 秒重试。进入总览、返回可见总览、持续可见每 60 秒或手动刷新时
+更新历史净值，当前净值点仍跟随常规余额。同一资源组共享尚未结束的请求，其他资源组照常刷新。
 
 ## 🚀 快速开始
 
@@ -143,10 +145,10 @@ SCREENS=1 npx playwright test e2e/screenshots.spec.ts --project=chromium
 编辑或删除。每次只有一个后端参与轮询与实时推送；切换后，页面上的搜索、筛选、分页与详情抽屉
 都会重置。
 
-- 机器人只保存在本机浏览器；密码默认只放在当前标签页（sessionStorage），打开
-  “在此设备上记住凭据”后才会写入 localStorage。
-- 平时界面不显示当前机器人的名字，只有强平、启停这类**写操作**的确认框会写出它作用于哪个
-  机器人，“机器人控制”总开关仍然一次性管住所有机器人。
+- 凭据默认只保存在当前标签页。关闭「在此设备上记住凭据」会同步到其他标签页，清除长期存储的
+  密码和推送令牌，已更新的标签页保留当前会话。升级后请刷新或关闭仍在运行旧版的标签页或 PWA 窗口。
+- 配置至少两个后端且空间足够时，顶栏显示当前后端，并提供「管理后端」入口。市价平仓和启停等
+  **写操作**的确认框会标明作用的后端。
 - 每行都有“测试连接”，会独立探测该机器人的地址与凭据，不影响当前正在使用的连接。
 
 ### 🌐 API 地址
@@ -178,9 +180,10 @@ SCREENS=1 npx playwright test e2e/screenshots.spec.ts --project=chromium
 }
 ```
 
-本地开发时把 `http://localhost:5173` 一并加入。若不想放宽 CORS，也可以用开发代理（见
+本地开发时把 `http://localhost:5173` 一并加入。若不想放宽 CORS，本地开发和预览均可用代理（见
 `.env.example`）：把 `VITE_API_BASE_DEFAULT` 设为 `/ft-api`，并在不入库的 `.env.local` 里把
-`FT_DEV_PROXY_TARGET` 指向提供 `/api/v1` 的来源。
+`FT_DEV_PROXY_TARGET` 指向提供 `/api/v1` 的来源。如需添加第二个后端，在设置中使用
+`/ft-api-secondary` 作为地址，并将 `FT_DEV_PROXY_SECONDARY_TARGET` 指向对应来源。
 
 ## 🔐 鉴权
 
@@ -218,7 +221,8 @@ WebSocket 连续三次握手被拒后，改为每分钟重试一次。期间 RES
 | --- | --- |
 | `VITE_API_BASE_DEFAULT` | 预填连接页的 API 地址。公开部署建议留空。 |
 | `VITE_BASE` | 应用部署的公开路径（Pages 项目页用 `/<仓库>/`，根域名用 `/`）。 |
-| `FT_DEV_PROXY_TARGET` | 仅开发用的代理目标，让 `npm run dev` 能访问未放行 `localhost:5173` 的 API。 |
+| `FT_DEV_PROXY_TARGET` | 本地开发和预览中 `/ft-api` 的代理目标。 |
+| `FT_DEV_PROXY_SECONDARY_TARGET` | 可选的第二后端代理目标，对应 `/ft-api-secondary`。 |
 
 切勿把真实主机、用户名或密码写进仓库：`.env*` 文件已在 gitignore 中。
 
@@ -238,7 +242,7 @@ WebSocket 连续三次握手被拒后，改为每分钟重试一次。期间 RES
 
 基于 **Freqtrade 2026.9 / API v2.5** 开发，并在实盘 futures 实例上做过端到端验证。它读取
 `/ping`、`/show_config`、`/health`、`/sysinfo`、`/balance`、`/profit`、
-`/profit_all`、`/status`、`/count`、`/trades`、`/performance`、`/stats`、`/daily`、`/weekly`、
+`/historic_balance`、`/status`、`/count`、`/trades`、`/performance`、`/stats`、`/daily`、`/weekly`、
 `/monthly`、`/logs`、`/whitelist`、`/blacklist`、`/locks` 与 `/pair_candles`；在开启控制功能后
 会向 `/start`、`/stop`、`/stopentry`、`/reload_config`、`/forceexit`、`/blacklist` 与
 `/locks/delete` 发起请求。

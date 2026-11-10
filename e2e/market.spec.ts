@@ -22,6 +22,31 @@ test.beforeEach(async ({ page }, testInfo) => {
   await expect(page.locator('.shell')).toBeVisible()
 })
 
+test('the help beside the candle timeframe opens and returns focus on close', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 740 })
+  await settlePages(page)
+  const help = livePage(page).getByRole('button', { name: 'K 线操作说明' })
+  const timeframe = livePage(page).getByText('5m', { exact: true })
+  await expect(help).toBeVisible()
+  const chip = (await timeframe.boundingBox())!
+  const button = (await help.boundingBox())!
+  expect(button.x).toBeGreaterThanOrEqual(chip.x + chip.width)
+  expect(Math.abs(button.y + button.height / 2 - (chip.y + chip.height / 2))).toBeLessThan(2)
+
+  const dialog = page.getByRole('dialog', { name: 'K 线操作说明' })
+  await help.click()
+  await expect(dialog.getByRole('heading', { name: '触屏' })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: '鼠标' })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: '键盘' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(help).toBeFocused()
+  await help.click()
+  await dialog.getByRole('button', { name: '关闭', exact: true }).click()
+  await expect(dialog).toBeHidden()
+  await expect(help).toBeFocused()
+})
+
 /**
  * The list that overflows inside a page locked to the viewport. Getting this wrong leaves the
  * bottom rows clipped and unreachable on a phone — and unreachable by keyboard even on a wide
@@ -392,4 +417,88 @@ test('the chart zooms with the wheel and resets through its native scale control
     .toBeGreaterThan(0)
   await livePage(page).getByRole('button', { name: '复位' }).click()
   await expect(slider).toHaveAttribute('aria-valuemax', '0')
+})
+
+test('the chart time range can be zoomed by tapping the zoom menu', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 740 })
+  await settlePages(page)
+  const market = livePage(page)
+  const slider = market.getByRole('slider')
+  await market.getByRole('button', { name: '复位' }).click()
+  await expect(slider).toHaveAttribute('aria-valuemax', '0')
+  await market.getByRole('button', { name: '缩放', exact: true }).click()
+  const menu = page.getByRole('menu', { name: '缩放' })
+  await menu.getByRole('menuitem', { name: '放大时间轴' }).click()
+  await expect
+    .poll(async () => Number(await slider.getAttribute('aria-valuemax')))
+    .toBeGreaterThan(0)
+  await menu.getByRole('menuitem', { name: '缩小时间轴' }).click()
+  await expect.poll(async () => Number(await slider.getAttribute('aria-valuemax'))).toBeCloseTo(0)
+})
+
+test('a touch drag scales the right axis while the chart body still scrolls the page', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 480 })
+  await settlePages(page)
+  const market = livePage(page)
+  const plot = market.locator('.candles__plot')
+  await expect(plot.locator('canvas').first()).toBeVisible()
+  // The market normally fits the viewport. Provide scroll room to exercise native scrolling.
+  await market.evaluate((element) => {
+    const spacer = document.createElement('div')
+    spacer.style.height = '180px'
+    element.append(spacer)
+  })
+  expect(
+    await market.evaluate((element) => element.scrollHeight - element.clientHeight),
+  ).toBeGreaterThan(0)
+  const box = (await plot.boundingBox())!
+  const axisBitmap = () =>
+    plot.evaluate((element) => {
+      const rect = element.getBoundingClientRect()
+      const axis = Array.from(element.querySelectorAll('canvas')).find((canvas) => {
+        const box = canvas.getBoundingClientRect()
+        return (
+          box.width > 0 &&
+          box.width < rect.width / 2 &&
+          Math.abs(box.right - rect.right) < 2 &&
+          Math.abs(box.top - rect.top) < 2
+        )
+      })
+      return axis?.toDataURL()
+    })
+  const original = await axisBitmap()
+  expect(original).toBeTruthy()
+  const cdp = await page.context().newCDPSession(page)
+  try {
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true })
+    const drag = async (x: number, y: number, delta: number) => {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+      for (let step = 1; step <= 6; step++) {
+        await cdp.send('Input.dispatchTouchEvent', {
+          type: 'touchMove',
+          touchPoints: [{ x, y: y + (delta * step) / 6 }],
+        })
+      }
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    }
+    const scrollTop = () => market.evaluate((element) => element.scrollTop)
+    const initialScroll = await scrollTop()
+    await drag(box.x + box.width - 10, box.y + 110, -80)
+    await expect.poll(axisBitmap).not.toBe(original)
+    expect(await scrollTop()).toBe(initialScroll)
+
+    await market.getByRole('button', { name: '复位', exact: true }).click()
+    await expect.poll(axisBitmap).toBe(original)
+    await market.evaluate((element) => {
+      element.scrollTop = 0
+    })
+    const resetBox = (await plot.boundingBox())!
+    await drag(resetBox.x + resetBox.width / 2, resetBox.y + 110, -80)
+    await expect.poll(scrollTop).toBeGreaterThan(0)
+    expect(await axisBitmap()).toBe(original)
+  } finally {
+    await cdp.detach()
+  }
 })

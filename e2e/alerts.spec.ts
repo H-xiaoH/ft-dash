@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
     Object.defineProperty(window, 'Notification', { value: FakeNotification, writable: true })
     // Notifications must be enabled before the app boots.
     window.localStorage.setItem(
-      'ftdash.settings.v1',
+      'ftdash.settings.v2',
       JSON.stringify({
         locale: 'zh-CN',
         websocket: true,

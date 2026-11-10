@@ -16,6 +16,7 @@ export async function settlePages(page: Page) {
         const moving = [
           el,
           el.querySelector('.swiper-wrapper'),
+          el.querySelector('.swiper-slide-active .page-scroll:not([inert])'),
           document.querySelector('.main'),
         ].some((node) =>
           node?.getAnimations().some((animation) => animation.playState === 'running'),

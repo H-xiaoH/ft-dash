@@ -24,4 +24,10 @@ describe('toCsv', () => {
       "'=SUM(A1:A2),'+cmd,'-cmd,'@cmd,-1",
     )
   })
+
+  it('protects formulas hidden by control characters, whitespace, or full-width operators', () => {
+    expect(toCsv([['\t=1+1', '\r=1+1', '  @SUM(A1)', '＝1+1', '\u200B−1', -1.23]])).toBe(
+      "\"'\t=1+1\",\"'\r=1+1\",'  @SUM(A1),'＝1+1,'\u200B−1,-1.23",
+    )
+  })
 })

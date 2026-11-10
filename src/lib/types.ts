@@ -20,6 +20,7 @@ export interface ShowConfigResponse {
   margin_mode?: string
   short_allowed?: boolean
   stake_currency: string
+  proxy_coin?: string | null
   stake_amount: number | string
   available_capital?: number | null
   stake_currency_decimals?: number
@@ -122,12 +123,6 @@ export interface ProfitSummary {
   trading_volume?: number | null
   bot_start_timestamp?: number | null
   bot_start_date?: string | null
-}
-
-export interface ProfitAllResponse {
-  all: ProfitSummary
-  long: ProfitSummary
-  short: ProfitSummary
 }
 
 export interface ApiOrder {

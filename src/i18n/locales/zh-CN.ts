@@ -70,7 +70,9 @@ export default {
     liveTrading: '实盘',
   },
   bots: {
-    reorder: '长按拖动调整 {name} 的顺序，或使用上下方向键',
+    reorder: '调整 {name} 的顺序',
+    moveUp: '上移',
+    moveDown: '下移',
     reordered: '{name}：第 {position} 项，共 {total} 项',
     title: '后端',
     add: '添加后端',
@@ -80,6 +82,10 @@ export default {
     removeBody: '将从本机移除 {name}，需要重新输入凭据才能再次添加。',
     select: '选择后端',
     connecting: '连接中',
+    checking: '检查中',
+    connected: '已连接',
+    notChecked: '未检查',
+    reachableUnverified: '可达 · 凭据未验证',
     manage: '管理后端',
     current: '当前',
     test: '测试连接',
@@ -214,7 +220,6 @@ export default {
     candleRange: 'K 线可见时间范围',
     priceScale:
       'K 线图（左右键逐根查看，Escape 返回最新；上下键缩放价格，加减键缩放时间；双击刻度轴或按回车、空格、Home 复位）',
-    costBasis: '持仓成本',
     lockUntil: '锁定至',
     lockReason: '原因',
     lockActive: '生效中',
@@ -290,6 +295,7 @@ export default {
     title: '运行日志',
     level: '级别',
     follow: '自动滚动',
+    backToLatest: '回到最新',
     filterLevel: '最低级别',
     searchLogs: '搜索日志',
     empty: '暂无日志。',
@@ -384,6 +390,28 @@ export default {
   },
   chart: {
     reset: '复位',
+    zoom: '缩放',
+    priceZoomIn: '放大价格轴',
+    priceZoomOut: '缩小价格轴',
+    timeZoomIn: '放大时间轴',
+    timeZoomOut: '缩小时间轴',
+    help: {
+      title: 'K 线操作说明',
+      touch: {
+        title: '触屏',
+        body: '左右拖动浏览历史，双指捏合缩放时间范围。长按图表后移动手指可逐根查看 K 线。按住右侧价格刻度，下拉放大价格轴，上推缩小。',
+      },
+      mouse: {
+        title: '鼠标',
+        body: '悬停查看 K 线，左右拖动浏览历史，滚轮缩放时间范围。拖动右侧价格轴或底部时间轴可缩放对应刻度，双击刻度轴可复位该轴。',
+      },
+      keyboard: {
+        title: '键盘',
+        body: '用 Tab 聚焦图表。← / → 逐根查看，↑ / ↓ 缩放价格，+ / − 缩放时间。按 Esc 返回最新读数，按 Home、Enter 或空格复位。',
+      },
+      controls:
+        '底部滑块可移动可见时间范围，也可打开「缩放」调整价格轴或时间轴。「复位」会显示全部已加载 K 线，并恢复价格轴自动缩放。',
+    },
     open: '开',
     high: '高',
     low: '低',

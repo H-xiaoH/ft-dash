@@ -71,7 +71,9 @@ export default {
     liveTrading: 'Live',
   },
   bots: {
-    reorder: 'Hold to reorder {name}, or use the up and down arrow keys',
+    reorder: 'Reorder {name}',
+    moveUp: 'Move up',
+    moveDown: 'Move down',
     reordered: '{name}: position {position} of {total}',
     title: 'Backends',
     add: 'Add backend',
@@ -81,6 +83,10 @@ export default {
     removeBody: 'Removes {name} from this device; you will have to enter its credentials again.',
     select: 'Select backend',
     connecting: 'Connecting',
+    checking: 'Checking',
+    connected: 'Connected',
+    notChecked: 'Unchecked',
+    reachableUnverified: 'Reachable · password not verified',
     manage: 'Manage backends',
     current: 'Current',
     test: 'Test connection',
@@ -209,7 +215,6 @@ export default {
     sent: 'Command sent',
   },
   market: {
-    costBasis: 'Position cost',
     closedProfit: 'Cumulative closed P&L',
     whitelist: 'Whitelist',
     blacklist: 'Blacklist',
@@ -294,6 +299,7 @@ export default {
     title: 'Run log',
     level: 'Level',
     follow: 'Follow',
+    backToLatest: 'Back to Latest',
     filterLevel: 'Minimum level',
     searchLogs: 'Search log lines',
     empty: 'No log lines.',
@@ -390,6 +396,28 @@ export default {
   },
   chart: {
     reset: 'Reset',
+    zoom: 'Zoom',
+    priceZoomIn: 'Zoom in on price',
+    priceZoomOut: 'Zoom out on price',
+    timeZoomIn: 'Zoom in on time',
+    timeZoomOut: 'Zoom out on time',
+    help: {
+      title: 'Candlestick chart controls',
+      touch: {
+        title: 'Touch',
+        body: 'Drag left or right to browse history and pinch to zoom the time range. Press and hold the chart, then move your finger to inspect individual candles. Drag down on the right price scale to zoom in, or up to zoom out.',
+      },
+      mouse: {
+        title: 'Mouse',
+        body: 'Hover to inspect a candle, drag left or right to browse history, and use the wheel to zoom the time range. Drag the right price axis or bottom time axis to scale it. Double-click an axis to reset it.',
+      },
+      keyboard: {
+        title: 'Keyboard',
+        body: 'Use Tab to focus the chart. Use ← / → to step through candles, ↑ / ↓ to scale prices, and + / − to zoom time. Press Esc to show the latest reading, or Home, Enter, or Space to reset.',
+      },
+      controls:
+        'Use the slider to move the visible time range, or open Zoom to scale the price or time axis. Reset shows all loaded candles and restores automatic price scaling.',
+    },
     open: 'O',
     high: 'H',
     low: 'L',

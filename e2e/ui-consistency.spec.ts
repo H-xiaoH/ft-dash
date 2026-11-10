@@ -44,7 +44,7 @@ test('backend actions keep readable colors and native field focus', async ({ pag
   expect(
     await title.evaluate((element) => parseFloat(getComputedStyle(element).paddingLeft)),
   ).toBeGreaterThanOrEqual(12)
-  await page.getByRole('option', { name: '管理后端', exact: true }).click()
+  await page.getByRole('button', { name: '管理后端', exact: true }).click()
   await expect(backend.locator('.bots__manage')).toBeVisible()
   await backend.getByRole('button', { name: '编辑', exact: true }).first().click()
   const editor = backend.locator('.bots__editor')

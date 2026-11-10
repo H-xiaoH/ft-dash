@@ -45,13 +45,13 @@ describe('locale preference', () => {
     settings.localePreference = 'en'
     await nextTick()
 
-    const stored = JSON.parse(localStorage.getItem('ftdash.settings.v1') ?? '{}')
+    const stored = JSON.parse(localStorage.getItem('ftdash.settings.v2') ?? '{}')
     expect(stored.locale).toBe('en')
 
     // Following the system again must not be pinned to whatever was showing at the time.
     settings.localePreference = 'system'
     await nextTick()
-    expect(JSON.parse(localStorage.getItem('ftdash.settings.v1') ?? '{}').locale).toBe('system')
+    expect(JSON.parse(localStorage.getItem('ftdash.settings.v2') ?? '{}').locale).toBe('system')
   })
 
   it('re-resolves when the system language changes while following it', () => {

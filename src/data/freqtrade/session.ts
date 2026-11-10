@@ -17,7 +17,6 @@ import type {
   LogsResponse,
   PairCandlesResponse,
   PerformanceEntry,
-  ProfitAllResponse,
   ProfitSummary,
   ShowConfigResponse,
   StatusCountResponse,
@@ -37,7 +36,7 @@ const TRADES_PAGE_SIZE = 300
 const BACKGROUND_HEALTH_INTERVAL_MS = 10_000
 
 export type ResourceName =
-  'core' | 'trades' | 'analytics' | 'market' | 'system' | 'health' | 'candles'
+  'core' | 'trades' | 'analytics' | 'market' | 'system' | 'health' | 'historicBalance' | 'candles'
 
 export type ErrorDescription = ReturnType<typeof describeError>
 
@@ -47,7 +46,6 @@ export interface SessionData {
   sysinfo: SysInfoResponse | null
   balance: BalanceResponse | null
   profit: ProfitSummary | null
-  profitAll: ProfitAllResponse | null
   openTrades: Trade[]
   count: StatusCountResponse | null
   trades: Trade[]
@@ -134,7 +132,6 @@ const EMPTY_DATA: SessionData = {
   sysinfo: null,
   balance: null,
   profit: null,
-  profitAll: null,
   openTrades: [],
   count: null,
   trades: [],
@@ -158,6 +155,7 @@ const RESOURCE_NAMES: ResourceName[] = [
   'market',
   'system',
   'health',
+  'historicBalance',
   'candles',
 ]
 
@@ -446,12 +444,19 @@ export class BotSessionController {
     if (!failed) this.state.lastFetchAt = Date.now()
   }
 
+  private connectionAuthErrors() {
+    return Object.entries(this.state.resourceErrors)
+      .filter(([resource]) => resource !== 'historicBalance')
+      .map(([, error]) => error)
+      .filter((error) => error?.key === 'errors.auth')
+  }
+
   private updateConnectionFromResults(results: CallResult<unknown>[], epoch: number): void {
     if (epoch !== this.state.epoch) return
     const failure = preferredTransportError([
       ...results.filter((result) => !result.ok && !result.stale).map((result) => result.error),
       this.state.resourceErrors.core,
-      ...Object.values(this.state.resourceErrors).filter((error) => error?.key === 'errors.auth'),
+      ...this.connectionAuthErrors(),
     ])
     if (failure) {
       const key = failure.key
@@ -497,7 +502,7 @@ export class BotSessionController {
           if (result.ok) apply(result.value)
           else {
             onFailure?.()
-            if (result.error?.key === 'errors.auth') {
+            if (resource !== 'historicBalance' && result.error?.key === 'errors.auth') {
               this.state.resourceErrors[resource] = result.error
               this.updateConnectionFromResults([result], epoch)
             }
@@ -618,20 +623,20 @@ export class BotSessionController {
         (client, options) => client.monthly(24, options),
         (value) => (this.state.data.monthly = value as DailyResponse),
       ],
-      [
-        'analytics.historicBalance',
-        (client, options) => client.historicBalance(options),
-        (value) => (this.state.data.historicBalance = value as HistoricBalanceResponse),
-      ],
-      [
-        'analytics.profitAll',
-        (client, options) => client.profitAll(options),
-        (value) => (this.state.data.profitAll = value as ProfitAllResponse),
-      ],
     ])
     const { generation, results } = group
     const stale = !this.isCurrentGroup('analytics', generation, epoch)
     return summarizeRefresh(epoch, { analytics: results.every((result) => result.ok) }, stale)
+  }
+
+  async refreshHistoricBalance(): Promise<void> {
+    await this.runGroup('historicBalance', this.state.epoch, [
+      [
+        'historicBalance',
+        (client, options) => client.historicBalance(options),
+        (value) => (this.state.data.historicBalance = value as HistoricBalanceResponse),
+      ],
+    ])
   }
 
   async refreshMarket(): Promise<RefreshSummary> {
@@ -850,7 +855,7 @@ export class BotSessionController {
       const requiredError = preferredTransportError([
         this.state.resourceErrors.core,
         this.state.resourceErrors.trades,
-        ...Object.values(this.state.resourceErrors).filter((error) => error?.key === 'errors.auth'),
+        ...this.connectionAuthErrors(),
       ])
       if (requiredError) {
         this.state.errorKey = requiredError

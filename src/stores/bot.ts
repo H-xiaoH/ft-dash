@@ -76,7 +76,6 @@ export const useBotStore = defineStore('bot', () => {
   const sysinfo = computed(() => session.value?.state.data.sysinfo ?? null)
   const balance = computed(() => session.value?.state.data.balance ?? null)
   const profit = computed(() => session.value?.state.data.profit ?? null)
-  const profitAll = computed(() => session.value?.state.data.profitAll ?? null)
   const openTrades = computed(() => session.value?.state.data.openTrades ?? [])
   const count = computed(() => session.value?.state.data.count ?? null)
   const trades = computed(() => session.value?.state.data.trades ?? [])
@@ -120,11 +119,15 @@ export const useBotStore = defineStore('bot', () => {
   const stakeCurrency = computed(() => showConfig.value?.stake_currency ?? 'USDT')
   const fiatCurrency = computed(() => balance.value?.symbol ?? 'USD')
   const isLiveAccount = computed(() => showConfig.value?.dry_run === false)
-  const stakeCurrencyRow = computed(() =>
-    balance.value?.currencies.find((currency) => currency.currency === balance.value?.stake),
-  )
-  const availableBalance = computed(
-    () => stakeCurrencyRow.value?.free ?? balance.value?.total_bot ?? balance.value?.total ?? null,
+  const investmentWallet = computed(() => {
+    const walletCurrency = showConfig.value?.proxy_coin || balance.value?.stake
+    return balance.value?.currencies.find(
+      (wallet) => !wallet.is_position && wallet.currency === walletCurrency,
+    )
+  })
+  const availableBalance = computed(() => investmentWallet.value?.bot_owned ?? null)
+  const availableBalanceCurrency = computed(() =>
+    availableBalance.value === null ? '' : (investmentWallet.value?.currency ?? ''),
   )
   const positionValue = computed(() =>
     (balance.value?.currencies ?? [])
@@ -751,7 +754,6 @@ export const useBotStore = defineStore('bot', () => {
     sysinfo,
     balance,
     profit,
-    profitAll,
     openTrades,
     count,
     trades,
@@ -770,6 +772,7 @@ export const useBotStore = defineStore('bot', () => {
     stakeCurrency,
     fiatCurrency,
     availableBalance,
+    availableBalanceCurrency,
     positionValue,
     winRate,
     tradeOutcomes,
@@ -790,6 +793,7 @@ export const useBotStore = defineStore('bot', () => {
     switchBot,
     removeBot,
     refreshAll,
+    refreshHistoricBalance: () => ensureSession().refreshHistoricBalance(),
     refreshCore,
     refreshSystem,
     resetData,

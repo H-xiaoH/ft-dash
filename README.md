@@ -64,6 +64,7 @@ An installable Vue PWA that talks to your bot directly.</p>
   pair locks. Whitelist amounts are cumulative closed P&L, excluding open positions.
 - 🪵 **Logs** — live bot log with a level filter, search that expands from the toolbar and a
   follow toggle.
+  Scrolling away from the top holds the current log window. Choose "Back to Latest" to catch up.
 - 🖥️ **System** — CPU/RAM/load, heartbeat lag warning, process uptime, the effective config
   (strategy, exchange, trading mode, stake mode).
 - 🔔 **Alerts** — optional system notifications for fills, warnings, exceptions, a shutdown
@@ -102,6 +103,8 @@ While the tab is visible, regular data groups poll at the interval set under Set
 (1 second by default). Regular polling pauses when the tab is hidden. If alerts are enabled,
 background health checks are attempted independently every 10 seconds. On the visible Market
 page, candles refresh 30 seconds after a successful request and retry 1 second after a failure.
+Historic equity refreshes on entering or returning to the visible Overview, every 60 seconds
+while it remains visible, and on manual refresh. The current equity point uses the regular balance data.
 Requests already in flight are shared per resource group; a slow health or analytics response
 does not block trading data, connection startup, or retrying completed groups.
 
@@ -179,11 +182,11 @@ and choose "Manage backends" to add, edit or delete entries. Only one backend is
 connected to a live stream at a time. Switching resets search, filters, paging and open detail
 drawers.
 
-- Bots live in this browser only. Passwords stay in the current tab (sessionStorage) unless
-  "remember on this device" is on, which writes them to localStorage.
-- The UI never shows the active bot's name while you browse; only the confirmation dialogs of
-  **write actions** (force exit, start/stop) name the bot they are about to touch. The single
-  "bot controls" master switch still governs all of them.
+- By default, credentials stay in the current tab. Turning off "remember on this device"
+  removes passwords and stream tokens from long-term storage and keeps sessions in updated tabs.
+  After upgrading, refresh or close any tabs or installed windows still running an older build.
+- When there are at least two backends and the top bar has room, it shows the active backend and
+  a shortcut to "Manage backends". Confirmations for **write actions** name the affected backend.
 - Every row has "Test connection", which probes that bot on its own client without disturbing
   the active connection.
 
@@ -218,9 +221,10 @@ from. Add it to the Freqtrade config and restart the bot:
 ```
 
 Include `http://localhost:5173` while developing locally. If you would rather not widen the
-CORS list, use the dev proxy instead (see `.env.example`): point `VITE_API_BASE_DEFAULT` at
+CORS list, use the local proxy with Vite dev or preview (see `.env.example`): point `VITE_API_BASE_DEFAULT` at
 `/ft-api` and set `FT_DEV_PROXY_TARGET` to the origin serving `/api/v1` in a git-ignored
-`.env.local`.
+`.env.local`. To add a second backend in Settings, use `/ft-api-secondary` and set
+`FT_DEV_PROXY_SECONDARY_TARGET` to its origin.
 
 ## 🔐 Authentication
 
@@ -263,7 +267,8 @@ are documented in [`.env.example`](.env.example):
 | --- | --- |
 | `VITE_API_BASE_DEFAULT` | Pre-fills the API address on the connect screen. Leave empty for a public build. |
 | `VITE_BASE` | Public path the app is served from (`/<repo>/` on Pages, `/` for a root domain). |
-| `FT_DEV_PROXY_TARGET` | Dev-only proxy target so `npm run dev` can reach an API whose CORS list does not include `localhost:5173`. |
+| `FT_DEV_PROXY_TARGET` | Local dev and preview proxy target for `/ft-api`. |
+| `FT_DEV_PROXY_SECONDARY_TARGET` | Optional second local proxy target for `/ft-api-secondary`. |
 
 Never commit a real host, username or password: `.env*` files are git-ignored.
 
@@ -286,7 +291,7 @@ Never commit a real host, username or password: `.env*` files are git-ignored.
 
 Built against **Freqtrade 2026.9 / API v2.5** and verified end to end against a live futures
 instance. It reads `/ping`, `/show_config`, `/health`, `/sysinfo`, `/balance`,
-`/profit`, `/profit_all`, `/status`, `/count`, `/trades`, `/performance`, `/stats`,
+`/profit`, `/historic_balance`, `/status`, `/count`, `/trades`, `/performance`, `/stats`,
 `/daily`, `/weekly`, `/monthly`, `/logs`, `/whitelist`, `/blacklist`, `/locks` and
 `/pair_candles`, and posts to `/start`, `/stop`, `/stopentry`, `/reload_config`, `/forceexit`,
 `/blacklist` and `/locks/delete` when controls are enabled.

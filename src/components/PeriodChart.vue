@@ -1,50 +1,24 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { use } from 'echarts/core'
+import { format as echartsFormat, use } from 'echarts/core'
 import { BarChart, LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, AriaComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsOption } from 'echarts'
 import VChart from 'vue-echarts'
 import { useFormat } from '@/composables/useFormat'
-import type { DailyEntry, HistoricBalanceResponse } from '@/lib/types'
+import type { PeriodRow } from '@/lib/period-equity'
 
 use([BarChart, LineChart, GridComponent, TooltipComponent, AriaComponent, CanvasRenderer])
 const props = defineProps<{
-  entries: DailyEntry[]
-  history: HistoricBalanceResponse | null
-  currentEquity: number | null
-  period: 'daily' | 'weekly' | 'monthly'
+  entries: PeriodRow[]
   stake: string
   height: number
 }>()
 const { t } = useI18n()
 const format = useFormat()
-const rows = computed(() => props.entries.slice(0, 30).reverse())
-const equities = computed(() => {
-  const history = props.history
-  const timeIndex = history?.columns.indexOf('__date_ts') ?? -1
-  const equityIndex = history?.columns.indexOf('total_quote') ?? -1
-  const samples = (history?.data ?? [])
-    .map((row) => ({ time: Number(row[timeIndex]), value: Number(row[equityIndex]) }))
-    .filter(
-      (row) =>
-        Number.isFinite(row.time) &&
-        Number.isFinite(row.value) &&
-        row.time >= (history?.capture_start_ts ?? 0),
-    )
-    .sort((a, b) => a.time - b.time)
-  return rows.value.map((row) => {
-    const start = Date.parse(`${row.date}T00:00:00Z`)
-    const endDate = new Date(start)
-    if (props.period === 'monthly') endDate.setUTCMonth(endDate.getUTCMonth() + 1)
-    else endDate.setUTCDate(endDate.getUTCDate() + (props.period === 'weekly' ? 7 : 1))
-    const end = endDate.getTime()
-    if (start <= Date.now() && end > Date.now()) return props.currentEquity
-    return samples.findLast((sample) => sample.time >= start && sample.time < end)?.value ?? null
-  })
-})
+const rows = computed(() => [...props.entries].reverse())
 const option = computed<EChartsOption>(() => ({
   animation: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   animationDurationUpdate: 180,
@@ -78,21 +52,26 @@ const option = computed<EChartsOption>(() => ({
   ],
   tooltip: {
     trigger: 'axis',
-    renderMode: 'richText',
+    renderMode: 'html',
+    className: 'period-tooltip',
     confine: true,
+    extraCssText: 'box-sizing:border-box;max-width:100%;white-space:normal;overflow-wrap:anywhere;',
     backgroundColor: '#2B2930',
     borderColor: '#49454F',
     textStyle: { color: '#E6E0E9' },
     formatter: (params: unknown) => {
       const index = (params as { dataIndex: number }[])[0]?.dataIndex
       const row = index === undefined ? undefined : rows.value[index]
-      if (!row || index === undefined) return ''
+      if (!row) return ''
+      const escape = echartsFormat.encodeHTML
+      const equity = `${t('kpi.equity')} ${format.money(row.equity, props.stake)}`
+      const profit = `${t('trades.profit')} ${format.signedMoney(row.abs_profit, props.stake)}`
       return [
-        format.day(row.date),
-        `${t('kpi.equity')} ${format.money(equities.value[index], props.stake)}`,
-        `${t('trades.profit')} ${format.signedMoney(row.abs_profit, props.stake)} (${format.ratio(row.rel_profit)})`,
-        `${t('stats.tradeCount')} ${row.trade_count}`,
-      ].join('\n')
+        `<div>${escape(format.day(row.date))}</div>`,
+        `<div>${escape(equity)}</div>`,
+        `<div>${escape(profit)} <span class="period-tooltip__ratio">(${escape(format.ratio(row.rel_profit))})</span></div>`,
+        `<div>${escape(`${t('stats.tradeCount')} ${row.trade_count}`)}</div>`,
+      ].join('')
     },
   },
   series: [
@@ -100,7 +79,7 @@ const option = computed<EChartsOption>(() => ({
       name: t('kpi.equity'),
       type: 'line',
       yAxisIndex: 0,
-      data: equities.value,
+      data: rows.value.map((row) => row.equity),
       z: 3,
       symbol: 'circle',
       symbolSize: 4,
@@ -137,5 +116,9 @@ const option = computed<EChartsOption>(() => ({
 .period-chart {
   width: 100%;
   min-width: 0;
+}
+.period-chart :deep(.period-tooltip__ratio) {
+  display: inline-block;
+  max-width: 100%;
 }
 </style>
