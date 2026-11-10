@@ -11,7 +11,6 @@ import StatusStrip from '@/components/StatusStrip.vue'
 import ConnectView from '@/views/ConnectView.vue'
 import PageSwiper from '@/components/PageSwiper.vue'
 import { useToasts } from '@/composables/useToast'
-import { applyPwaUpdate, updateAvailable } from '@/pwa'
 import { NAV_ROUTES, MORE_ROUTE } from '@/router'
 import { useBotStore } from '@/stores/bot'
 import { useSettingsStore } from '@/stores/settings'
@@ -140,7 +139,8 @@ watch(
 
 <template>
   <VApp>
-    <VLayout :class="{ shell: !showConnect && !restoring }">
+    <VLayout :class="showConnect || restoring ? 'flex-column' : 'shell'">
+      <GlobalNotices v-if="showConnect || restoring" standalone />
       <ConnectView v-if="showConnect" />
 
       <div v-else-if="restoring" class="booting flex-grow-1" role="status" aria-live="polite">
@@ -183,35 +183,11 @@ watch(
         @update:model-value="!$event && dismissToast(toast.id)"
         @click="dismissToast(toast.id)"
       />
-
-      <VBanner
-        v-if="updateAvailable"
-        class="update-prompt"
-        :icon="ICON_PATHS.refresh"
-        :text="t('notices.updateAvailable')"
-        color="primary"
-        bg-color="surface"
-        role="status"
-      >
-        <template #actions>
-          <VBtn variant="flat" color="primary" @click="applyPwaUpdate">{{
-            t('notices.applyUpdate')
-          }}</VBtn>
-        </template>
-      </VBanner>
     </VLayout>
   </VApp>
 </template>
 
 <style scoped>
-.update-prompt {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + var(--sp-3));
-  inset-inline: var(--sp-4);
-  z-index: 61;
-  box-shadow: 0 12px 30px rgb(0 0 0 / 45%);
-}
-
 /* Held for the few hundred milliseconds a stored sign-in takes. */
 .booting {
   min-height: 100vh;

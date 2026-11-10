@@ -1,5 +1,6 @@
 import { createServer } from 'node:http'
 import { expect, test } from '@playwright/test'
+import { connect, mockApi } from './support/fixtures'
 
 test.use({ serviceWorkers: 'allow' })
 
@@ -38,21 +39,43 @@ test('each tab reloads only after confirming the available PWA update', async ({
   if (!address || typeof address === 'string') throw new Error('Missing preview port')
   const url = `http://127.0.0.1:${address.port}/`
   try {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await mockApi(page, { staleHeartbeat: true })
     await page.goto(url)
     await page.evaluate(async () => {
       await navigator.serviceWorker.ready
     })
     await page.reload()
+    await connect(page)
+    const heartbeat = page.locator('.global-notices .v-alert').filter({ hasText: '心跳延迟' })
+    await expect(heartbeat).toBeVisible()
     const second = await context.newPage()
     await second.goto(url)
     await expect.poll(() => second.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true)
 
     revision = 2
     await second.reload()
-    const firstUpdate = page.getByRole('button', { name: '更新', exact: true })
-    const secondUpdate = second.getByRole('button', { name: '更新', exact: true })
+    const firstNotice = page.locator('.global-notices .v-alert').filter({
+      hasText: '有新版本可用',
+    })
+    const secondNotice = second.locator('.global-notices--standalone .v-alert')
+    const firstUpdate = firstNotice.getByRole('button', { name: '立即更新', exact: true })
+    const secondUpdate = secondNotice.getByRole('button', { name: '立即更新', exact: true })
     await expect(firstUpdate).toBeVisible()
     await expect(secondUpdate).toBeVisible()
+    await expect(firstNotice).toHaveClass(/text-info/)
+    await expect(heartbeat).toHaveClass(/text-warning/)
+    const body = firstNotice.getByText('更新后将重新载入此页面。', { exact: true })
+    const [warningBox, noticeBox, bodyBox, buttonBox] = await Promise.all(
+      [heartbeat, firstNotice, body, firstUpdate].map((item) => item.boundingBox()),
+    )
+    expect(noticeBox!.width).toBe(warningBox!.width)
+    expect(noticeBox!.y).toBeGreaterThanOrEqual(warningBox!.y + warningBox!.height)
+    expect(buttonBox!.x).toBeCloseTo(bodyBox!.x)
+    expect(buttonBox!.y).toBeGreaterThanOrEqual(bodyBox!.y + bodyBox!.height)
+    const loginBox = await second.locator('.connect').boundingBox()
+    const standaloneBox = await secondNotice.boundingBox()
+    expect(loginBox!.y).toBeGreaterThanOrEqual(standaloneBox!.y + standaloneBox!.height)
 
     // Keep a transient value in the document to detect any unsolicited reload.
     await page.evaluate(() => {

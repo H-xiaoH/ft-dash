@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ref } from 'vue'
 import { i18n } from '@/i18n'
 
 /**
@@ -21,7 +22,9 @@ const bot = rawBot
 vi.mock('@/stores/bot', () => ({ useBotStore: () => bot, HEARTBEAT_STALE_MS: 30_000 }))
 vi.mock('@/stores/events', () => ({ useEventsStore: () => rawEvents }))
 vi.mock('@/stores/settings', () => ({ useSettingsStore: () => rawSettings }))
+vi.mock('@/pwa', () => ({ updateAvailable: ref(false), applyPwaUpdate: vi.fn() }))
 
+const { updateAvailable, applyPwaUpdate } = await import('@/pwa')
 const GlobalNotices = (await import('@/components/GlobalNotices.vue')).default
 
 describe('GlobalNotices', () => {
@@ -35,6 +38,8 @@ describe('GlobalNotices', () => {
     })
     Object.assign(rawEvents, { status: 'off' })
     rawSettings.websocket = false
+    updateAvailable.value = false
+    vi.clearAllMocks()
   })
 
   const mountNotices = () => mount(GlobalNotices, { global: { plugins: [i18n] } })
@@ -54,6 +59,32 @@ describe('GlobalNotices', () => {
     expect(wrapper.find('.text-warning').exists()).toBe(true)
     expect(wrapper.text()).toContain(i18n.global.t('notices.heartbeatTitle'))
     expect(wrapper.text()).toContain(i18n.global.t('system.lagging'))
+  })
+
+  it('shows the informational update after the heartbeat warning and applies it on click', async () => {
+    rawBot.connection = 'online'
+    rawBot.heartbeatAgeMs = 30_001
+    updateAvailable.value = true
+    const wrapper = mountNotices()
+    const [warning, update] = wrapper.findAll('.v-alert')
+
+    expect(warning.classes()).toContain('text-warning')
+    expect(update.classes()).toContain('text-info')
+    expect(update.text()).toContain('The page will reload after updating.')
+    expect(applyPwaUpdate).not.toHaveBeenCalled()
+    await update.get('button').trigger('click')
+    expect(applyPwaUpdate).toHaveBeenCalledOnce()
+  })
+
+  it('only displays the update notice before reaching the main interface', () => {
+    updateAvailable.value = true
+    const wrapper = mount(GlobalNotices, {
+      props: { standalone: true },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.findAll('.v-alert')).toHaveLength(1)
+    expect(wrapper.get('.v-alert').classes()).toContain('text-info')
   })
 
   it('says nothing about a rejected session, which goes back to the sign-in form', () => {

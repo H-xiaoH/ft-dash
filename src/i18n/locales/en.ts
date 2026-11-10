@@ -107,7 +107,8 @@ export default {
   },
   notices: {
     updateAvailable: 'A new version is available',
-    applyUpdate: 'Update',
+    updateReload: 'The page will reload after updating.',
+    applyUpdate: 'Update now',
     title: 'System notices',
     heartbeatTitle: 'Heartbeat delay',
     autoRetry: 'Retrying automatically.',

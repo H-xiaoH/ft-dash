@@ -105,7 +105,8 @@ export default {
   },
   notices: {
     updateAvailable: '有新版本可用',
-    applyUpdate: '更新',
+    updateReload: '更新后将重新载入此页面。',
+    applyUpdate: '立即更新',
     title: '系统提示',
     heartbeatTitle: '心跳延迟',
     autoRetry: '正在自动重试。',
