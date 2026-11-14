@@ -83,7 +83,7 @@ const option = computed<EChartsOption>(() => ({
       z: 3,
       symbol: 'circle',
       symbolSize: 4,
-      connectNulls: false,
+      connectNulls: true,
       lineStyle: { color: '#FFE082', width: 2 },
       itemStyle: { color: '#FFE082' },
     },

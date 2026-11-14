@@ -7,6 +7,7 @@ import { RATIO_BANDS, type RatioKey } from '@/lib/ratios'
 const props = defineProps<{
   /** Which ratio to explain; `null` keeps the dialog closed. */
   ratio: RatioKey | null
+  activator?: HTMLElement
 }>()
 const emit = defineEmits<{ close: [] }>()
 
@@ -14,16 +15,15 @@ const { t } = useI18n()
 const titleId = useId()
 
 const open = computed(() => props.ratio !== null)
-const title = computed(() => (props.ratio ? t(`stats.ratios.${props.ratio}.name`) : ''))
-const activator = shallowRef<HTMLElement>()
+// Keep the explanation mounted until the dialog's leave animation finishes.
+const displayedRatio = shallowRef(props.ratio)
+const title = computed(() =>
+  displayedRatio.value ? t(`stats.ratios.${displayedRatio.value}.name`) : '',
+)
 watch(
-  () => props.ratio !== null,
-  (open) => {
-    if (open) {
-      const active = document.activeElement
-      activator.value =
-        active instanceof HTMLElement && active !== document.body ? active : undefined
-    }
+  () => props.ratio,
+  (ratio) => {
+    if (ratio) displayedRatio.value = ratio
   },
   { immediate: true },
 )
@@ -32,13 +32,14 @@ watch(
 <template>
   <VDialog
     :activator="activator"
+    :target="activator"
     :open-on-click="false"
     :model-value="open"
     max-width="480"
     :aria-labelledby="titleId"
     @update:model-value="!$event && emit('close')"
   >
-    <VCard v-if="ratio" class="ratios">
+    <VCard v-if="displayedRatio" class="ratios">
       <VCardItem>
         <template #title
           ><span :id="titleId" class="text-wrap">{{ title }}</span></template
@@ -50,9 +51,9 @@ watch(
         </template>
       </VCardItem>
       <VCardText class="dialog__body">
-        <p>{{ t(`stats.ratios.${ratio}.plain`) }}</p>
+        <p>{{ t(`stats.ratios.${displayedRatio}.plain`) }}</p>
         <p class="ratios__bench">
-          {{ t(`stats.ratios.${ratio}.bench`, { ...RATIO_BANDS[ratio] }) }}
+          {{ t(`stats.ratios.${displayedRatio}.bench`, { ...RATIO_BANDS[displayedRatio] }) }}
         </p>
         <p class="ratios__caveat">{{ t('stats.ratios.caveat') }}</p>
       </VCardText>

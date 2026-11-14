@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import MetricTile from '@/components/MetricTile.vue'
@@ -46,6 +46,12 @@ const rows = computed<PairStats[]>(() => {
 const pairPage = ref(1)
 /** Each ratio tile opens the explanation for that ratio alone. */
 const guideFor = ref<RatioKey | null>(null)
+const guideActivator = shallowRef<HTMLElement>()
+
+function openGuide(ratio: RatioKey, event: MouseEvent) {
+  guideActivator.value = event.currentTarget as HTMLElement
+  guideFor.value = ratio
+}
 
 /** The four ratios, in the order the tiles show them. */
 const RATIO_KEYS: RatioKey[] = ['sharpe', 'sqn', 'sortino', 'calmar']
@@ -206,7 +212,7 @@ function durationFromSeconds(seconds: number | null | undefined) {
           :tone="tile.tone"
           interactive
           :aria-label="`${tile.name} — ${t('stats.ratios.open')}`"
-          @click="guideFor = tile.key"
+          @click="openGuide(tile.key, $event)"
       /></VCol>
       <VCol cols="6" sm="4" lg="2"
         ><MetricTile
@@ -334,6 +340,10 @@ function durationFromSeconds(seconds: number | null | undefined) {
       </VCardText>
     </VCard>
 
-    <RatioGuide :ratio="route.name === 'stats' ? guideFor : null" @close="guideFor = null" />
+    <RatioGuide
+      :ratio="route.name === 'stats' ? guideFor : null"
+      :activator="guideActivator"
+      @close="guideFor = null"
+    />
   </div>
 </template>

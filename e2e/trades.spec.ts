@@ -1,14 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { settlePages } from './support/gestures'
 import type { Trade } from '../src/lib/types'
-import {
-  connect,
-  enableWriteAccess,
-  livePage,
-  mockApi,
-  RESPONSES,
-  selectionMatches,
-} from './support/fixtures'
+import { connect, enableWriteAccess, livePage, mockApi, RESPONSES } from './support/fixtures'
 
 const TRADE_COUNTS_TEST = 'trade tab counts describe the same loaded trades as the list'
 
@@ -38,54 +31,38 @@ test('the trade pair button opens its details from the keyboard', async ({ page 
   await expect(page.locator('.trade-dialog .trade-detail')).toContainText('OPEN/USDT')
 })
 
-test('switching trade filters transitions the result and announces its scope', async ({ page }) => {
+test('switching trade filters reveals rows downwards and keeps the header mounted', async ({
+  page,
+}) => {
   const tabs = livePage(page).locator('.v-btn-toggle .v-btn')
-  const status = livePage(page).locator('[data-filter-status]')
-
-  await expect(status).toContainText('全部交易')
-  await expect(livePage(page).locator('.v-btn-toggle .v-btn--active')).toHaveCount(1)
-  await expect
-    .poll(() => selectionMatches(livePage(page).locator('.v-btn-toggle').first()))
-    .toBe(true)
-  await expect(livePage(page).locator('[data-swipe-tabs]')).toHaveCount(0)
+  const header = livePage(page).locator('table thead')
+  await header.evaluate((element) => element.setAttribute('data-kept-header', 'yes'))
   await page.evaluate(() => {
-    const frames: { opacity: number; translateY: number }[] = []
-    ;(
-      window as unknown as {
-        __tradeFilterFrames?: { opacity: number; translateY: number }[]
-      }
-    ).__tradeFilterFrames = frames
+    const clips: string[] = []
+    ;(window as unknown as { __tradeClips: string[] }).__tradeClips = clips
     const started = performance.now()
     const tick = () => {
       const content = document.querySelector('[data-filter-content]')
-      if (content) {
-        const style = getComputedStyle(content)
-        const transform = style.transform
-        frames.push({
-          opacity: content.getBoundingClientRect().height,
-          translateY: transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42,
-        })
-      }
-      if (performance.now() - started < 700) requestAnimationFrame(tick)
+      if (content) clips.push(getComputedStyle(content).clipPath)
+      if (performance.now() - started < 800) requestAnimationFrame(tick)
     }
     requestAnimationFrame(tick)
   })
-
+  const top = (await header.boundingBox())!.y
   await tabs.nth(1).click()
-  await expect(tabs.nth(1)).toHaveAttribute('aria-pressed', 'true')
-  await expect
-    .poll(() => selectionMatches(livePage(page).locator('.v-btn-toggle').first()))
-    .toBe(true)
   await expect(livePage(page).locator('table tbody tr')).toHaveCount(4)
-  await expect(status).toHaveText('已平仓，显示 4 笔交易。')
-  await page.waitForTimeout(400)
-
-  const frames = await page.evaluate(
-    () =>
-      (window as unknown as { __tradeFilterFrames?: { opacity: number; translateY: number }[] })
-        .__tradeFilterFrames ?? [],
-  )
-  expect(new Set(frames.map(({ opacity }) => Math.round(opacity))).size > 1).toBe(true)
+  await expect(header).toHaveAttribute('data-kept-header', 'yes')
+  expect((await header.boundingBox())!.y).toBeCloseTo(top)
+  await expect(livePage(page).locator('[data-filter-status]')).toHaveText('已平仓，显示 4 笔交易。')
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (window as unknown as { __tradeClips: string[] }).__tradeClips.some(
+          (clip) => clip.startsWith('inset(0px 0px ') && clip !== 'inset(0px 0px 0px)',
+        ),
+      ),
+    )
+    .toBe(true)
 })
 
 test('a horizontal swipe on trade results stays a page navigation', async ({ page }) => {
