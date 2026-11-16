@@ -153,7 +153,7 @@ function durationFromSeconds(seconds: number | null | undefined) {
 
 <template>
   <div class="d-flex flex-column ga-4">
-    <VRow dense class="metric-grid stats__summary">
+    <VRow density="compact" class="metric-grid stats__summary">
       <VCol cols="6" sm="4" lg="2"
         ><MetricTile
           :label="t('kpi.closedPnl')"

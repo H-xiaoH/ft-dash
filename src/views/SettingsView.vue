@@ -68,7 +68,7 @@ async function clearData() {
   <div class="d-flex flex-column ga-4 settings">
     <BotsPanel v-if="route.name === 'settings'" />
 
-    <VRow dense class="settings__columns">
+    <VRow density="compact" class="settings__columns">
       <VCol cols="12" lg="6" class="d-flex flex-column ga-4">
         <VCard tag="section" class="panel">
           <VCardItem class="panel__head">

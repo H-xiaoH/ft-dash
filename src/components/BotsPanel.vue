@@ -31,7 +31,8 @@ const bot = useBotStore()
 const form = ref<BotForm | null>(null)
 const nameTouched = ref(false)
 const saving = ref(false)
-const testing = ref<string | null>(null)
+const testing = ref(new Set<string>())
+const testControllers = new Map<string, AbortController>()
 /** Last manual probe result, kept per bot so it survives the toast. */
 const testResult = ref<Record<string, 'ok'>>({})
 const removeTarget = ref<Bot | null>(null)
@@ -53,6 +54,8 @@ const {
 let disposed = false
 onBeforeUnmount(() => {
   disposed = true
+  for (const controller of testControllers.values()) controller.abort()
+  testControllers.clear()
 })
 
 watch(
@@ -217,27 +220,58 @@ async function submit() {
   }
 }
 
+watch(
+  () =>
+    settings.bots.map(({ id, baseUrl, username, password }) => ({
+      id,
+      baseUrl,
+      username,
+      password,
+    })),
+  (current, previous) => {
+    for (const old of previous ?? []) {
+      const next = current.find((entry) => entry.id === old.id)
+      if (next && sameConnectionIdentity(next, old) && next.password === old.password) continue
+      testControllers.get(old.id)?.abort()
+      delete testResult.value[old.id]
+    }
+  },
+  { flush: 'sync' },
+)
+
 /** Probes one bot on its own client so the active connection is left alone. */
 async function testConnection(entry: Bot) {
+  if (disposed || testing.value.has(entry.id)) return
+  const identity = { baseUrl: entry.baseUrl, username: entry.username, password: entry.password }
   if (!entry.password) {
     pushToast(t('bots.testNeedsPassword'), 'bad')
     return
   }
-  testing.value = entry.id
+  testing.value.add(entry.id)
+  const controller = new AbortController()
+  testControllers.set(entry.id, controller)
   const localDataRevision = settings.localDataRevision
-  const isCurrent = () => !disposed && settings.isLocalDataRevisionCurrent(localDataRevision)
+  const isCurrent = () => {
+    const current = settings.bots.find((item) => item.id === entry.id)
+    return (
+      !disposed &&
+      !controller.signal.aborted &&
+      settings.isLocalDataRevisionCurrent(localDataRevision) &&
+      !!current &&
+      sameConnectionIdentity(current, identity) &&
+      current.password === identity.password
+    )
+  }
   const nextResult = { ...testResult.value }
   delete nextResult[entry.id]
   testResult.value = nextResult
   try {
     const api = new FreqtradeApiClient({
-      baseUrl: entry.baseUrl,
-      username: entry.username,
-      password: entry.password,
+      ...identity,
     })
-    await api.ping()
+    await api.ping({ signal: controller.signal })
     if (!isCurrent()) return
-    await api.showConfig()
+    await api.showConfig({ signal: controller.signal })
     if (!isCurrent()) return
     testResult.value = { ...testResult.value, [entry.id]: 'ok' }
     pushToast(t('bots.testOk'), 'good')
@@ -246,7 +280,8 @@ async function testConnection(entry: Bot) {
     const described = describeError(error)
     pushToast(t(described.key, described.params ?? {}), 'bad')
   } finally {
-    testing.value = null
+    testing.value.delete(entry.id)
+    testControllers.delete(entry.id)
   }
 }
 

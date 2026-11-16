@@ -1,4 +1,5 @@
 import { WS_AUTH_UNSUPPORTED_STATUS } from '@/data/freqtrade'
+import type { WsMessage } from '@/lib/types'
 
 /**
  * Decides how the live stream authenticates.
@@ -98,4 +99,24 @@ export const STREAM_FAILURE_LIMIT = 3
 
 export function nextRetryDelay(attempt: number): number {
   return Math.min(60_000, 1_500 * 2 ** Math.min(Math.max(attempt, 1), 6))
+}
+
+/** Validate untrusted frames before they reach event formatting and notifications. */
+export function parseStreamMessage(raw: string): WsMessage | null {
+  let value: unknown
+  try {
+    value = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const message = value as Record<string, unknown>
+  if (typeof message.type !== 'string' || !message.type.trim()) return null
+  if (
+    'data' in message &&
+    (!message.data || typeof message.data !== 'object' || Array.isArray(message.data))
+  ) {
+    return null
+  }
+  return { type: message.type, data: message.data as Record<string, unknown> | undefined }
 }

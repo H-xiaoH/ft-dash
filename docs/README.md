@@ -27,6 +27,10 @@
 
 ## specs
 
+- [review-remediation](specs/review-remediation.md) — 数据边界和状态修复、交易虚拟表格、日期缓存及区域组件拆分
+
+- [test-stability](specs/test-stability.md) — 市场弹层测试等待布局稳定、K 线浮点尾差与 Vuetify／路由警告清理
+
 ### 数据、后端与运行可靠性
 
 - [refresh-readiness](specs/refresh-readiness.md) — 核心就绪、独立健康检查与按资源组去重，连接不等待可选数据

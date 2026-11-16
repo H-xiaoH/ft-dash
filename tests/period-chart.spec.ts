@@ -1,3 +1,4 @@
+import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -72,4 +73,31 @@ describe('period equity samples', () => {
     )
     expect(option.series[0].data).toEqual([220, 999])
   })
+})
+
+it('updates animation when reduced-motion preference changes after mount', async () => {
+  let listener: ((event: { matches: boolean }) => void) | undefined
+  const media = {
+    matches: false,
+    media: '(prefers-reduced-motion: reduce)',
+    addEventListener: (_: string, fn: (event: { matches: boolean }) => void) => {
+      listener = fn
+    },
+    removeEventListener: vi.fn(),
+  }
+  vi.stubGlobal('matchMedia', () => media)
+  const wrapper = mount(PeriodChart, {
+    props: { entries: [], stake: 'USDT', height: 220 },
+    global: { plugins: [i18n, createPinia()] },
+  })
+  try {
+    expect(wrapper.findComponent({ name: 'Chart' }).props('option').animation).toBe(true)
+    media.matches = true
+    listener?.({ matches: true })
+    await nextTick()
+    expect(wrapper.findComponent({ name: 'Chart' }).props('option').animation).toBe(false)
+  } finally {
+    wrapper.unmount()
+    vi.unstubAllGlobals()
+  }
 })

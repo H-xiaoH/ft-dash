@@ -22,6 +22,26 @@ function jsonResponse(body: unknown, status = 200): Response {
   })
 }
 
+function tradeResponse(enter_tag?: unknown) {
+  return {
+    trade_id: 1,
+    pair: 'BTC/USDT',
+    base_currency: 'BTC',
+    quote_currency: 'USDT',
+    is_open: true,
+    exchange: 'okx',
+    amount: 1,
+    stake_amount: 10,
+    strategy: 's',
+    fee_open: 0.001,
+    open_date: '2026-11-16T00:00:00Z',
+    open_timestamp: 1,
+    open_rate: 10,
+    open_trade_value: 10,
+    enter_tag,
+  }
+}
+
 describe('normalizeBaseUrl', () => {
   it('adds the scheme and /api/v1 path', () => {
     expect(normalizeBaseUrl('bot.example.com')).toBe('https://bot.example.com/api/v1')
@@ -232,6 +252,45 @@ describe('FreqtradeApi', () => {
       kind: 'http',
       status: 502,
       detail: 'Error querying /api/v1/count: trader is not running',
+    })
+  })
+
+  it.each([42, false, {}, []].map((enter_tag) => ({ enter_tag })))(
+    'rejects invalid trade enter_tag $enter_tag at the API boundary',
+    async ({ enter_tag }) => {
+      const trade = tradeResponse(enter_tag)
+      vi.mocked(fetch).mockResolvedValueOnce(jsonResponse([trade]))
+      const api = new FreqtradeApiClient(credentials)
+      await expect(api.status()).rejects.toMatchObject({
+        kind: 'parse',
+        detail: 'response[0].enter_tag: expected a string or null',
+      })
+    },
+  )
+
+  it.each(['signal', '', null, undefined].map((enter_tag) => ({ enter_tag })))(
+    'accepts nullable or omitted trade enter_tag $enter_tag',
+    async ({ enter_tag }) => {
+      vi.mocked(fetch).mockResolvedValueOnce(jsonResponse([tradeResponse(enter_tag)]))
+      const api = new FreqtradeApiClient(credentials)
+      const trades = await api.status()
+      expect(trades[0]?.enter_tag).toBe(enter_tag)
+    },
+  )
+
+  it('validates enter_tag in closed-trade pages too', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({
+        trades: [tradeResponse(42)],
+        trades_count: 1,
+        offset: 0,
+        total_trades: 1,
+      }),
+    )
+    const api = new FreqtradeApiClient(credentials)
+    await expect(api.trades()).rejects.toMatchObject({
+      kind: 'parse',
+      detail: 'response.trades[0].enter_tag: expected a string or null',
     })
   })
 

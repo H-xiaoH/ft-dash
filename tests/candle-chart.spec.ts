@@ -22,6 +22,18 @@ beforeEach(() => {
   chartApi.timeScale.setVisibleLogicalRange({ from: 0, to: 39 })
 })
 describe('Lightweight Charts adapter', () => {
+  it('normalizes floating-point residue when all candles fit without losing fractional scrolling', async () => {
+    const wrapper = render()
+    const updateRange = chartApi.timeScale.subscribeVisibleLogicalRangeChange.mock
+      .lastCall![0] as (range: { from: number; to: number }) => void
+    updateRange({ from: 0, to: 38.99999999999999 })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('[role="slider"]').attributes('aria-valuemax')).toBe('0')
+
+    updateRange({ from: 0, to: 38.75 })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('[role="slider"]').attributes('aria-valuemax')).toBe('0.25')
+  })
   it('passes OHLC in time order and enables exchange-style gestures', () => {
     render()
     expect(chartApi.series.setData).toHaveBeenCalledWith(

@@ -52,7 +52,7 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
 
 <template>
   <div class="d-flex flex-column ga-4">
-    <VRow dense class="metric-grid">
+    <VRow density="compact" class="metric-grid">
       <VCol cols="6" sm="4" lg="2"
         ><MetricTile
           :label="t('system.cpu')"
@@ -124,7 +124,7 @@ async function runSimple(action: () => Promise<unknown>, label: string) {
       /></VCol>
     </VRow>
 
-    <VRow dense class="grid-2">
+    <VRow density="compact" class="grid-2">
       <!-- Moved here from the overview; uptime itself is already in the tiles above. -->
       <VCol cols="12" md="6"
         ><VCard tag="section" class="panel">

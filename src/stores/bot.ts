@@ -14,6 +14,7 @@ import {
   classifyJwtFailure,
   nextRetryDelay,
   planStreamAuth,
+  parseStreamMessage,
   STREAM_FAILURE_LIMIT,
   type JwtFailure,
   type StreamAuthMode,
@@ -568,12 +569,8 @@ export const useBotStore = defineStore('bot', () => {
 
   function handleStreamMessage(socket: WebSocket, epoch: number, attempt: number, raw: unknown) {
     if (!isCurrentSocket(socket, epoch, attempt) || typeof raw !== 'string') return
-    let parsed: WsMessage
-    try {
-      parsed = JSON.parse(raw) as WsMessage
-    } catch {
-      return
-    }
+    const parsed = parseStreamMessage(raw)
+    if (!parsed) return
     const currentSession = session.value
     if (!currentSession) return
     events.ingest(parsed, { botId: currentSession.state.botId, epoch })

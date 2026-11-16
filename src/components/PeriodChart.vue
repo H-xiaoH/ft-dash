@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { format as echartsFormat, use } from 'echarts/core'
 import { BarChart, LineChart } from 'echarts/charts'
@@ -18,9 +19,10 @@ const props = defineProps<{
 }>()
 const { t } = useI18n()
 const format = useFormat()
+const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 const rows = computed(() => [...props.entries].reverse())
 const option = computed<EChartsOption>(() => ({
-  animation: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  animation: !reducedMotion.value,
   animationDurationUpdate: 180,
   aria: { enabled: true, label: { description: t('stats.period') } },
   grid: { top: 28, bottom: 24, left: 66, right: 56 },

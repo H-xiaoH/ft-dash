@@ -250,6 +250,7 @@ function parseTrade(value: unknown, context: ParseContext, field = 'response'): 
   required(object, 'open_rate', isNumber, context, 'a number', field)
   required(object, 'open_trade_value', isNumber, context, 'a number', field)
   optional(object, 'is_short', isBoolean, context, 'a boolean', field)
+  optional(object, 'enter_tag', isNullableString, context, 'a string or null', field)
   if ('orders' in object) {
     array(object, 'orders', context, 'an array of orders', (item, orderField) =>
       parseApiOrder(item, context, orderField),

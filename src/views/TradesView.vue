@@ -7,7 +7,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
 import SortMenu from '@/components/SortMenu.vue'
 import SearchToggle from '@/components/SearchToggle.vue'
-import SideBadge from '@/components/SideBadge.vue'
+import TradeTable from '@/components/trades/TradeTable.vue'
 import TradeDetail from '@/components/TradeDetail.vue'
 import { useFormat } from '@/composables/useFormat'
 import { pushToast } from '@/composables/useToast'
@@ -304,116 +304,18 @@ watch(
         <div class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-filter-status>
           {{ filterStatus }}
         </div>
-        <div class="table-wrap progressive-table">
-          <VDataTable
-            v-model:page="page"
-            :items="rows"
-            :headers="tableHeaders"
-            :sort-by="tableSort"
-            :items-per-page="pageSize === 0 ? -1 : pageSize"
-            item-value="trade_id"
-            hide-default-header
-            hide-default-body
-            hide-default-footer
-            class="table table--clickable"
-            :no-data-text="t('empty.table')"
-          >
-            <template #thead
-              ><thead>
-                <tr>
-                  <th scope="col">{{ t('trades.pair') }}</th>
-                  <th scope="col" class="side-col">{{ t('trades.side') }}</th>
-                  <th scope="col" class="num col-extra-2">{{ t('trades.stake') }}</th>
-                  <th scope="col" class="num col-extra-3">{{ t('trades.entryPrice') }}</th>
-                  <th scope="col" class="num col-extra-3">{{ t('trades.currentPrice') }}</th>
-                  <th scope="col" class="num">{{ t('trades.profit') }}</th>
-                  <th scope="col" class="num col-extra-1">{{ t('trades.duration') }}</th>
-                  <th scope="col" class="num col-extra-3">{{ t('trades.openDate') }}</th>
-                  <th scope="col" class="num col-extra-4">{{ t('trades.closeDate') }}</th>
-                </tr>
-              </thead></template
-            >
-            <template #tbody="{ items }">
-              <Transition name="trade-filter" mode="out-in">
-                <tbody :key="filter" data-filter-content>
-                  <tr v-if="!items.length">
-                    <td :colspan="tableHeaders.length" class="text-center">
-                      {{ t('empty.table') }}
-                    </td>
-                  </tr>
-                  <tr v-for="trade in items" :key="trade.trade_id" @click="openTrade(trade)">
-                    <td>
-                      <div class="table__pair">
-                        <span
-                          class="table__side"
-                          :class="trade.is_short ? 'table__side--short' : 'table__side--long'"
-                        />
-                        <VBtn
-                          type="button"
-                          class="num table__pair-action"
-                          variant="text"
-                          color="on-surface"
-                          height="auto"
-                          rounded="0"
-                          @click.stop="openTrade(trade)"
-                        >
-                          {{ trade.pair }}
-                        </VBtn>
-                        <VChip
-                          v-if="trade.is_open"
-                          size="x-small"
-                          variant="tonal"
-                          color="primary"
-                          >{{ t('trades.open') }}</VChip
-                        >
-                      </div>
-                    </td>
-                    <td class="side-col"><SideBadge :is-short="trade.is_short" /></td>
-                    <td class="num col-extra-2">{{ format.money(trade.stake_amount, stake) }}</td>
-                    <td class="num col-extra-3">{{ format.price(trade.open_rate) }}</td>
-                    <td class="num col-extra-3">
-                      {{ format.price(trade.current_rate ?? trade.close_rate ?? null) }}
-                    </td>
-                    <td
-                      class="num"
-                      :class="format.toneClass(trade.profit_ratio ?? trade.close_profit)"
-                    >
-                      {{
-                        format.signedMoney(
-                          trade.profit_abs ?? trade.close_profit_abs ?? null,
-                          stake,
-                        )
-                      }}
-                      <div class="small muted">
-                        {{ format.ratio(trade.profit_ratio ?? trade.close_profit) }}
-                      </div>
-                    </td>
-                    <td class="num col-extra-1">{{ format.duration(durationOf(trade)) }}</td>
-                    <td class="num col-extra-3">{{ format.dateTime(trade.open_timestamp) }}</td>
-                    <td class="num col-extra-4">
-                      {{ format.dateTime(trade.close_timestamp ?? null) }}
-                    </td>
-                  </tr>
-                </tbody>
-              </Transition>
-            </template>
-            <template #bottom="{ pageCount, items }">
-              <VCardActions class="panel__pager">
-                <span class="panel__meta num">{{
-                  t('common.showing', { shown: items.length, total: rows.length })
-                }}</span>
-                <VPagination
-                  v-model="page"
-                  :length="pageCount"
-                  :total-visible="3"
-                  size="small"
-                  density="compact"
-                  class="ml-auto"
-                />
-              </VCardActions>
-            </template>
-          </VDataTable>
-        </div>
+        <TradeTable
+          v-model:page="page"
+          :rows="rows"
+          :headers="tableHeaders"
+          :sort-by="tableSort"
+          :page-size="pageSize"
+          :filter="filter"
+          :reset-key="`${filter}:${search}:${result}:${sortKey}:${sortDir}`"
+          :stake="stake"
+          :duration-of="durationOf"
+          @open="openTrade"
+        />
       </VCardText>
     </VCard>
 
@@ -449,32 +351,6 @@ watch(
 @media not all and (min-width: 720px) {
   .panel__actions {
     gap: var(--sp-1);
-  }
-}
-
-.trade-filter-enter-active {
-  transition:
-    clip-path 220ms cubic-bezier(0.2, 0, 0, 1),
-    opacity 220ms ease;
-}
-.trade-filter-enter-from {
-  clip-path: inset(0 0 100% 0);
-  opacity: 0;
-}
-.trade-filter-enter-to {
-  clip-path: inset(0);
-  opacity: 1;
-}
-.trade-filter-leave-active {
-  transition: opacity 80ms ease;
-}
-.trade-filter-leave-to {
-  opacity: 0;
-}
-@media (prefers-reduced-motion: reduce) {
-  .trade-filter-enter-active,
-  .trade-filter-leave-active {
-    transition: none;
   }
 }
 

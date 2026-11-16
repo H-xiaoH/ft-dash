@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
+import BotList from '@/components/BotList.vue'
+import { FreqtradeApiClient } from '@/data/freqtrade'
 import BotsPanel from '@/components/BotsPanel.vue'
 import FilterMenu, { type FilterOption } from '@/components/FilterMenu.vue'
 import ConnectView from '@/views/ConnectView.vue'
@@ -45,6 +47,76 @@ function answerProbe(ok = true) {
 describe('BotsPanel', () => {
   let router: Router
   const renderPanel = () => mount(BotsPanel, { global: { plugins: [i18n, router] } })
+  it('tracks concurrent probes per backend and ignores changed identities', async () => {
+    const settings = useSettingsStore()
+    const first = settings.addBot({
+      name: 'First',
+      baseUrl: 'https://a.example',
+      username: 'a',
+      password: 'one',
+    })
+    const second = settings.addBot({
+      name: 'Second',
+      baseUrl: 'https://b.example',
+      username: 'b',
+      password: 'two',
+    })
+    const a = deferred<{ status: string }>()
+    const b = deferred<{ status: string }>()
+    const ping = vi
+      .spyOn(FreqtradeApiClient.prototype, 'ping')
+      .mockReturnValueOnce(a.promise)
+      .mockReturnValueOnce(b.promise)
+    const config = vi
+      .spyOn(FreqtradeApiClient.prototype, 'showConfig')
+      .mockResolvedValue({} as never)
+    const wrapper = renderPanel()
+    try {
+      wrapper.findComponent(FilterMenu).vm.$emit('action')
+      await nextTick()
+      const list = wrapper.findComponent(BotList)
+      list.vm.$emit('test', first)
+      list.vm.$emit('test', second)
+      list.vm.$emit('test', first)
+      await nextTick()
+      expect(ping).toHaveBeenCalledTimes(2)
+      for (const row of wrapper.findAll('.bots__row'))
+        expect(row.findAll('button')[1]!.attributes('disabled')).toBeDefined()
+      settings.updateBot(first.id, { password: 'changed' })
+      a.resolve({ status: 'pong' })
+      await flushPromises()
+      expect(config).not.toHaveBeenCalled()
+      b.resolve({ status: 'pong' })
+      await flushPromises()
+      expect(config).toHaveBeenCalledTimes(1)
+      expect(list.props('testResult')).toEqual({ [second.id]: 'ok' })
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('aborts pending manual probes when unmounted', async () => {
+    const entry = useSettingsStore().addBot({
+      name: 'First',
+      baseUrl: 'https://a.example',
+      username: 'a',
+      password: 'one',
+    })
+    const pending = deferred<{ status: string }>()
+    const ping = vi.spyOn(FreqtradeApiClient.prototype, 'ping').mockReturnValue(pending.promise)
+    const config = vi.spyOn(FreqtradeApiClient.prototype, 'showConfig')
+    const wrapper = renderPanel()
+    wrapper.findComponent(FilterMenu).vm.$emit('action')
+    await nextTick()
+    wrapper.findComponent(BotList).vm.$emit('test', entry)
+    const signal = ping.mock.calls[0]?.[0]?.signal
+    wrapper.unmount()
+    expect(signal?.aborted).toBe(true)
+    pending.resolve({ status: 'pong' })
+    await flushPromises()
+    expect(config).not.toHaveBeenCalled()
+  })
+
   it('confirms removal in a modal and prevents repeat submission while pending', async () => {
     const settings = useSettingsStore()
     settings.addBot({ name: 'First', baseUrl: 'https://a.example', username: 'a', password: 'one' })

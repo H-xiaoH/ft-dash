@@ -276,6 +276,7 @@ test('a position cost line updates without replacing the chart or changing its s
 
 test('the pair popup stays inside a phone-width viewport', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 })
+  await settlePages(page)
   await livePage(page).locator('.panel').first().locator('.filter-menu__button').click()
 
   const [list, viewport] = await Promise.all([

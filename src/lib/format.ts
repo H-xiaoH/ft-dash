@@ -197,6 +197,21 @@ function dateFromTimestamp(value: Numberish): Date | null {
   return Number.isFinite(date.getTime()) ? date : null
 }
 
+// A bounded LRU prevents repeated row formatting from rebuilding Intl instances.
+const dateFormatters = new Map<string, Intl.DateTimeFormat>()
+const DATE_FORMATTER_CACHE_LIMIT = 64
+function dateFormatter(locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = JSON.stringify([locale, options])
+  let formatter = dateFormatters.get(key)
+  if (formatter) dateFormatters.delete(key)
+  else formatter = new Intl.DateTimeFormat(locale, options)
+  dateFormatters.set(key, formatter)
+  if (dateFormatters.size > DATE_FORMATTER_CACHE_LIMIT) {
+    dateFormatters.delete(dateFormatters.keys().next().value!)
+  }
+  return formatter
+}
+
 export function formatDateTime(
   value: Numberish,
   locale = 'en',
@@ -205,7 +220,7 @@ export function formatDateTime(
 ): string {
   const date = dateFromTimestamp(value)
   if (!date) return fallback
-  return new Intl.DateTimeFormat(locale, {
+  return dateFormatter(locale, {
     dateStyle: 'medium',
     timeStyle: 'short',
     /*
@@ -225,8 +240,8 @@ export function formatDateTimeParts(
   const date = dateFromTimestamp(value)
   if (!date) return { date: fallback, time: '' }
   return {
-    date: new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone }).format(date),
-    time: new Intl.DateTimeFormat(locale, { timeStyle: 'short', timeZone }).format(date),
+    date: dateFormatter(locale, { dateStyle: 'medium', timeZone }).format(date),
+    time: dateFormatter(locale, { timeStyle: 'short', timeZone }).format(date),
   }
 }
 
@@ -237,7 +252,7 @@ export function formatDateTimeParts(
 export function formatDay(value: Numberish, locale = 'en', fallback = '—'): string {
   const date = dateFromTimestamp(value)
   if (!date) return fallback
-  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(date)
+  return dateFormatter(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(date)
 }
 
 /** Short "MM-DD HH:mm" stamp in the viewer's own timezone, for chart readouts. */
@@ -249,7 +264,7 @@ export function formatShortStamp(
 ): string {
   const date = dateFromTimestamp(value)
   if (!date) return fallback
-  return new Intl.DateTimeFormat(locale, {
+  return dateFormatter(locale, {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',

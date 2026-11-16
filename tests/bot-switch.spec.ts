@@ -754,6 +754,59 @@ describe('switching bots', () => {
     bot.cleanup()
   })
 
+  it('ignores invalid websocket frames and processes the next valid event', async () => {
+    const settings = addTestBots()
+    settings.websocket = true
+    settings.streamAuth = 'ws_token'
+    settings.wsToken = 'shared-token'
+    FakeWebSocket.reset()
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+    vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
+      const url = String(input)
+      return Promise.resolve(
+        jsonResponse(url.includes('/show_config') ? showConfig('FirstBot') : {}),
+      )
+    })
+    const bot = useBotStore()
+    const events = useEventsStore()
+    try {
+      await bot.connect()
+      await flushPromises()
+      const socket = FakeWebSocket.instances[0]!
+      socket.emit('open')
+      events.clear()
+      for (const raw of [
+        '',
+        '{',
+        'null',
+        '[]',
+        '1',
+        '"text"',
+        'true',
+        '{}',
+        '{"type":42}',
+        '{"type":""}',
+        '{"type":[]}',
+        '{"type":"warning","data":null}',
+        '{"type":"warning","data":[]}',
+        '{"type":"warning","data":"text"}',
+        '{"type":"warning","data":1}',
+      ]) {
+        expect(() => socket.emit('message', { data: raw })).not.toThrow()
+      }
+      expect(events.events).toHaveLength(0)
+      socket.emit('message', {
+        data: JSON.stringify({ type: 'warning', data: { msg: 'valid event' } }),
+      })
+      expect(events.events).toHaveLength(1)
+      expect(events.events[0]).toMatchObject({ type: 'warning', subject: 'valid event' })
+      socket.emit('message', { data: JSON.stringify({ type: 'startup' }) })
+      expect(events.events[0]?.type).toBe('startup')
+    } finally {
+      bot.cleanup()
+    }
+  })
+
   it('drops a stale request failure after switching bots', async () => {
     const settings = addTestBots()
 

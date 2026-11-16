@@ -91,7 +91,12 @@ const visibleCount = computed(() =>
     ? Math.max(1, logicalRange.value.to - logicalRange.value.from)
     : data.value.length,
 )
-const maxStart = computed(() => Math.max(0, data.value.length - 1 - visibleCount.value))
+const maxStart = computed(() => {
+  const remaining = data.value.length - 1 - visibleCount.value
+  // fitContent can leave a few floating-point units of residue; a fully visible range cannot scroll.
+  const tolerance = Number.EPSILON * Math.max(1, data.value.length) * 4
+  return remaining <= tolerance ? 0 : remaining
+})
 const start = computed(() => Math.max(0, logicalRange.value?.from ?? 0))
 
 function setStart(value: number) {

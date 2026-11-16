@@ -18,6 +18,48 @@ import {
 } from '@/lib/format'
 
 describe('format helpers', () => {
+  it('reuses date formatters for identical options and separates locales and time zones', async () => {
+    vi.resetModules()
+    const helpers = await import('@/lib/format')
+    const spy = vi.spyOn(Intl, 'DateTimeFormat')
+    try {
+      const value = '2026-09-21T19:28:22Z'
+      const first = helpers.formatDateTimeParts(value, 'en', '—', 'UTC')
+      expect(helpers.formatDateTimeParts(value, 'en', '—', 'UTC')).toEqual(first)
+      expect(spy).toHaveBeenCalledTimes(2)
+      expect(helpers.formatDateTimeParts(value, 'en', '—', 'Asia/Shanghai')).not.toEqual(first)
+      expect(helpers.formatDateTimeParts(value, 'zh-CN', '—', 'UTC')).not.toEqual(first)
+      expect(spy).toHaveBeenCalledTimes(6)
+      helpers.formatDateTime(value, 'en', '—', 'UTC')
+      helpers.formatDateTime(value, 'en', '—', 'UTC')
+      helpers.formatDay(value, 'en')
+      helpers.formatShortStamp(value, 'en', '—', 'UTC')
+      helpers.formatShortStamp(value, 'en', '—', 'UTC')
+      expect(spy).toHaveBeenCalledTimes(8)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('bounds the date formatter cache across changing time zones', async () => {
+    vi.resetModules()
+    const helpers = await import('@/lib/format')
+    const spy = vi.spyOn(Intl, 'DateTimeFormat')
+    try {
+      const value = '2026-09-21T19:28:22Z'
+      helpers.formatDateTime(value, 'en', '—', 'UTC')
+      for (const zone of Intl.supportedValuesOf('timeZone').slice(0, 70)) {
+        helpers.formatDateTime(value, 'en', '—', zone)
+      }
+      const count = spy.mock.calls.length
+      helpers.formatDateTime(value, 'en', '—', 'UTC')
+      expect(spy).toHaveBeenCalledTimes(count + 1)
+      helpers.formatDateTime(value, 'en', '—', 'UTC')
+      expect(spy).toHaveBeenCalledTimes(count + 1)
+    } finally {
+      spy.mockRestore()
+    }
+  })
   it('treats nullish and non-numeric values as missing', () => {
     expect(toNumber(null)).toBeNull()
     expect(toNumber(undefined)).toBeNull()

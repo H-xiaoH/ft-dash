@@ -9,7 +9,7 @@ import type { Bot } from '@/lib/bots'
 const props = defineProps<{
   bots: Bot[]
   activeBotId: string
-  testing: string | null
+  testing: ReadonlySet<string>
   testResult: Record<string, 'ok'>
 }>()
 const emit = defineEmits<{
@@ -115,7 +115,7 @@ function keyboard(event: KeyboardEvent, id: string) {
           <VBtn
             type="button"
             :color="testResult[entry.id] === 'ok' ? 'success' : undefined"
-            :disabled="testing === entry.id"
+            :disabled="testing.has(entry.id)"
             @click="emit('test', entry)"
           >
             <AppIcon name="wifi" />{{

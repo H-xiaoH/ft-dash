@@ -16,7 +16,7 @@ const bots: Bot[] = ['first', 'second', 'third'].map((id) => ({
 }))
 const setup = (onReorder?: (ids: string[]) => void) =>
   mount(BotList, {
-    props: { bots, activeBotId: 'first', testing: null, testResult: {}, onReorder },
+    props: { bots, activeBotId: 'first', testing: new Set<string>(), testResult: {}, onReorder },
     attachTo: document.body,
     global: { plugins: [i18n] },
   })

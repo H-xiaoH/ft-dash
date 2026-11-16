@@ -71,12 +71,22 @@ test('zero shows all loaded trades and survives a reload', async ({ page }) => {
   await input.blur()
   await expect(input).toHaveValue('0')
   await page.locator('.rail__item').nth(1).click()
-  await expect(livePage(page).locator('table tbody tr')).toHaveCount(46)
-  await expect(livePage(page).locator('.panel__pager').locator('[aria-current="true"]')).toHaveText(
-    '1',
-  )
+  const expectAllAccessible = async () => {
+    const table = livePage(page).locator('[data-trade-table="virtual"]')
+    await expect(table).toBeVisible()
+    await expect(table.locator('.panel__pager')).toContainText('46')
+    const rows = table.locator('tbody tr[data-trade-id]')
+    await expect.poll(() => rows.count()).toBeGreaterThan(0)
+    expect(await rows.count()).toBeLessThan(46)
+    await table.locator('.v-table__wrapper').evaluate((element) => {
+      element.scrollTop = element.scrollHeight
+    })
+    await expect(table.getByRole('button', { name: 'P45/USDT', exact: true })).toBeVisible()
+    await expect(table.locator('.panel__pager [aria-current="true"]')).toHaveCount(0)
+  }
+  await expectAllAccessible()
   await page.reload()
-  await expect(livePage(page).locator('table tbody tr')).toHaveCount(46)
+  await expectAllAccessible()
   await page.locator('.rail__item').nth(6).click()
   const restored = livePage(page).getByRole('spinbutton', { name: '交易每页条数', exact: true })
   await expect(restored).toHaveValue('0')

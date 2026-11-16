@@ -134,7 +134,7 @@ async function submit() {
               autocomplete="url"
               spellcheck="false"
             />
-            <VRow dense>
+            <VRow density="compact">
               <VCol cols="12" sm="6"
                 ><VTextField
                   v-model="username"

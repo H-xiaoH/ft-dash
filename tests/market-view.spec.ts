@@ -6,6 +6,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/i18n'
 import CandleChart from '@/components/CandleChart.vue'
 import FilterMenu from '@/components/FilterMenu.vue'
+import MarketPairLists from '@/components/market/MarketPairLists.vue'
 import type { PairCandlesResponse } from '@/lib/types'
 
 const { rawBot } = vi.hoisted(() => ({
@@ -64,7 +65,10 @@ function response(pair: string): PairCandlesResponse {
 async function makeRouter() {
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: '/market', name: 'market', component: { template: '<div />' } }],
+    routes: [
+      { path: '/market', name: 'market', component: { template: '<div />' } },
+      { path: '/elsewhere', name: 'elsewhere', component: { template: '<div />' } },
+    ],
   })
   await router.push('/market')
   await router.isReady()
@@ -219,6 +223,22 @@ describe('MarketView', () => {
     }
   })
 
+  it('keeps pair-list selection as an event and lets the page request the selected chart', async () => {
+    const router = await makeRouter()
+    const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })
+    try {
+      await nextTick()
+      const lists = wrapper.findComponent(MarketPairLists)
+      const row = lists.findAll('tbody tr').find((row) => row.text().includes('BBB/USDT'))!
+      await row.trigger('click')
+      expect(lists.emitted('selectPair')).toEqual([['BBB/USDT']])
+      expect(pending.at(-1)?.pair).toBe('BBB/USDT')
+      expect(lists.props('selectedPair')).toBe('BBB/USDT')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   it('requests the initially selected pair only once', async () => {
     const router = await makeRouter()
     const wrapper = mount(MarketView, { global: { plugins: [i18n, router] } })
@@ -321,6 +341,29 @@ describe('MarketView', () => {
     } finally {
       wrapper.unmount()
       vi.useRealTimers()
+    }
+  })
+
+  it('clears loading when switching from a pending request to fresh cached candles', async () => {
+    const router = await makeRouter()
+    const wrapper = mount(MarketView, {
+      global: { plugins: [i18n, router], stubs: { CandleChart: true } },
+    })
+    try {
+      await nextTick()
+      pending[0]?.resolve(response('AAA/USDT'))
+      await flushPromises()
+      wrapper.findComponent(FilterMenu).vm.$emit('update:modelValue', 'BBB/USDT')
+      await nextTick()
+      expect(wrapper.get('.market__plot').attributes('aria-busy')).toBe('true')
+      wrapper.findComponent(FilterMenu).vm.$emit('update:modelValue', 'AAA/USDT')
+      await nextTick()
+      expect(wrapper.get('.market__plot').attributes('aria-busy')).toBe('false')
+      pending[1]?.resolve(null)
+      await flushPromises()
+      expect(wrapper.get('.market__plot').attributes('aria-busy')).toBe('false')
+    } finally {
+      wrapper.unmount()
     }
   })
 

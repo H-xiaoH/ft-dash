@@ -80,9 +80,11 @@ test('a horizontal swipe on trade results stays a page navigation', async ({ pag
   const box = (await row.boundingBox())!
   const x = box.x + box.width * 0.8
   const y = box.y + box.height / 2
+  // Cross the long-swipe threshold even when a busy browser takes over 300ms for the drag.
+  const pageWidth = (await page.locator('.page-swiper').boundingBox())!.width
   await page.mouse.move(x, y)
   await page.mouse.down()
-  await page.mouse.move(x - box.width * 0.5, y, { steps: 12 })
+  await page.mouse.move(x - pageWidth * 0.65, y, { steps: 12 })
   await page.mouse.up()
 
   await expect.poll(() => page.url()).toMatch(/#\/stats$/)
@@ -548,4 +550,40 @@ test('CSV export follows the table sort in both directions', async ({ page }, te
   await livePage(page).getByRole('button', { name: '改为升序', exact: true }).click()
   await expect(livePage(page).locator('tbody tr').first()).toContainText('-0.2000')
   expect(await exportIds('ascending.csv')).toEqual([2, 99, 4, 3, 1])
+})
+
+test('all trades virtualizes a large history and opens the final row', async ({ page }) => {
+  await mockApi(page, { tradeCount: 2000 })
+  await page.evaluate(() => {
+    const key = 'ftdash.settings.v2'
+    const settings = JSON.parse(localStorage.getItem(key) ?? '{}')
+    localStorage.setItem(key, JSON.stringify({ ...settings, tradesPerPage: 0 }))
+  })
+  await page.reload()
+  const table = livePage(page).locator('[data-trade-table="virtual"]')
+  await expect(table).toBeVisible()
+  await expect(livePage(page).locator('[data-filter-status]')).toContainText('2000')
+  await expect(table.locator('thead th')).toHaveCount(9)
+  const scroll = table.locator('.v-table__wrapper')
+  expect(await scroll.evaluate((element) => element.clientHeight)).toBeLessThanOrEqual(560)
+  const rows = table.locator('tbody tr[data-trade-id]')
+  await expect.poll(() => rows.count()).toBeGreaterThan(0)
+  expect(await rows.count()).toBeLessThan(100)
+  await scroll.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+  await expect(table.getByRole('button', { name: 'P2000/USDT', exact: true })).toBeVisible()
+  expect(await rows.count()).toBeLessThan(100)
+  await livePage(page).getByRole('button', { name: '改为升序', exact: true }).click()
+  await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(0)
+  await expect(rows.first()).toContainText('P01/USDT')
+  await livePage(page).getByRole('button', { name: '搜索', exact: true }).click()
+  const search = livePage(page).getByRole('searchbox', { name: '搜索交易对' })
+  await search.fill('no-such-pair')
+  await expect(rows).toHaveCount(0)
+  await expect(table).toContainText('没有符合条件的记录')
+  await search.fill('P2000')
+  await expect(rows).toHaveCount(1)
+  await table.getByRole('button', { name: 'P2000/USDT', exact: true }).click()
+  await expect(page.locator('.trade-dialog .trade-detail')).toContainText('P2000/USDT')
 })
